@@ -1,0 +1,88 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        Int        @id @default(autoincrement())
+  email     String     @unique
+  name      String
+  password  String
+  roleId    Int
+  role      Role       @relation(fields: [roleId], references: [id])
+  createdAt DateTime   @default(now())
+  createdPesticides       Pesticide[] @relation("CreatedBy")   // Add this reverse relation
+  updatedPesticides       Pesticide[] @relation("LastUpdatedBy") // Add this reverse relation
+
+}
+
+model Role {
+  id          Int           @id @default(autoincrement())
+  name        String        @unique
+  permissions RolePermission[]
+  users       User[]
+}
+
+model Permission {
+  id          Int           @id @default(autoincrement())
+  name        String        @unique
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  id          Int       @id @default(autoincrement())
+  roleId      Int
+  permissionId Int
+  role        Role      @relation(fields: [roleId], references: [id])
+  permission  Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([roleId, permissionId]) // Ensure no duplicate role-permission pairs
+}
+
+
+model Pesticide {
+  id                      Int        @id @default(autoincrement())
+  name                   String     @unique
+  registrationNumber      String     @unique
+  activeAgent             String
+  manufacturerOfRegistrant String
+  localAgent              String
+  published               Boolean    @default(false)  // Default value set to false
+  createdAt               DateTime   @default(now())
+  lastUpdatedAt           DateTime?
+  createdById             Int?
+  lastUpdatedById         Int?
+  createdBy               User?        @relation("CreatedBy", fields: [createdById], references: [id])
+  lastUpdatedBy           User?        @relation("LastUpdatedBy", fields: [lastUpdatedById], references: [id])
+} 
+
+model Pest {
+  id                      Int        @id @default(autoincrement())
+  name                    String     @unique
+  scientificName          String     @unique
+  kingdom                 String
+  phylum                  String?
+  genus                   String
+  family                  String
+  published               Boolean    @default(false)  
+  createdAt               DateTime   @default(now())
+  lastUpdatedAt           DateTime?
+  createdById             Int?
+  lastUpdatedById         Int?
+} 
+
+model County {
+  id                      Int        @id @default(autoincrement())
+  name                    String     @unique
+  isActive                Boolean    @default(false)  
+  createdAt               DateTime   @default(now())
+  lastUpdatedAt           DateTime?
+  createdById             Int?
+  lastUpdatedById         Int?
+} 
+
+

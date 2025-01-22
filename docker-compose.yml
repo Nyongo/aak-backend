@@ -1,0 +1,22 @@
+version: '3.9'
+services:
+  postgres:
+    image: postgres:14
+    container_name: postgres_container
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: NyNj92
+      POSTGRES_DB: nest
+    ports:
+      - "5433:5432"
+
+  nestjs_app:
+    build:
+      context: .
+    container_name: nestjs_app
+    environment:
+      DATABASE_URL: postgresql://postgres:NyNj92@postgres:5432/nest
+    depends_on:
+      - postgres
+    ports:
+      - "3000:3000"

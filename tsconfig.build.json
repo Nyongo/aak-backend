@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./",  // Set rootDir to the root of your project
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES6",
+    "module": "CommonJS"
+  },
+  "include": [
+    "src/**/*",
+    "prisma/**/*"  // Explicitly include the prisma folder
+  ],
+  "exclude": [
+    "node_modules",
+    "test",
+    "dist",
+    "**/*spec.ts"
+  ]
+}
