@@ -16,13 +16,13 @@ import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { PermissionsGuard } from 'src/auth/permission.guard';
 
 @Controller('users')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+//@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post()
   @HttpCode(200)
-  @Permissions('can_create_user')
+  // @Permissions('can_create_user')
   async create(@Body() data: Prisma.UserCreateInput) {
     return this.usersService.create(data);
   }
