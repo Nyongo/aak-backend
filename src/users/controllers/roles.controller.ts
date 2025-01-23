@@ -16,26 +16,26 @@ import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { RolesService } from '../services/roles.service';
 
 @Controller('roles')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+//@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class RolesController {
   constructor(private readonly service: RolesService) {}
 
   @Post()
   @HttpCode(200)
-  @Permissions('can_create_role')
-  async create(@Body() data: Prisma.RoleCreateInput) {
+  // @Permissions('can_create_role')
+  async create(@Body() data: any) {
     return this.service.create(data);
   }
 
   @Get()
-  @Permissions('can_view_roles')
+  // @Permissions('can_view_roles')
   async findAll(@Request() req) {
     const page = Number(req.query.page) || 1;
     const pageSize = Number(req.query.pageSize) || 10;
     return this.service.findAll(page, pageSize);
   }
   @Get(':id')
-  @Permissions('can_view_roles')
+  // @Permissions('can_view_roles')
   async findOne(@Param('id') id: string) {
     return this.service.findOne(Number(id));
   }
