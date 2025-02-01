@@ -2,25 +2,41 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { User, Permission } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import * as crypto from 'crypto';
 import { CommonFunctionsService } from 'src/common/services/common-functions.service';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { MailService } from 'src/common/services/mail.service';
+import { ChangePasswordDto } from './dtos/change-password.dto';
 
 @Injectable()
 export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly commonFunctions: CommonFunctionsService,
+    private readonly mailService: MailService,
   ) {}
 
   async create(createUserDto: any) {
-    const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
     try {
+      if (!createUserDto.email || !createUserDto.name) {
+        return this.commonFunctions.returnFormattedResponse(
+          HttpStatus.BAD_REQUEST,
+          'Missing required fields: email or name.',
+          null,
+        );
+      }
+
+      const generatedPassword = crypto.randomBytes(6).toString('hex');
+
+      const hashedPassword = await bcrypt.hash(generatedPassword, 10);
+
       const newUser = await this.prisma.user.create({
         data: {
           email: createUserDto.email,
           name: createUserDto.name,
           password: hashedPassword,
-          roleId: createUserDto.roleId,
+          roleId: createUserDto.roleId || null,
+          isActive: createUserDto.isActive,
         },
         select: {
           id: true,
@@ -30,41 +46,34 @@ export class UsersService {
           role: true,
         },
       });
-      if (newUser)
-        return this.commonFunctions.returnFormattedResponse(
-          200,
-          'Created Successfully',
-          newUser,
-        );
+
+      this.mailService.sendPasswordEmail(newUser.email, generatedPassword);
+
+      return this.commonFunctions.returnFormattedResponse(
+        HttpStatus.OK,
+        'User created successfully. Password sent via email.',
+        newUser,
+      );
     } catch (e) {
       if (e instanceof PrismaClientKnownRequestError) {
-        // Handle specific error types
         if (e.code === 'P2002') {
-          // Unique constraint violation
           return this.commonFunctions.returnFormattedResponse(
-            400,
+            HttpStatus.BAD_REQUEST,
             `The email ${createUserDto.email} is already in use.`,
             null,
           );
         }
-        // Handle other Prisma errors as needed
-        return this.commonFunctions.returnFormattedResponse(
-          500,
-          `An error occurred: ${e.message}`,
-          null,
-        );
       }
 
-      // Handle unknown errors
       console.error('Unknown error:', e);
-      return {
-        statusCode: 500,
-        message: 'Internal server error.',
-      };
+      return this.commonFunctions.returnFormattedResponse(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'Internal server error.',
+        null,
+      );
     }
   }
 
-  // Get user roles and permissions
   async findOne(id: number): Promise<any> {
     try {
       const user = await this.prisma.user.findUnique({
@@ -106,22 +115,18 @@ export class UsersService {
     }
   }
 
-  // Update user details
   async update(id: number, updateUserDto: any): Promise<any> {
     try {
-      // Only allow updates to name, roleId (excluding email and password)
       const { email, password, ...updateData } = updateUserDto;
 
-      // Validate if the user is trying to update email or password
       if (email || password) {
         return this.commonFunctions.returnFormattedResponse(
-          400,
+          HttpStatus.BAD_REQUEST,
           'Email and password cannot be updated.',
           null,
         );
       }
 
-      // Proceed with the update, excluding sensitive fields
       const updatedUser = await this.prisma.user.update({
         where: { id },
         data: updateData,
@@ -136,7 +141,7 @@ export class UsersService {
       });
 
       return this.commonFunctions.returnFormattedResponse(
-        200,
+        HttpStatus.OK,
         'User updated successfully',
         updatedUser,
       );
@@ -149,7 +154,6 @@ export class UsersService {
     }
   }
 
-  // Assign roles to a user
   async assignRoleToUser(userId: number, roleId: number): Promise<User> {
     return this.prisma.user.update({
       where: { id: userId },
@@ -158,10 +162,7 @@ export class UsersService {
       },
     });
   }
-
-  // Get all users with their roles
   async findAll(page: number = 1, pageSize: number = 10) {
-    console.log('pagination:', page, pageSize);
     try {
       const skip = (page - 1) * pageSize;
       const take = pageSize;
@@ -169,6 +170,20 @@ export class UsersService {
         this.prisma.user.findMany({
           skip,
           take,
+          orderBy: {
+            id: 'desc',
+          },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            isActive: true,
+            lastLoggedInOn: true,
+            createdAt: true,
+            requirePasswordReset: true,
+            roleId: true,
+            role: true,
+          },
         }),
         this.prisma.user.count(),
       ]);
@@ -196,7 +211,6 @@ export class UsersService {
     }
   }
 
-  // Get permissions of a specific role
   async findRolePermissions(roleId: number): Promise<Permission[]> {
     const role = await this.prisma.role.findUnique({
       where: { id: roleId },
@@ -210,5 +224,58 @@ export class UsersService {
     });
 
     return role?.permissions.map((rp) => rp.permission) || [];
+  }
+
+  async changePassword(dto: any) {
+    const { id, currentPassword, newPassword, repeatNewPassword } = dto;
+
+    // Validate if new passwords match
+    if (newPassword !== repeatNewPassword) {
+      return this.commonFunctions.returnFormattedResponse(
+        HttpStatus.BAD_REQUEST,
+        'New Passwords do not match.',
+        null,
+      );
+    }
+
+    // Fetch the user
+    const user = await this.prisma.user.findUnique({
+      where: { id: id },
+    });
+    if (!user) {
+      return this.commonFunctions.returnFormattedResponse(
+        HttpStatus.NOT_FOUND,
+        'User Not Found.',
+        null,
+      );
+    }
+
+    // Compare current password
+    const passwordMatches = await bcrypt.compare(
+      currentPassword,
+      user.password,
+    );
+    if (!passwordMatches) {
+      return this.commonFunctions.returnFormattedResponse(
+        HttpStatus.BAD_REQUEST,
+        'Current Password Is Incorrect.',
+        null,
+      );
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password in the database
+    await this.prisma.user.update({
+      where: { id: dto.id },
+      data: { password: hashedPassword },
+    });
+
+    return this.commonFunctions.returnFormattedResponse(
+      HttpStatus.OK,
+      'Password Changed Successfully.',
+      null,
+    );
   }
 }

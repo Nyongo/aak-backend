@@ -161,7 +161,20 @@ export class PermissionsService {
   async findPermissionsByRole(roleId: number) {
     return this.prisma.role.findUnique({
       where: { id: roleId },
-      include: { permissions: true }, // Assuming a `permissions` relation exists
+      include: {
+        permissions: {
+          include: {
+            permission: true,
+          },
+        },
+        users: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+          },
+        },
+      },
     });
   }
   // Get permissions of a specific role
@@ -245,5 +258,148 @@ export class PermissionsService {
         id: rolePermission.id,
       },
     });
+  }
+
+  async findAssignedPermissions(roleId: number) {
+    const assignedPermissions = await this.prisma.rolePermission.findMany({
+      where: { roleId },
+      include: {
+        permission: true,
+      },
+    });
+    const permissions = assignedPermissions.map((rec) => rec.permission);
+    return this.commonFunctions.returnFormattedResponse(
+      HttpStatus.OK,
+      'Fetched Permissions',
+      permissions,
+    );
+  }
+
+  async findUnassignedPermissions(roleId: number) {
+    // Get all permissions
+    const allPermissions = await this.prisma.permission.findMany();
+
+    // Get permissions already assigned to the role
+    const assignedPermissions = await this.prisma.rolePermission.findMany({
+      where: { roleId },
+      select: { permissionId: true },
+    });
+
+    // Extract assigned permission IDs
+    const assignedPermissionIds = assignedPermissions.map(
+      (p) => p.permissionId,
+    );
+
+    // Filter out assigned permissions
+    const unassignedPermissions = allPermissions.filter(
+      (permission) => !assignedPermissionIds.includes(permission.id),
+    );
+
+    // return unassignedPermissions;
+
+    return this.commonFunctions.returnFormattedResponse(
+      HttpStatus.OK,
+      'Fetched Permissions',
+      unassignedPermissions,
+    );
+  }
+
+  async findUnassignedUsers(roleId: number) {
+    const users = await this.prisma.user.findMany({
+      where: {
+        OR: [{ roleId: null }, { NOT: { roleId } }], // Include users with roleId = null
+      },
+      select: { id: true, name: true },
+    });
+
+    return this.commonFunctions.returnFormattedResponse(
+      HttpStatus.OK,
+      'Fetched Users',
+      users,
+    );
+  }
+
+  async findAssignedUsers(roleId: number) {
+    const users = await this.prisma.user.findMany({
+      where: { roleId },
+      select: { id: true, name: true },
+    });
+
+    return this.commonFunctions.returnFormattedResponse(
+      HttpStatus.OK,
+      'Fetched Users',
+      users,
+    );
+  }
+
+  async bulkAssignPermissions(roleId: number, permissionIds: number[]) {
+    // Ensure all permissionIds are valid
+    const permissions = await this.prisma.permission.findMany({
+      where: { id: { in: permissionIds } },
+    });
+
+    const validPermissionIds = permissions.map((p) => p.id);
+
+    if (validPermissionIds.length !== permissionIds.length) {
+      throw new Error('Some permissions do not exist.');
+    }
+
+    // Create new RolePermission records for the permissions
+    const data = await this.prisma.role.update({
+      where: { id: roleId },
+      data: {
+        permissions: {
+          create: validPermissionIds.map((id) => ({ permissionId: id })),
+        },
+      },
+    });
+
+    return this.commonFunctions.returnFormattedResponse(
+      HttpStatus.OK,
+      'Assigned Permissions successfully',
+      data,
+    );
+  }
+
+  async bulkRemovePermissions(roleId: number, permissionIds: number[]) {
+    const data = await this.prisma.$transaction(
+      permissionIds.map((permissionId) =>
+        this.prisma.rolePermission.deleteMany({
+          where: { roleId, permissionId },
+        }),
+      ),
+    );
+
+    return this.commonFunctions.returnFormattedResponse(
+      HttpStatus.OK,
+      'Removed Permissions successfully',
+      data,
+    );
+  }
+
+  async bulkAssignUsers(roleId: number, userIds: number[]) {
+    await this.prisma.user.updateMany({
+      where: { id: { in: userIds } },
+      data: { roleId },
+    });
+
+    return this.commonFunctions.returnFormattedResponse(
+      HttpStatus.OK,
+      'Users successfully assigned to the role',
+      [],
+    );
+  }
+
+  async bulkUnassignUsers(userIds: number[]) {
+    await this.prisma.user.updateMany({
+      where: { id: { in: userIds } },
+      data: { roleId: null },
+    });
+
+    return this.commonFunctions.returnFormattedResponse(
+      HttpStatus.OK,
+      'Users successfully unassigned from the role',
+      [],
+    );
   }
 }

@@ -41,7 +41,7 @@ export class RolesController {
   }
 
   @Put(':id')
-  async update(@Param('id') id: string, @Body() data: Prisma.UserUpdateInput) {
+  async update(@Param('id') id: string, @Body() data: Prisma.RoleUpdateInput) {
     return this.service.update(Number(id), data);
   }
 }

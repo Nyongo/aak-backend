@@ -12,8 +12,12 @@ model User {
   email     String     @unique
   name      String
   password  String
-  roleId    Int
-  role      Role       @relation(fields: [roleId], references: [id])
+  roleId    Int?
+  role      Role?       @relation(fields: [roleId], references: [id])
+  isActive                Boolean    @default(true)  
+  requirePasswordReset                Boolean    @default(false)  
+  lastLoggedInOn DateTime? 
+  lastPasswordChangedOn DateTime @default(now())
   createdAt DateTime   @default(now())
   createdPesticides       Pesticide[] @relation("CreatedBy")   // Add this reverse relation
   updatedPesticides       Pesticide[] @relation("LastUpdatedBy") // Add this reverse relation
@@ -25,6 +29,11 @@ model Role {
   name        String        @unique
   permissions RolePermission[]
   users       User[]
+  isActive                Boolean    @default(false)  
+  createdAt               DateTime   @default(now())
+  lastUpdatedAt           DateTime?
+  createdById             Int?
+  lastUpdatedById         Int?
 }
 
 model Permission {
@@ -37,8 +46,8 @@ model RolePermission {
   id          Int       @id @default(autoincrement())
   roleId      Int
   permissionId Int
-  role        Role      @relation(fields: [roleId], references: [id])
-  permission  Permission @relation(fields: [permissionId], references: [id])
+ role         Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@unique([roleId, permissionId]) // Ensure no duplicate role-permission pairs
 }

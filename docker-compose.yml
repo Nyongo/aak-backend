@@ -16,6 +16,7 @@ services:
     container_name: nestjs_app
     environment:
       DATABASE_URL: postgresql://postgres:NyNj92@postgres:5432/nest
+       HOST=0.0.0.0
     depends_on:
       - postgres
     ports:
