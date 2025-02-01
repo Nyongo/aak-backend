@@ -9,11 +9,12 @@ import {
   HttpCode,
   Request,
 } from '@nestjs/common';
-import { UsersService } from './users.service';
+import { UsersService } from '../users.service';
 import { Prisma } from '@prisma/client';
-import { Permissions } from '../common/decorators/permissions.decorator';
+import { Permissions } from '../../common/decorators/permissions.decorator';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { PermissionsGuard } from 'src/auth/permission.guard';
+import { ChangePasswordDto } from '../dtos/change-password.dto';
 
 @Controller('users')
 //@UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -43,5 +44,10 @@ export class UsersController {
   @Put(':id')
   async update(@Param('id') id: string, @Body() data: Prisma.UserUpdateInput) {
     return this.usersService.update(Number(id), data);
+  }
+
+  @Post('change-password')
+  async changePassword(@Body() dto: any) {
+    return this.usersService.changePassword(dto);
   }
 }

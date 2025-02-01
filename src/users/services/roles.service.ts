@@ -16,10 +16,13 @@ export class RolesService {
       const newRecord = await this.prisma.role.create({
         data: {
           name: createRoleDto.name,
+          isActive: createRoleDto.isActive,
         },
         select: {
           id: true,
           name: true,
+          isActive: true,
+          createdAt: true,
         },
       });
       if (newRecord)
@@ -93,35 +96,27 @@ export class RolesService {
   }
 
   // Update user details
-  async update(id: number, updateUserDto: any): Promise<any> {
+  async update(id: number, updateDataDto: any): Promise<any> {
     try {
       // Only allow updates to name, roleId (excluding email and password)
-      const { name } = updateUserDto;
+      const { name, isActive } = updateDataDto;
 
       // Proceed with the update, excluding sensitive fields
       const updatedUser = await this.prisma.role.update({
         where: { id },
-        data: updateUserDto,
-        // select: {
-        //   id: true,
-        //   email: true,
-        //   name: true,
-        //   roleId: true,
-        //   role: true,
-        //   createdAt: true,
-        // },
+        data: { name, isActive },
       });
 
       return this.commonFunctions.returnFormattedResponse(
         200,
-        'Role updated successfully',
+        'Updated successfully',
         updatedUser,
       );
     } catch (error) {
       if (error instanceof PrismaClientKnownRequestError) {
         return this.commonFunctions.handlePrismaError(error);
       }
-      console.error('Unknown error in update user:', error);
+      console.error('Unknown error in updating:', error);
       return this.commonFunctions.handleUnknownError(error);
     }
   }
@@ -137,7 +132,6 @@ export class RolesService {
   }
 
   async findAll(page: number = 1, pageSize: number = 10) {
-    console.log('pagination:', page, pageSize);
     try {
       const skip = (page - 1) * pageSize;
       const take = pageSize;
@@ -145,6 +139,20 @@ export class RolesService {
         this.prisma.role.findMany({
           skip,
           take,
+          include: {
+            permissions: {
+              include: {
+                permission: true,
+              },
+            },
+            users: {
+              select: {
+                id: true,
+                email: true,
+                name: true,
+              },
+            },
+          },
         }),
         this.prisma.role.count(),
       ]);

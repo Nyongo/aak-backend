@@ -8,6 +8,8 @@ import { CommonFunctionsService } from './common/services/common-functions.servi
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 
 async function bootstrap() {
+  const host = process.env.HOST || 'localhost';
+  const port = process.env.PORT || 3000;
   const app = await NestFactory.create(AppModule);
 
   const commonFunctionsService = app.get(CommonFunctionsService);
@@ -25,7 +27,8 @@ async function bootstrap() {
   app.useGlobalFilters(new ValidationExceptionFilter());
   app.useGlobalFilters(new PrismaExceptionFilter());
 
-  //await app.listen(3000);
-  await app.listen(3000, '0.0.0.0');
+  // await app.listen(3000);
+  // await app.listen(3000, '0.0.0.0');
+  await app.listen(port, host);
 }
 bootstrap();

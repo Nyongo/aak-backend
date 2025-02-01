@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "Role" ADD COLUMN     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN     "createdById" INTEGER,
+ADD COLUMN     "isActive" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "lastUpdatedAt" TIMESTAMP(3),
+ADD COLUMN     "lastUpdatedById" INTEGER;
