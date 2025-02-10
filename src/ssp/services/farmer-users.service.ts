@@ -76,7 +76,7 @@ export class FarmerUsersService {
         .join(' ');
 
       // 🔹 Step 2: Define the Role ID for SSP Users
-      const SSP_ROLE_ID = this.configService.get<string>('SSP_ROLE_ID');
+      const FARMER_ROLE_ID = this.configService.get<string>('FARMER_ROLE_ID');
 
       // 🔹 Step 3: Create User using UsersService
       const userResponse = await this.usersService.create({
@@ -84,7 +84,7 @@ export class FarmerUsersService {
         name: fullName,
         gender: createDto.gender,
         dob: createDto.dob,
-        roleId: Number(SSP_ROLE_ID),
+        roleId: Number(FARMER_ROLE_ID),
         isActive: createDto.isActive ?? true,
       });
 
