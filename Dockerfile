@@ -17,7 +17,6 @@ RUN npx prisma generate
 RUN npm run build
 
 
-
 # Production stage
 FROM node:18-alpine AS runner
 
@@ -25,12 +24,15 @@ WORKDIR /app
 
 # Install only production dependencies
 COPY package.json package-lock.json ./
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 # Copy built application and Prisma client
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/.env ./.env
+
+# Ensure Prisma Client is generated in the final image
+RUN npx prisma generate
 
 EXPOSE 3000
 ENV HOST=0.0.0.0
