@@ -7,7 +7,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# Copy application files
+# Copy application files, including the Prisma schema
 COPY . .
 
 # Generate Prisma Client before building
@@ -22,18 +22,17 @@ FROM node:18-alpine AS runner
 
 WORKDIR /app
 
+# Copy the Prisma schema before running npm ci
+COPY --from=builder /app/prisma ./prisma
+
 # Install only production dependencies
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-# Copy built application, Prisma client, and schema
+# Copy built application and Prisma client
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma  
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma 
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma  
 COPY --from=builder /app/.env ./.env
-
-# Ensure Prisma Client is generated in the final image
-RUN npx prisma generate
 
 EXPOSE 3000
 ENV HOST=0.0.0.0
