@@ -278,4 +278,10 @@ export class UsersService {
       null,
     );
   }
+
+  async hashPassword() {
+    const generatedPassword = crypto.randomBytes(6).toString('hex');
+    const hashedPassword = await bcrypt.hash(generatedPassword, 10);
+    return hashedPassword;
+  }
 }

@@ -8,90 +8,209 @@ generator client {
 }
 
 model User {
-  id        Int        @id @default(autoincrement())
-  email     String     @unique
-  name      String
-  password  String
-  roleId    Int?
-  role      Role?       @relation(fields: [roleId], references: [id])
-  isActive                Boolean    @default(true)  
-  requirePasswordReset                Boolean    @default(false)  
-  lastLoggedInOn DateTime? 
-  lastPasswordChangedOn DateTime @default(now())
-  createdAt DateTime   @default(now())
-  createdPesticides       Pesticide[] @relation("CreatedBy")   // Add this reverse relation
-  updatedPesticides       Pesticide[] @relation("LastUpdatedBy") // Add this reverse relation
-
+  id                    Int         @id @default(autoincrement())
+  email                 String      @unique
+  name                  String
+  password              String
+  roleId                Int?
+  role                  Role?       @relation(fields: [roleId], references: [id])
+  isActive              Boolean     @default(true)
+  requirePasswordReset  Boolean     @default(false)
+  lastLoggedInOn        DateTime?
+  lastPasswordChangedOn DateTime    @default(now())
+  createdAt             DateTime    @default(now())
+  createdPesticides     Pesticide[] @relation("CreatedBy") // Add this reverse relation
+  updatedPesticides     Pesticide[] @relation("LastUpdatedBy") // Add this reverse relation
+  sspUser               SspUser?    @relation("UserSspUser")
+  farmerUser            FarmerUser? @relation("UserFarmerUser")
 }
 
 model Role {
-  id          Int           @id @default(autoincrement())
-  name        String        @unique
-  permissions RolePermission[]
-  users       User[]
-  isActive                Boolean    @default(false)  
-  createdAt               DateTime   @default(now())
-  lastUpdatedAt           DateTime?
-  createdById             Int?
-  lastUpdatedById         Int?
+  id              Int              @id @default(autoincrement())
+  name            String           @unique
+  permissions     RolePermission[]
+  users           User[]
+  isActive        Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  lastUpdatedAt   DateTime?
+  createdById     Int?
+  lastUpdatedById Int?
 }
 
 model Permission {
-  id          Int           @id @default(autoincrement())
-  name        String        @unique
-  roles       RolePermission[]
+  id    Int              @id @default(autoincrement())
+  name  String           @unique
+  roles RolePermission[]
 }
 
 model RolePermission {
-  id          Int       @id @default(autoincrement())
-  roleId      Int
+  id           Int        @id @default(autoincrement())
+  roleId       Int
   permissionId Int
- role         Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@unique([roleId, permissionId]) // Ensure no duplicate role-permission pairs
 }
 
-
 model Pesticide {
-  id                      Int        @id @default(autoincrement())
-  name                   String     @unique
-  registrationNumber      String     @unique
-  activeAgent             String
+  id                       Int       @id @default(autoincrement())
+  name                     String    @unique
+  registrationNumber       String    @unique
+  activeAgent              String
   manufacturerOfRegistrant String
-  localAgent              String
-  published               Boolean    @default(false)  // Default value set to false
-  createdAt               DateTime   @default(now())
-  lastUpdatedAt           DateTime?
-  createdById             Int?
-  lastUpdatedById         Int?
-  createdBy               User?        @relation("CreatedBy", fields: [createdById], references: [id])
-  lastUpdatedBy           User?        @relation("LastUpdatedBy", fields: [lastUpdatedById], references: [id])
-} 
+  localAgent               String
+  published                Boolean   @default(false) // Default value set to false
+  createdAt                DateTime  @default(now())
+  lastUpdatedAt            DateTime?
+  createdById              Int?
+  lastUpdatedById          Int?
+  createdBy                User?     @relation("CreatedBy", fields: [createdById], references: [id])
+  lastUpdatedBy            User?     @relation("LastUpdatedBy", fields: [lastUpdatedById], references: [id])
+}
 
 model Pest {
-  id                      Int        @id @default(autoincrement())
-  name                    String     @unique
-  scientificName          String     @unique
-  kingdom                 String
-  phylum                  String?
-  genus                   String
-  family                  String
-  published               Boolean    @default(false)  
-  createdAt               DateTime   @default(now())
-  lastUpdatedAt           DateTime?
-  createdById             Int?
-  lastUpdatedById         Int?
-} 
+  id              Int       @id @default(autoincrement())
+  name            String    @unique
+  scientificName  String    @unique
+  kingdom         String
+  phylum          String?
+  genus           String
+  family          String
+  published       Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  lastUpdatedAt   DateTime?
+  createdById     Int?
+  lastUpdatedById Int?
+}
 
 model County {
-  id                      Int        @id @default(autoincrement())
-  name                    String     @unique
-  isActive                Boolean    @default(false)  
-  createdAt               DateTime   @default(now())
-  lastUpdatedAt           DateTime?
-  createdById             Int?
-  lastUpdatedById         Int?
-} 
+  id              Int          @id @default(autoincrement())
+  name            String       @unique
+  isActive        Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  lastUpdatedAt   DateTime?
+  createdById     Int?
+  lastUpdatedById Int?
+  farms           FarmerFarm[] @relation("FarmInCounty")
+}
 
+model ServiceType {
+  id              Int       @id @default(autoincrement())
+  name            String    @unique
+  description     String    @db.Text
+  isActive        Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  lastUpdatedAt   DateTime?
+  createdById     Int?
+  lastUpdatedById Int?
+}
 
+model SspUser {
+  id               Int              @id @default(autoincrement())
+  email            String           @unique
+  phoneNumber      String           @unique
+  firstName        String
+  middleName       String?
+  lastName         String
+  gender           String?
+  occupation       String?
+  dob              String?
+  userId           Int?             @unique
+  user             User?            @relation(name: "UserSspUser", fields: [userId], references: [id], onDelete: Cascade)
+  isActive         Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  lastUpdatedAt    DateTime         @updatedAt
+  createdById      Int?
+  lastUpdatedById  Int?
+  assignedRequests ServiceRequest[] @relation(name: "SspAssignedServiceRequest")
+}
+
+model FarmerUser {
+  id              Int              @id @default(autoincrement())
+  email           String           @unique
+  phoneNumber     String
+  gender          String?
+  occupation      String?
+  dob             String?
+  firstName       String
+  middleName      String?
+  lastName        String
+  userId          Int?             @unique
+  user            User?            @relation(name: "UserFarmerUser", fields: [userId], references: [id], onDelete: Cascade)
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  lastUpdatedAt   DateTime         @updatedAt
+  createdById     Int?
+  lastUpdatedById Int?
+  farms           FarmerFarm[]     @relation("FarmerFarmUser")
+  serviceRequests ServiceRequest[] @relation(name: "FarmerServiceRequest")
+}
+
+model FarmerFarm {
+  id              Int              @id @default(autoincrement())
+  plotSize        String?
+  countyId        Int?
+  county          County?          @relation(name: "FarmInCounty", fields: [countyId], references: [id], onDelete: Cascade)
+  location        String?
+  latitude        String?
+  longitude       String?
+  imageUrl        String?
+  farmerId        Int?
+  farmer          FarmerUser?      @relation(name: "FarmerFarmUser", fields: [farmerId], references: [id], onDelete: Cascade)
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  lastUpdatedAt   DateTime         @updatedAt
+  createdById     Int?
+  lastUpdatedById Int?
+  crops           CropsInFarm[]    @relation("CropsInFarm")
+  serviceRequests ServiceRequest[] @relation(name: "FarmServices")
+}
+
+model Crop {
+  id              Int           @id @default(autoincrement())
+  name            String        @unique
+  scientificName  String?
+  description     String?
+  isActive        Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  lastUpdatedAt   DateTime?     @updatedAt
+  createdById     Int?
+  lastUpdatedById Int?
+  farms           CropsInFarm[] @relation("CropsInFarm")
+}
+
+model CropsInFarm {
+  id              Int        @id @default(autoincrement())
+  farmId          Int
+  farm            FarmerFarm @relation(name: "CropsInFarm", fields: [farmId], references: [id], onDelete: Cascade)
+  cropId          Int
+  crop            Crop       @relation(name: "CropsInFarm", fields: [cropId], references: [id], onDelete: Cascade)
+  description     String?
+  cropStatus      String?
+  isActive        Boolean    @default(false)
+  createdAt       DateTime   @default(now())
+  lastUpdatedAt   DateTime?  @updatedAt
+  createdById     Int?
+  lastUpdatedById Int?
+}
+
+model ServiceRequest {
+  id              Int         @id @default(autoincrement())
+  description     String?
+  farmerId        Int?
+  farmer          FarmerUser? @relation(name: "FarmerServiceRequest", fields: [farmerId], references: [id], onDelete: Cascade)
+  farmId          Int
+  farm            FarmerFarm  @relation(name: "FarmServices", fields: [farmId], references: [id], onDelete: Cascade)
+  assignedSspId   Int?
+  assignedSsp     SspUser?    @relation(name: "SspAssignedServiceRequest", fields: [assignedSspId], references: [id], onDelete: SetNull)
+  requestStatus   String?
+  isActive        Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  dateStarted     DateTime?
+  dateCompleted   DateTime?
+  lastUpdatedAt   DateTime    @updatedAt
+  createdById     Int?
+  lastUpdatedById Int?
+  serviceCosts    Int?
+}
