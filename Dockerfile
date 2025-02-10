@@ -10,7 +10,8 @@ RUN npm ci
 # Copy application files, including the Prisma schema
 COPY . .
 
-# Generate Prisma Client before building
+# Ensure Prisma Schema is available before generating the client
+RUN ls -la prisma/  # Debugging step (optional)
 RUN npx prisma generate
 
 # Build the application
@@ -22,7 +23,7 @@ FROM node:18-alpine AS runner
 
 WORKDIR /app
 
-# Copy the Prisma schema before running npm ci
+# Copy Prisma schema before running `npm ci`
 COPY --from=builder /app/prisma ./prisma
 
 # Install only production dependencies
