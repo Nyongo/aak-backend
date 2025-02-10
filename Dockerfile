@@ -26,9 +26,10 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-# Copy built application and Prisma client
+# Copy built application, Prisma client, and schema
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma ./prisma  
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma 
 COPY --from=builder /app/.env ./.env
 
 # Ensure Prisma Client is generated in the final image
