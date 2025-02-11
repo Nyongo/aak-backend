@@ -1,31 +1,28 @@
 version: '3.9'
+
 services:
   postgres:
     image: postgres:14
     container_name: postgres_container
     restart: always
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: NyNj92
-      POSTGRES_DB: nest
+    env_file:
+      - .env  # Load environment variables from .env file
     ports:
       - "5433:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data  # Attach named volume for persistence
+      - postgres_data:/var/lib/postgresql/data  # Persistent database storage
 
   nestjs_app:
     build:
       context: .
     container_name: nestjs_app
-    environment:
-      DATABASE_URL: postgresql://postgres:NyNj92@postgres:5432/nest
-      HOST: 0.0.0.0
+    env_file:
+      - .env  # Load environment variables
     depends_on:
       - postgres
     ports:
       - "3000:3000"
-      - "5555:5555"
+      - "5555:5555"  # Expose Prisma Studio
 
-# Define the named volume to persist data
 volumes:
   postgres_data:

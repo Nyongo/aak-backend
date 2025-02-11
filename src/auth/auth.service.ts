@@ -31,6 +31,8 @@ export class AuthService {
             },
           },
         },
+        sspUser: true,
+        farmerUser: true,
       },
     });
     if (!user) {
@@ -49,6 +51,8 @@ export class AuthService {
       email: user.email,
       name: user.name,
       role: user.role,
+      sspUser: user.sspUser,
+      farmerUser: user.farmerUser,
     }; // Access the role name
   }
 
