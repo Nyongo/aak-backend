@@ -20,7 +20,8 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:NyNj92@postgres:5432/nest
       HOST: 0.0.0.0
-      
+      SSP_ROLE_ID: 2
+      FARMER_ROLE_ID: 1
     depends_on:
       - postgres
     ports:
