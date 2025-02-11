@@ -149,8 +149,33 @@ export class FarmRequestsService {
       const data = await this.prisma.serviceRequest.findMany({
         where: { farmerId },
         include: {
+          farm: {
+            include: { county: true },
+          },
+          farmer: true,
+          assignedSsp: true,
+        },
+      });
+      return this.commonFunctions.returnFormattedResponse(
+        HttpStatus.OK,
+        'Fetched Records',
+        data,
+      );
+    } catch (error) {
+      if (error instanceof PrismaClientKnownRequestError) {
+        return this.commonFunctions.handlePrismaError(error);
+      }
+      return this.commonFunctions.handleUnknownError(error);
+    }
+  }
+  async findSspRequests(sspId: number) {
+    try {
+      const data = await this.prisma.serviceRequest.findMany({
+        where: { assignedSspId: sspId },
+        include: {
           farm: true,
           farmer: true,
+          assignedSsp: true,
         },
       });
       return this.commonFunctions.returnFormattedResponse(

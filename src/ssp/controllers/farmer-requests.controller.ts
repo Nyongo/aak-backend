@@ -61,7 +61,13 @@ export class FarmerRequestsController {
 
   @Get('farmer/:id')
   @Permissions('can_view_counties')
-  async findFarmerFarms(@Param('id') id: string) {
+  async findFarmerRequests(@Param('id') id: string) {
     return this.service.findFarmerRequests(Number(id));
+  }
+
+  @Get('ssp/:id')
+  @Permissions('can_view_counties')
+  async findSspRequests(@Param('id') id: string) {
+    return this.service.findSspRequests(Number(id));
   }
 }
