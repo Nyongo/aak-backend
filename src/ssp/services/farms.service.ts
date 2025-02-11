@@ -81,6 +81,7 @@ export class FarmsService {
     try {
       const record = await this.prisma.farmerFarm.findUnique({
         where: { id },
+        include: { county: true, farmer: true },
       });
       if (!record) {
         return this.commonFunctions.returnFormattedResponse(
