@@ -9,6 +9,8 @@ import { CountiesController } from './controllers/counties.controller';
 import { CountiesService } from './services/counties.service';
 import { ServiceTypesController } from './controllers/service-types.controller';
 import { ServiceTypesService } from './services/service-types.service';
+import { CropsController } from './controllers/crops.controller';
+import { CropsService } from './services/crops.service';
 
 @Module({
   imports: [PrismaModule],
@@ -17,6 +19,7 @@ import { ServiceTypesService } from './services/service-types.service';
     PestsController,
     CountiesController,
     ServiceTypesController,
+    CropsController,
   ],
   providers: [
     PesticidesService,
@@ -24,6 +27,7 @@ import { ServiceTypesService } from './services/service-types.service';
     CountiesService,
     CommonFunctionsService,
     ServiceTypesService,
+    CropsService,
   ],
 })
 export class ConfigsModule {}

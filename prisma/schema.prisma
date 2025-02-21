@@ -158,6 +158,10 @@ model FarmerFarm {
   imageUrl        String?
   farmerId        Int?
   farmer          FarmerUser?      @relation(name: "FarmerFarmUser", fields: [farmerId], references: [id], onDelete: Cascade)
+  altitude        String?
+  soilType        String?
+  soilTemp        String?
+  humidity        String?
   isActive        Boolean          @default(true)
   createdAt       DateTime         @default(now())
   lastUpdatedAt   DateTime         @updatedAt
@@ -207,6 +211,8 @@ model ServiceRequest {
   requestStatus   String?
   isActive        Boolean     @default(true)
   createdAt       DateTime    @default(now())
+  sspRating          Int?
+  priority            String?
   dateStarted     DateTime?
   dateCompleted   DateTime?
   lastUpdatedAt   DateTime    @updatedAt
