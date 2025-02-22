@@ -124,7 +124,36 @@ model SspUser {
   createdById      Int?
   lastUpdatedById  Int?
   assignedRequests ServiceRequest[] @relation(name: "SspAssignedServiceRequest")
+  schedules     SspSchedule[]
+   appointments  SspAppointment[] 
 }
+
+model SspSchedule {
+  id            Int       @id @default(autoincrement())
+  sspId         Int
+  ssp           SspUser   @relation(fields: [sspId], references: [id], onDelete: Cascade)
+  date          DateTime
+  startTime     DateTime 
+  endTime       DateTime 
+  isBooked      Boolean   @default(false) // If booked, set to true
+  createdAt     DateTime  @default(now())
+  lastUpdatedAt DateTime  @updatedAt
+   appointments  SspAppointment[]
+}
+
+model SspAppointment {
+  id              Int         @id @default(autoincrement())
+  farmerId        Int
+  farmer          FarmerUser  @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  sspId          Int
+  ssp            SspUser      @relation(fields: [sspId], references: [id], onDelete: Cascade)
+  scheduleId     Int
+  schedule       SspSchedule  @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  status         String       @default("Pending") // Pending, Confirmed, Completed, Cancelled
+  createdAt      DateTime     @default(now())
+  lastUpdatedAt  DateTime     @updatedAt
+}
+
 
 model FarmerUser {
   id              Int              @id @default(autoincrement())
@@ -145,6 +174,7 @@ model FarmerUser {
   lastUpdatedById Int?
   farms           FarmerFarm[]     @relation("FarmerFarmUser")
   serviceRequests ServiceRequest[] @relation(name: "FarmerServiceRequest")
+   appointments  SspAppointment[]
 }
 
 model FarmerFarm {

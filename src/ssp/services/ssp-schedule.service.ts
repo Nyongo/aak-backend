@@ -2,87 +2,73 @@ import { Injectable, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CommonFunctionsService } from 'src/common/services/common-functions.service';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
-import { CreateFarmDto } from '../dtos/create-farm.dto';
 
 @Injectable()
-export class FarmsService {
+export class SspScheduleService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly commonFunctions: CommonFunctionsService,
   ) {}
 
-  async create(createDto: CreateFarmDto) {
-    try {
-      const data: any = {
-        farmerId: createDto.farmerId,
-        countyId: createDto.countyId,
-        plotSize: createDto.plotSize,
-        altitude: createDto.altitude,
-        location: createDto.location,
-        latitude: createDto.latitude,
-        longitude: createDto.longitude,
-        isActive: createDto.isActive ?? false,
-      };
+  async generateSlots(
+    sspId: number,
+    startHour = 9,
+    endHour = 17,
+    duration = 60,
+  ) {
+    const today = new Date();
+    const slots = [];
 
-      const newRecord = await this.prisma.farmerFarm.create({
-        data,
-      });
+    for (let day = 0; day < 7; day++) {
+      const date = new Date();
+      date.setDate(today.getDate() + day);
 
-      return this.commonFunctions.returnFormattedResponse(
-        HttpStatus.CREATED,
-        'Created successfully.',
-        newRecord,
-      );
-    } catch (error) {
-      if (error instanceof PrismaClientKnownRequestError) {
-        return this.commonFunctions.handlePrismaError(error);
+      for (let hour = startHour; hour < endHour; hour++) {
+        const startTime = new Date(date);
+        startTime.setHours(hour, 0, 0, 0);
+
+        const endTime = new Date(startTime);
+        endTime.setMinutes(startTime.getMinutes() + duration);
+
+        slots.push({
+          sspId,
+          date: date,
+          startTime,
+          endTime,
+        });
       }
-      return this.commonFunctions.handleUnknownError(error);
+      console.log(slots);
     }
+
+    // Save slots to the database
+    const result = await this.prisma.sspSchedule.createMany({ data: slots });
+    return this.commonFunctions.returnFormattedResponse(
+      HttpStatus.OK,
+      'Schedules Generated Successfully',
+      result,
+    );
   }
 
-  async findAll(page: number = 1, pageSize: number = 10) {
-    try {
-      const skip = (page - 1) * pageSize;
-      const take = pageSize;
-      const [data, totalItems] = await Promise.all([
-        this.prisma.farmerFarm.findMany({
-          skip,
-          take,
-        }),
-        this.prisma.farmerFarm.count(),
-      ]);
+  async findAllSspSchedules(sspId: number) {
+    const data = await this.prisma.sspSchedule.findMany({
+      where: { sspId },
+      include: { ssp: true, appointments: true },
+    });
 
-      const totalPages = Math.ceil(totalItems / pageSize);
-
-      return this.commonFunctions.returnFormattedResponse(
-        HttpStatus.OK,
-        'Fetched Records',
-        {
-          data,
-          pagination: {
-            currentPage: page,
-            totalPages,
-            totalItems,
-            pageSize,
-          },
-        },
-      );
-    } catch (error) {
-      if (error instanceof PrismaClientKnownRequestError) {
-        return this.commonFunctions.handlePrismaError(error);
-      }
-      return this.commonFunctions.handleUnknownError(error);
-    }
+    return this.commonFunctions.returnFormattedResponse(
+      HttpStatus.OK,
+      'Records Retrieved',
+      data,
+    );
   }
 
   async findOne(
     id: number,
   ): Promise<{ response: { code: number; message: string }; data: any }> {
     try {
-      const record = await this.prisma.farmerFarm.findUnique({
+      const record = await this.prisma.sspSchedule.findUnique({
         where: { id },
-        include: { county: true, farmer: true },
+        include: { ssp: true, appointments: true },
       });
       if (!record) {
         return this.commonFunctions.returnFormattedResponse(
@@ -109,7 +95,7 @@ export class FarmsService {
     updateDto: any,
   ): Promise<{ response: { code: number; message: string }; data: any }> {
     try {
-      const updatedRecord = await this.prisma.farmerFarm.update({
+      const updatedRecord = await this.prisma.sspSchedule.update({
         where: { id },
         data: updateDto,
       });
@@ -131,7 +117,7 @@ export class FarmsService {
     id: number,
   ): Promise<{ response: { code: number; message: string }; data: any }> {
     try {
-      const record = await this.prisma.farmerFarm.findUnique({
+      const record = await this.prisma.sspSchedule.findUnique({
         where: { id },
       });
       return this.commonFunctions.returnFormattedResponse(
