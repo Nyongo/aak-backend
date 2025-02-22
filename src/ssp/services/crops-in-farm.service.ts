@@ -75,7 +75,7 @@ export class CropsInFarmService {
 
   async findAllCropsInFarm(id: number) {
     const data = await this.prisma.cropsInFarm.findMany({
-      where: { id },
+      where: { farmId: id },
       include: { crop: true, farm: true },
     });
 
