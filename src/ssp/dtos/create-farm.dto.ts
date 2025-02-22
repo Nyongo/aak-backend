@@ -27,6 +27,10 @@ export class CreateFarmDto {
 
   @IsString()
   @IsOptional()
+  altitude: string;
+
+  @IsString()
+  @IsOptional()
   @Length(1, 100)
   latitude: string;
 
