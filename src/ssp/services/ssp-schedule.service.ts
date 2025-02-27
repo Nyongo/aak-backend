@@ -1,7 +1,6 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CommonFunctionsService } from 'src/common/services/common-functions.service';
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class SspScheduleService {
@@ -12,17 +11,21 @@ export class SspScheduleService {
 
   async generateSlots(
     sspId: number,
+    startDate: string,
+    endDate: string,
     startHour = 9,
     endHour = 17,
     duration = 60,
   ) {
-    const today = new Date();
+    const start = new Date(startDate);
+    const end = new Date(endDate);
     const slots = [];
 
-    for (let day = 0; day < 7; day++) {
-      const date = new Date();
-      date.setDate(today.getDate() + day);
-
+    for (
+      let date = new Date(start);
+      date <= end;
+      date.setDate(date.getDate() + 1)
+    ) {
       for (let hour = startHour; hour < endHour; hour++) {
         const startTime = new Date(date);
         startTime.setHours(hour, 0, 0, 0);
@@ -30,17 +33,10 @@ export class SspScheduleService {
         const endTime = new Date(startTime);
         endTime.setMinutes(startTime.getMinutes() + duration);
 
-        slots.push({
-          sspId,
-          date: date,
-          startTime,
-          endTime,
-        });
+        slots.push({ sspId, date: new Date(date), startTime, endTime });
       }
-      console.log(slots);
     }
 
-    // Save slots to the database
     const result = await this.prisma.sspSchedule.createMany({ data: slots });
     return this.commonFunctions.returnFormattedResponse(
       HttpStatus.OK,
@@ -49,87 +45,28 @@ export class SspScheduleService {
     );
   }
 
-  async findAllSspSchedules(sspId: number) {
-    const data = await this.prisma.sspSchedule.findMany({
-      where: { sspId },
-      include: { ssp: true, appointments: true },
+  async getSchedules(sspId: number, startDate: string, endDate: string) {
+    const startOfDay = new Date(startDate);
+    startOfDay.setUTCHours(0, 0, 0, 0); // Ensure start of the day in UTC
+
+    const endOfDay = new Date(endDate);
+    endOfDay.setUTCHours(23, 59, 59, 999); // Ensure end of the day in UTC
+
+    const schedules = await this.prisma.sspSchedule.findMany({
+      where: {
+        sspId: sspId,
+        date: {
+          gte: startDate, // Greater than or equal to start of day
+          lte: endDate, // Less than or equal to end of day
+        },
+      },
+      orderBy: { date: 'asc' },
     });
 
     return this.commonFunctions.returnFormattedResponse(
       HttpStatus.OK,
-      'Records Retrieved',
-      data,
+      'Schedules fetched',
+      schedules,
     );
-  }
-
-  async findOne(
-    id: number,
-  ): Promise<{ response: { code: number; message: string }; data: any }> {
-    try {
-      const record = await this.prisma.sspSchedule.findUnique({
-        where: { id },
-        include: { ssp: true, appointments: true },
-      });
-      if (!record) {
-        return this.commonFunctions.returnFormattedResponse(
-          HttpStatus.NOT_FOUND,
-          'No record found',
-          null,
-        );
-      }
-      return this.commonFunctions.returnFormattedResponse(
-        HttpStatus.OK,
-        'Retrieved Successfully',
-        record,
-      );
-    } catch (error) {
-      if (error instanceof PrismaClientKnownRequestError) {
-        return this.commonFunctions.handlePrismaError(error);
-      }
-      return this.commonFunctions.handleUnknownError(error);
-    }
-  }
-
-  async update(
-    id: number,
-    updateDto: any,
-  ): Promise<{ response: { code: number; message: string }; data: any }> {
-    try {
-      const updatedRecord = await this.prisma.sspSchedule.update({
-        where: { id },
-        data: updateDto,
-      });
-
-      return this.commonFunctions.returnFormattedResponse(
-        HttpStatus.OK,
-        'Updated Successfully',
-        updatedRecord,
-      );
-    } catch (error) {
-      if (error instanceof PrismaClientKnownRequestError) {
-        return this.commonFunctions.handlePrismaError(error);
-      }
-      return this.commonFunctions.handleUnknownError(error);
-    }
-  }
-
-  async delete(
-    id: number,
-  ): Promise<{ response: { code: number; message: string }; data: any }> {
-    try {
-      const record = await this.prisma.sspSchedule.findUnique({
-        where: { id },
-      });
-      return this.commonFunctions.returnFormattedResponse(
-        200,
-        'Deleted Successfully',
-        record,
-      );
-    } catch (error) {
-      if (error instanceof PrismaClientKnownRequestError) {
-        return this.commonFunctions.handlePrismaError(error);
-      }
-      return this.commonFunctions.handleUnknownError(error);
-    }
   }
 }

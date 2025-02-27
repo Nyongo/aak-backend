@@ -105,12 +105,16 @@ export class SspUsersService {
             lastName: createDto.lastName,
           },
         });
-
-        return this.commonFunctions.returnFormattedResponse(
-          HttpStatus.CREATED,
-          'User and SspUser created successfully.',
-          { user, sspUser },
-        );
+        if (sspUser) {
+          const startDate = new Date();
+          const endDate = new Date(new Date().getFullYear(), 11, 31);
+          await this.generateYearlySchedule(sspUser.id, startDate, endDate);
+          return this.commonFunctions.returnFormattedResponse(
+            HttpStatus.CREATED,
+            'User and SspUser created successfully.',
+            { user, sspUser },
+          );
+        }
       } catch (sspUserError) {
         // 🔹 Step 5: Rollback - Delete user if sspUser creation fails
         await this.prisma.user.delete({ where: { id: user.id } });
@@ -120,6 +124,37 @@ export class SspUsersService {
     } catch (error) {
       return this.commonFunctions.handleUnknownError(error);
     }
+  }
+
+  async generateYearlySchedule(sspId: number, startDate: Date, endDate: Date) {
+    const schedules = [];
+    let currentDate = new Date(startDate);
+
+    while (currentDate <= endDate) {
+      let startHour = 9; // Start at 09:00 AM
+      let endHour = 17; // End at 05:00 PM
+
+      while (startHour < endHour) {
+        const startTime = new Date(currentDate);
+        startTime.setHours(startHour, 0, 0, 0); // Set the start hour
+
+        const endTime = new Date(startTime);
+        endTime.setHours(startHour + 1, 0, 0, 0); // 1-hour interval
+
+        schedules.push({
+          sspId,
+          date: currentDate.toISOString(), // Keep only the date part
+          startTime: startTime.toISOString(),
+          endTime: endTime.toISOString(),
+        });
+
+        startHour++; // Move to the next 1-hour slot
+      }
+
+      currentDate.setDate(currentDate.getDate() + 1); // Move to the next day
+    }
+
+    await this.prisma.sspSchedule.createMany({ data: schedules });
   }
 
   async findAll(page: number = 1, pageSize: number = 10) {

@@ -1,26 +1,30 @@
-import {
-  IsString,
-  IsBoolean,
-  IsOptional,
-  IsNotEmpty,
-  Length,
-  IsNumber,
-} from 'class-validator';
+import { IsInt, IsOptional, Min, Max, IsDateString } from 'class-validator';
 
 export class GenerateSspScheduleDto {
-  @IsNumber()
-  @IsNotEmpty()
+  @IsInt()
   sspId: number;
 
-  @IsNumber()
-  @IsOptional()
-  startHour: number;
+  @IsDateString()
+  startDate: string;
 
-  @IsNumber()
-  @IsOptional()
-  endHour: number;
+  @IsDateString()
+  endDate: string;
 
-  @IsNumber()
+  @IsInt()
+  @Min(0)
+  @Max(23)
   @IsOptional()
-  duration: number;
+  startHour = 9;
+
+  @IsInt()
+  @Min(1)
+  @Max(24)
+  @IsOptional()
+  endHour = 17;
+
+  @IsInt()
+  @Min(15)
+  @Max(180)
+  @IsOptional()
+  duration = 60;
 }
