@@ -8,16 +8,25 @@ import { RolesService } from './services/roles.service';
 import { PermisssionsController } from './controllers/permissions.controller';
 import { PermissionsService } from './services/permissions.service';
 import { MailService } from 'src/common/services/mail.service';
+import { AppsheetService } from './services/app-sheet.service';
+import { AppsheetController } from './controllers/appsheet.controller';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
-  imports: [PrismaModule],
-  controllers: [UsersController, RolesController, PermisssionsController],
+  imports: [PrismaModule, ConfigModule],
+  controllers: [
+    UsersController,
+    RolesController,
+    PermisssionsController,
+    AppsheetController,
+  ],
   providers: [
     UsersService,
     CommonFunctionsService,
     MailService,
     RolesService,
     PermissionsService,
+    AppsheetService,
   ],
 })
 export class UsersModule {}

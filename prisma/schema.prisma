@@ -93,6 +93,7 @@ model County {
   createdById     Int?
   lastUpdatedById Int?
   farms           FarmerFarm[] @relation("FarmInCounty")
+  ssps            SspUser[] @relation("SspInCounty")
 }
 
 model ServiceType {
@@ -125,7 +126,9 @@ model SspUser {
   lastUpdatedById  Int?
   assignedRequests ServiceRequest[] @relation(name: "SspAssignedServiceRequest")
   schedules     SspSchedule[]
-   appointments  SspAppointment[] 
+  appointments  SspAppointment[] 
+  countyId        Int?
+  county          County?          @relation(name: "SspInCounty", fields: [countyId], references: [id], onDelete: Cascade)
 }
 
 model SspSchedule {
@@ -136,6 +139,7 @@ model SspSchedule {
   startTime     DateTime 
   endTime       DateTime 
   isBooked      Boolean   @default(false) // If booked, set to true
+   isAvailable     Boolean   @default(true)
   createdAt     DateTime  @default(now())
   lastUpdatedAt DateTime  @updatedAt
    appointments  SspAppointment[]
