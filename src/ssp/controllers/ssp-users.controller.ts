@@ -33,13 +33,7 @@ export class SspUsersController {
     return response;
   }
 
-  @Get()
-  @Permissions('can_view_counties')
-  async findAll(@Request() req) {
-    const page = Number(req.query.page) || 1;
-    const pageSize = Number(req.query.pageSize) || 10;
-    return this.service.findAll(page, pageSize);
-  }
+  65;
 
   @Get(':id')
   @Permissions('can_view_counties')

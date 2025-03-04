@@ -11,7 +11,12 @@ async function bootstrap() {
   const host = process.env.HOST || 'localhost';
   const port = process.env.PORT || 3000;
   const app = await NestFactory.create(AppModule);
-
+  // Enable CORS
+  app.enableCors({
+    origin: 'http://localhost:4200', // Allow Angular frontend
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    credentials: true,
+  });
   const commonFunctionsService = app.get(CommonFunctionsService);
   const prismaService = app.get(PrismaService);
   const reflector = app.get(Reflector);

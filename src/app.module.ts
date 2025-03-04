@@ -7,7 +7,9 @@ import { PrismaService } from './prisma/prisma.service';
 import { ConfigsModule } from './configs/configs.module';
 import { ConfigModule } from '@nestjs/config';
 import { SspModule } from './ssp/ssp.module';
-
+import { CatiModule } from './cati/cati.module';
+import { JfModule } from './jf/jf.module';
+import { GoogleDriveModule } from 'nestjs-google-drive';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -18,6 +20,14 @@ import { SspModule } from './ssp/ssp.module';
     AuthModule,
     ConfigsModule,
     SspModule,
+    CatiModule,
+    JfModule,
+    GoogleDriveModule.register({
+      clientId: 'your_google_client_id',
+      clientSecret: 'your_google_client_secret',
+      redirectUrl: 'redirection_url',
+      refreshToken: 'your_refresh_token',
+    }),
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],
