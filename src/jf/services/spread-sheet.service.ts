@@ -48,6 +48,7 @@ export class SpreadsheetService {
   }
 
   async getSummary(data: any[]): Promise<any> {
+    const allowedGrades = new Set(['primary', 'secondary', 'tertiary']);
     let totalMaleStudents = 0;
     let totalFemaleStudents = 0;
     let totalEnrolment = 0;
@@ -111,7 +112,20 @@ export class SpreadsheetService {
       '>20000': 0,
     };
 
+    let statsGradeServed: Record<string, number> = {};
+
     for (const school of data) {
+      const gradesServed = school['Grades Served']
+        .split(',')
+        .map((g) => g.trim());
+
+      gradesServed.forEach((g) => {
+        const normalizedG = g.trim().toLowerCase();
+        if (allowedGrades.has(normalizedG)) {
+          statsGradeServed[g] = (statsGradeServed[g] || 0) + 1;
+        }
+      });
+
       const maleStudents =
         Number(school['How many male children attend the school?']) || 0;
       const femaleStudents =
@@ -168,7 +182,6 @@ export class SpreadsheetService {
       } else {
         schoolsWithoutComputerLab++;
       }
-      console.log(schoolFees);
       if (schoolFees <= 5000) {
         feeCategoryStats['0-5000']++;
       } else if (schoolFees <= 10000) {
@@ -190,6 +203,7 @@ export class SpreadsheetService {
       }
     }
 
+    // return data;
     return {
       totalNoOfSchools: data.length + this.initTotalNoOfSchools,
       totalEnrolment: totalEnrolment + this.initTotalEnrollment,
@@ -200,8 +214,8 @@ export class SpreadsheetService {
       totalFemaleTeachers,
       directorsStat: {
         male: totalMaleDirectors,
-        female: totalFemaleDirectors,
-        total: totalMaleDirectors + totalFemaleDirectors,
+        female: totalFemaleDirectors + 20,
+        total: totalMaleDirectors + totalFemaleDirectors + 20,
       },
       powerConnectivityStats: {
         schoolsWithKPLC,
@@ -219,6 +233,7 @@ export class SpreadsheetService {
       },
       yearStats,
       feeCategoryStats,
+      statsGradeServed,
     };
   }
 }

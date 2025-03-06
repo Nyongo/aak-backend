@@ -22,6 +22,7 @@
     "seed": "ts-node --transpile-only prisma/seed.ts"
   },
   "dependencies": {
+    "@angular/cdk": "^19.2.1",
     "@google-cloud/local-auth": "^3.0.1",
     "@nestjs/common": "^10.0.0",
     "@nestjs/config": "^3.3.0",
