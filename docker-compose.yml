@@ -22,11 +22,14 @@ services:
       HOST: 0.0.0.0
       SSP_ROLE_ID: 2
       FARMER_ROLE_ID: 1
+      GOOGLE_APPLICATION_CREDENTIALS: /app/keys/service-account.json
     depends_on:
       - postgres
     ports:
       - "3000:3000"
       - "5555:5555"
+    volumes:
+      - ./keys/service-account.json:/app/keys/service-account.json  # Mount the JSON key file
 
 # Define the named volume to persist data
 volumes:
