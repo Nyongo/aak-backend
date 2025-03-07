@@ -5,6 +5,8 @@
 
 # Keys
 /keys
+keys/
+**/keys/
 
 # Logs
 logs
