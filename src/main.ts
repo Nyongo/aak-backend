@@ -6,14 +6,19 @@ import { ValidationExceptionFilter } from './common/filters/validation-exception
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 import { CommonFunctionsService } from './common/services/common-functions.service';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import * as fs from 'fs';
 
 async function bootstrap() {
+  const httpsOptions = {
+    key: fs.readFileSync('ssl/server.key'),
+    cert: fs.readFileSync('ssl/server.cert'),
+  };
   const host = process.env.HOST || 'localhost';
   const port = process.env.PORT || 3000;
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { httpsOptions });
   // Enable CORS
   app.enableCors({
-    origin: 'http://localhost:4200', // Allow Angular frontend
+    origin: ['http://localhost:4200', 'https://jf-foundation.vercel.app'],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
@@ -35,5 +40,6 @@ async function bootstrap() {
   // await app.listen(3000);
   // await app.listen(3000, '0.0.0.0');
   await app.listen(port, host);
+  console.log(`🚀 Server is running on https://${host}:${port}`);
 }
 bootstrap();

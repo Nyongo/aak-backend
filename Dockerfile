@@ -35,7 +35,16 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma  
 COPY --from=builder /app/.env ./.env
 
-EXPOSE 3000
+# ✅ Create directory for SSL certs
+RUN mkdir -p /app/ssl
+
+# ✅ Copy SSL certificates into the container
+COPY ssl/server.key /app/ssl/server.key
+COPY ssl/server.cert /app/ssl/server.cert
+
+# ✅ Expose both HTTP (3000) and HTTPS (443)
+EXPOSE 3000 443
+
 ENV HOST=0.0.0.0
 
 # Start the application
