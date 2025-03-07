@@ -27,7 +27,6 @@ services:
       - postgres
     ports:
       - "3000:3000"  # HTTP
-      - "443:443"    # ✅ Added HTTPS port
       - "5555:5555"
     volumes:
       - ./keys/service-account.json:/app/keys/service-account.json  # Mount the JSON key file

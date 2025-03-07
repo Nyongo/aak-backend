@@ -43,7 +43,7 @@ COPY ssl/server.key /app/ssl/server.key
 COPY ssl/server.cert /app/ssl/server.cert
 
 # ✅ Expose both HTTP (3000) and HTTPS (443)
-EXPOSE 3000 443
+EXPOSE 3000
 
 ENV HOST=0.0.0.0
 
