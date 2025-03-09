@@ -7,7 +7,6 @@ import { PrismaService } from './prisma/prisma.service';
 import { ConfigsModule } from './configs/configs.module';
 import { ConfigModule } from '@nestjs/config';
 import { SspModule } from './ssp/ssp.module';
-import { CatiModule } from './cati/cati.module';
 import { JfModule } from './jf/jf.module';
 import { GoogleDriveModule } from 'nestjs-google-drive';
 @Module({
@@ -20,7 +19,6 @@ import { GoogleDriveModule } from 'nestjs-google-drive';
     AuthModule,
     ConfigsModule,
     SspModule,
-    CatiModule,
     JfModule,
     GoogleDriveModule.register({
       clientId: 'your_google_client_id',

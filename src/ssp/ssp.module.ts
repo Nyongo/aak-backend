@@ -15,6 +15,8 @@ import { CropsInFarmController } from './controllers/crops-in-farm.controller';
 import { CropsInFarmService } from './services/crops-in-farm.service';
 import { SspScheduleController } from './controllers/ssp-schedule.controller';
 import { SspScheduleService } from './services/ssp-schedule.service';
+import { BiddingController } from './controllers/bidding.controller';
+import { BiddingService } from './services/bidding.service';
 
 @Module({
   imports: [PrismaModule],
@@ -25,6 +27,7 @@ import { SspScheduleService } from './services/ssp-schedule.service';
     FarmerRequestsController,
     CropsInFarmController,
     SspScheduleController,
+    BiddingController,
   ],
   providers: [
     CommonFunctionsService,
@@ -36,6 +39,7 @@ import { SspScheduleService } from './services/ssp-schedule.service';
     FarmRequestsService,
     CropsInFarmService,
     SspScheduleService,
+    BiddingService,
   ],
 })
 export class SspModule {}

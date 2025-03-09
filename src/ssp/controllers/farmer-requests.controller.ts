@@ -27,7 +27,7 @@ export class FarmerRequestsController {
   @Post()
   @HttpCode(200)
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
-  @Permissions('can_create_county')
+  //@Permissions('can_create_county')
   async create(@Body() data: CreateFarmerRequestDto) {
     const response = this.service.create(data);
     return response;

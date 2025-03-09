@@ -15,10 +15,15 @@ async function bootstrap() {
   };
   const host = process.env.HOST || 'localhost';
   const port = process.env.PORT || 3000;
-  const app = await NestFactory.create(AppModule, { httpsOptions });
+  // const app = await NestFactory.create(AppModule, { httpsOptions });
+  const app = await NestFactory.create(AppModule);
   // Enable CORS
   app.enableCors({
-    origin: ['http://localhost:4200', 'https://jf-foundation.vercel.app'],
+    origin: [
+      'http://localhost:4200',
+      'http://localhost:4000',
+      'https://jf-foundation.vercel.app',
+    ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
@@ -37,8 +42,6 @@ async function bootstrap() {
   app.useGlobalFilters(new ValidationExceptionFilter());
   app.useGlobalFilters(new PrismaExceptionFilter());
 
-  // await app.listen(3000);
-  // await app.listen(3000, '0.0.0.0');
   await app.listen(port, host);
   console.log(`🚀 Server is running on https://${host}:${port}`);
 }

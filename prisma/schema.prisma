@@ -23,9 +23,7 @@ model User {
   updatedPesticides     Pesticide[] @relation("LastUpdatedBy") // Add this reverse relation
   sspUser               SspUser?    @relation("UserSspUser")
   farmerUser            FarmerUser? @relation("UserFarmerUser")
-  callList CallList[]
-  scheduledCalls CallListItem[]
-  scheduledCallsEvents CallListItemEvents[]
+
 }
 
 model Role {
@@ -108,6 +106,7 @@ model ServiceType {
   lastUpdatedAt   DateTime?
   createdById     Int?
   lastUpdatedById Int?
+  servicesRequested  ServiceRequestService[]
 }
 
 model SspUser {
@@ -129,37 +128,12 @@ model SspUser {
   lastUpdatedById  Int?
   assignedRequests ServiceRequest[] @relation(name: "SspAssignedServiceRequest")
   schedules     SspSchedule[]
-  appointments  SspAppointment[] 
+  bids  SspBidding[] 
   countyId        Int?
   county          County?          @relation(name: "SspInCounty", fields: [countyId], references: [id], onDelete: Cascade)
 }
 
-model SspSchedule {
-  id            Int       @id @default(autoincrement())
-  sspId         Int
-  ssp           SspUser   @relation(fields: [sspId], references: [id], onDelete: Cascade)
-  date          DateTime
-  startTime     DateTime 
-  endTime       DateTime 
-  isBooked      Boolean   @default(false) // If booked, set to true
-   isAvailable     Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  lastUpdatedAt DateTime  @updatedAt
-   appointments  SspAppointment[]
-}
 
-model SspAppointment {
-  id              Int         @id @default(autoincrement())
-  farmerId        Int
-  farmer          FarmerUser  @relation(fields: [farmerId], references: [id], onDelete: Cascade)
-  sspId          Int
-  ssp            SspUser      @relation(fields: [sspId], references: [id], onDelete: Cascade)
-  scheduleId     Int
-  schedule       SspSchedule  @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
-  status         String       @default("Pending") // Pending, Confirmed, Completed, Cancelled
-  createdAt      DateTime     @default(now())
-  lastUpdatedAt  DateTime     @updatedAt
-}
 
 
 model FarmerUser {
@@ -181,7 +155,7 @@ model FarmerUser {
   lastUpdatedById Int?
   farms           FarmerFarm[]     @relation("FarmerFarmUser")
   serviceRequests ServiceRequest[] @relation(name: "FarmerServiceRequest")
-   appointments  SspAppointment[]
+  serviceBids  SspBidding[]
 }
 
 model FarmerFarm {
@@ -246,90 +220,62 @@ model ServiceRequest {
   assignedSspId   Int?
   assignedSsp     SspUser?    @relation(name: "SspAssignedServiceRequest", fields: [assignedSspId], references: [id], onDelete: SetNull)
   requestStatus   String?
+  sspScheduleId    Int?
+  isConfirmed       Boolean     @default(false)
   isActive        Boolean     @default(true)
+  isPublished        Boolean     @default(true)
   createdAt       DateTime    @default(now())
   sspRating          Int?
-  priority            String?
+  urgency            String?
+  requestDate     DateTime?
   dateStarted     DateTime?
   dateCompleted   DateTime?
   lastUpdatedAt   DateTime    @updatedAt
   createdById     Int?
   lastUpdatedById Int?
-  serviceCosts    Int?
+  farmersBudget Float?
+  serviceCosts    Float?
+  requestedServicesIds String?
+  assignedSspSchedule  SspSchedule?
+  bids  SspBidding[]
+  servicesRequested  ServiceRequestService[]
+}
+model ServiceRequestService {
+    id              Int         @id @default(autoincrement())
+    serviceTypeId   Int
+    serviceType   ServiceType  @relation(fields: [serviceTypeId], references: [id], onDelete: Cascade)
+    serviceRequestId Int
+    serviceRequest          ServiceRequest  @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
 }
 
-
-model CallList {
-   id              Int         @id @default(autoincrement())
-  user  User?      @relation(fields: [userId], references: [id])
-  userId Int? 
-  name String  
-  description  String?
-  status String?
-  isActive Boolean? @default(true)
-  isDeleted Boolean? @default(false)
-  createdBy Int?
-  createdAt  DateTime? @default(now())
-  updatedBy Int?
-  updatedAt  DateTime? @updatedAt
-  scheduledCalls CallListItem[]
-}
-model CallListItem {
-    id              Int         @id @default(autoincrement())
-  callList  CallList?      @relation(fields: [callListId], references: [id])
-  callListId Int? 
-  user  User?      @relation(fields: [userId], references: [id])
-  userId Int? 
-  phoneNumber String  
-  name String ?
-  gender String?
-  description  String?
-  status String?
-  recordingUrl String?
-  callResultsNarration String?
-  callMadeOn DateTime?
-  callScheduledOn DateTime? @default(now())
-  rescheduledOn DateTime?
-  rescheduleCount Int? @default(0)
-  isActive Boolean? @default(true)
-  isDeleted Boolean? @default(false)
-  createdBy Int?
-  createdAt  DateTime? @default(now())
-  updatedBy Int?
-  updatedAt  DateTime? @updatedAt
-  recordings CallRecording[]
-  events CallListItemEvents[]
-}
-model CallListItemEvents {
-    id              Int         @id @default(autoincrement())
-   callListItem  CallListItem?      @relation(fields: [callListItemId], references: [id])
-   callListItemId Int? 
-   agent  User?      @relation(fields: [userId], references: [id])
-   userId Int? 
-   status String? 
-   narration String? 
-   rescheduledTo String? 
-   callStartTime String? 
-   callEndTime  String? 
-   isActive Boolean? @default(true)
-   isDeleted Boolean? @default(false)
-   createdBy Int?
-   createdAt  DateTime? @default(now())
-   updatedBy Int?
-   updatedAt  DateTime? @updatedAt
+model SspSchedule {
+  id            Int       @id @default(autoincrement())
+  sspId         Int
+  ssp           SspUser   @relation(fields: [sspId], references: [id], onDelete: Cascade)
+  date          DateTime
+  startTime     DateTime 
+  endTime       DateTime 
+  isBooked      Boolean   @default(false) // If booked, set to true
+   isAvailable     Boolean   @default(true)
+   serviceRequestId Int? @unique
+   serviceRequest  ServiceRequest? @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
+   createdAt     DateTime  @default(now())
+  lastUpdatedAt DateTime  @updatedAt
+  bids   SspBidding[]
 }
 
-model CallRecording {
-    id              Int         @id @default(autoincrement())
-  contact CallListItem? @relation(fields: [contactId], references: [id])
-  contactId Int? 
-  recording String? 
-  description  String?
-  status String?
-  isActive Boolean? @default(true)
-  isDeleted Boolean? @default(false)
-  createdBy Int?
-  createdAt  DateTime? @default(now())
-  updatedBy Int?
-  updatedAt  DateTime? @updatedAt
+model SspBidding {
+  id              Int         @id @default(autoincrement())
+  serviceRequestId        Int
+  serviceRequest          ServiceRequest  @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
+  sspId          Int
+  ssp            SspUser      @relation(fields: [sspId], references: [id], onDelete: Cascade)
+  farmerId          Int
+  farmer            FarmerUser      @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  scheduleId     Int?
+  schedule       SspSchedule?  @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  status         String       @default("Pending") // Pending, Confirmed, Completed, Cancelled
+  requestedByFarmer  Boolean   @default(false)
+  createdAt      DateTime     @default(now())
+  lastUpdatedAt  DateTime     @updatedAt
 }

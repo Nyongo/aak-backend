@@ -18,13 +18,63 @@ export class FarmRequestsService {
         description: createDto.description,
         farmId: createDto.farmId,
         assignedSspId: createDto.assignedSspId,
+        urgency: createDto.urgency,
+        isPublished: createDto.isPublished,
         requestStatus: createDto.requestStatus ?? 'Not Started',
         isActive: createDto.isActive ?? false,
+        requestDate: createDto.requestDate,
       };
 
       const newRecord = await this.prisma.serviceRequest.create({
         data,
       });
+
+      if (newRecord && createDto.requestedServicesIds?.length) {
+        // ✅ Check if all requestedServicesIds exist in the service type table
+        const existingServices = await this.prisma.serviceType.findMany({
+          where: {
+            id: { in: createDto.requestedServicesIds },
+          },
+          select: { id: true },
+        });
+
+        const existingServiceIds = existingServices.map((s) => s.id);
+        const invalidIds = createDto.requestedServicesIds.filter(
+          (id) => !existingServiceIds.includes(id),
+        );
+
+        if (invalidIds.length) {
+          return this.commonFunctions.returnFormattedResponse(
+            HttpStatus.BAD_REQUEST,
+            `Invalid serviceTypeIds: ${invalidIds.join(', ')}`,
+            [],
+          );
+        }
+
+        // ✅ Insert only valid serviceTypeIds
+        await Promise.all(
+          createDto.requestedServicesIds.map((id) =>
+            this.prisma.serviceRequestService.create({
+              data: {
+                serviceTypeId: id,
+                serviceRequestId: newRecord.id,
+              },
+            }),
+          ),
+        );
+        // Save Bid if assignedSspId
+        if (createDto.assignedSspId) {
+          await this.prisma.sspBidding.create({
+            data: {
+              serviceRequestId: newRecord.id,
+              sspId: createDto.assignedSspId,
+              farmerId: createDto.farmerId,
+              //  scheduleId: createDto.sspScheduleIds[0],
+              requestedByFarmer: true,
+            },
+          });
+        }
+      }
 
       return this.commonFunctions.returnFormattedResponse(
         HttpStatus.CREATED,
@@ -80,6 +130,23 @@ export class FarmRequestsService {
     try {
       const record = await this.prisma.serviceRequest.findUnique({
         where: { id },
+        include: {
+          farm: {
+            include: { county: true },
+          },
+          farmer: true,
+          assignedSsp: true,
+          servicesRequested: {
+            include: {
+              serviceType: true,
+            },
+          },
+          bids: {
+            include: {
+              ssp: true,
+            },
+          },
+        },
       });
       if (!record) {
         return this.commonFunctions.returnFormattedResponse(

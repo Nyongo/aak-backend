@@ -33,8 +33,6 @@ export class SspUsersController {
     return response;
   }
 
-  65;
-
   @Get(':id')
   @Permissions('can_view_counties')
   async findOne(@Param('id') id: string) {
