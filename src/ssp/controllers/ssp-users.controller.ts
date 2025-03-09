@@ -33,6 +33,12 @@ export class SspUsersController {
     return response;
   }
 
+  @Get()
+  // @Permissions('can_view_counties')
+  async findAll(@Param('id') id: string) {
+    return this.service.findAll();
+  }
+
   @Get(':id')
   @Permissions('can_view_counties')
   async findOne(@Param('id') id: string) {

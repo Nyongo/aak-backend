@@ -168,21 +168,13 @@ export class SspUsersService {
         }),
         this.prisma.sspUser.count(),
       ]);
-
       const totalPages = Math.ceil(totalItems / pageSize);
 
+      const unpaginatedData = await this.prisma.sspUser.findMany({});
       return this.commonFunctions.returnFormattedResponse(
         HttpStatus.OK,
         'Fetched Records',
-        {
-          data,
-          pagination: {
-            currentPage: page,
-            totalPages,
-            totalItems,
-            pageSize,
-          },
-        },
+        unpaginatedData,
       );
     } catch (error) {
       if (error instanceof PrismaClientKnownRequestError) {
