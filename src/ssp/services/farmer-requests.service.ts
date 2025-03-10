@@ -74,6 +74,19 @@ export class FarmRequestsService {
             },
           });
         }
+        // Save Crops in Request
+        if (createDto.cropsIds && createDto.cropsIds.length > 0) {
+          await Promise.all(
+            createDto.cropsIds.map((id) =>
+              this.prisma.serviceRequestCrops.create({
+                data: {
+                  cropId: id,
+                  serviceRequestId: newRecord.id,
+                },
+              }),
+            ),
+          );
+        }
       }
 
       return this.commonFunctions.returnFormattedResponse(
@@ -221,6 +234,7 @@ export class FarmRequestsService {
           },
           farmer: true,
           assignedSsp: true,
+          crops: { include: { crop: true } },
         },
       });
       return this.commonFunctions.returnFormattedResponse(

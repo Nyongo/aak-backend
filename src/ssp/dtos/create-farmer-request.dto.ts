@@ -48,6 +48,11 @@ export class CreateFarmerRequestDto {
   @IsNumber({}, { each: true }) // Ensure each element in the array is a number
   sspScheduleIds: number[];
 
+  @IsArray() // Ensure it's an array
+  @IsOptional()
+  @IsNumber({}, { each: true }) // Ensure each element in the array is a number
+  cropsIds: number[];
+
   @IsString()
   @IsOptional()
   requestStatus: string;

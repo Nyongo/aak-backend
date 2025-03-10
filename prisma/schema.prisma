@@ -193,6 +193,7 @@ model Crop {
   createdById     Int?
   lastUpdatedById Int?
   farms           CropsInFarm[] @relation("CropsInFarm")
+  serviceRequests           ServiceRequestCrops[] @relation("CropsInRequest")
 }
 
 model CropsInFarm {
@@ -238,12 +239,21 @@ model ServiceRequest {
   requestedServicesIds String?
   assignedSspSchedule  SspSchedule?
   bids  SspBidding[]
+  crops  ServiceRequestCrops[]
   servicesRequested  ServiceRequestService[]
 }
 model ServiceRequestService {
     id              Int         @id @default(autoincrement())
     serviceTypeId   Int
     serviceType   ServiceType  @relation(fields: [serviceTypeId], references: [id], onDelete: Cascade)
+    serviceRequestId Int
+    serviceRequest          ServiceRequest  @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
+}
+
+model ServiceRequestCrops {
+    id              Int         @id @default(autoincrement())
+    cropId   Int
+    crop            Crop       @relation(name: "CropsInRequest", fields: [cropId], references: [id], onDelete: Cascade)
     serviceRequestId Int
     serviceRequest          ServiceRequest  @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
 }
