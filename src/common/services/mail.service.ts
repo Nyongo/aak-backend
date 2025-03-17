@@ -6,11 +6,26 @@ export class MailService {
   private transporter;
 
   constructor() {
+    //   this.transporter = nodemailer.createTransport({
+    //     service: 'gmail', // or use Mailgun, SendGrid, etc.
+    //     auth: {
+    //       user: process.env.EMAIL_USER, // Set in .env
+    //       pass: process.env.EMAIL_PASS,
+    //     },
+    //   });
     this.transporter = nodemailer.createTransport({
-      service: 'Gmail', // or use Mailgun, SendGrid, etc.
+      host: 'smtp.office365.com',
+      port: 465,
+      secure: true,
+      logger: true,
+      debug: true,
+      secureConnection: false,
       auth: {
-        user: process.env.EMAIL_USER, // Set in .env
-        pass: process.env.EMAIL_PASS,
+        user: process.env.EMAIL_USER, // your email address
+        pass: process.env.EMAIL_PASS, // your email password or app-specific password
+      },
+      tls: {
+        rejectUnauthorized: true,
       },
     });
   }

@@ -285,4 +285,22 @@ export class UsersService {
     const hashedPassword = await bcrypt.hash(generatedPassword, 10);
     return hashedPassword;
   }
+
+  async resetPassword(id: number) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        roleId: true,
+      },
+    });
+    console.log(user);
+    const tempPass = await this.hashPassword();
+
+    this.mailService.sendPasswordEmail(user.email, tempPass);
+
+    return user;
+  }
 }

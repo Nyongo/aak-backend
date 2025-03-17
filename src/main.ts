@@ -23,6 +23,7 @@ async function bootstrap() {
       'http://localhost:4200',
       'http://localhost:4000',
       'https://jf-foundation.vercel.app',
+      'https://jackfruit-foundation.org/',
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,

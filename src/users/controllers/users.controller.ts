@@ -50,4 +50,9 @@ export class UsersController {
   async changePassword(@Body() dto: any) {
     return this.usersService.changePassword(dto);
   }
+
+  @Post('reset-password')
+  async resetPassword(@Body() dto: any) {
+    return this.usersService.resetPassword(dto.id);
+  }
 }
