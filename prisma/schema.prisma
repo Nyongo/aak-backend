@@ -265,13 +265,14 @@ model SspSchedule {
   date          DateTime
   startTime     DateTime 
   endTime       DateTime 
+  hasRequests  Boolean   @default(false)
   isBooked      Boolean   @default(false) // If booked, set to true
    isAvailable     Boolean   @default(true)
    serviceRequestId Int? @unique
    serviceRequest  ServiceRequest? @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
    createdAt     DateTime  @default(now())
   lastUpdatedAt DateTime  @updatedAt
-  bids   SspBidding[]
+
 }
 
 model SspBidding {
@@ -282,8 +283,7 @@ model SspBidding {
   ssp            SspUser      @relation(fields: [sspId], references: [id], onDelete: Cascade)
   farmerId          Int
   farmer            FarmerUser      @relation(fields: [farmerId], references: [id], onDelete: Cascade)
-  scheduleId     Int?
-  schedule       SspSchedule?  @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  scheduleId     String?
   status         String       @default("Pending") // Pending, Confirmed, Completed, Cancelled
   requestedByFarmer  Boolean   @default(false)
   createdAt      DateTime     @default(now())

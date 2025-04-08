@@ -69,10 +69,22 @@ export class FarmRequestsService {
               serviceRequestId: newRecord.id,
               sspId: createDto.assignedSspId,
               farmerId: createDto.farmerId,
-              //  scheduleId: createDto.sspScheduleIds[0],
+              scheduleId: createDto.sspScheduleIds.join(','),
               requestedByFarmer: true,
             },
           });
+          if (createDto.sspScheduleIds) {
+            createDto.sspScheduleIds.forEach(async (scheduleId) => {
+              await this.prisma.sspSchedule.update({
+                where: {
+                  id: scheduleId,
+                },
+                data: {
+                  hasRequests: true,
+                },
+              });
+            });
+          }
         }
         // Save Crops in Request
         if (createDto.cropsIds && createDto.cropsIds.length > 0) {

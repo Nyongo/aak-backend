@@ -202,8 +202,13 @@ export class SpreadsheetService {
         yearStats[firstYear].totalFemaleTeachers += femaleTeachers;
       }
     }
-
-    // return data;
+    const schoolLocations = data.map((rec) => {
+      const location = {
+        name: rec['Borrower Name'],
+        location: rec['GPS'],
+      };
+      return location;
+    });
     return {
       totalNoOfSchools: data.length + this.initTotalNoOfSchools,
       totalEnrolment: totalEnrolment + this.initTotalEnrollment,
@@ -234,6 +239,7 @@ export class SpreadsheetService {
       yearStats,
       feeCategoryStats,
       statsGradeServed,
+      schoolLocations,
     };
   }
 }
