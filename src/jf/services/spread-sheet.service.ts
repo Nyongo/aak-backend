@@ -47,6 +47,30 @@ export class SpreadsheetService {
     return this.getSummary(data);
   }
 
+  async readDbSheet(
+    spreadsheetId: string,
+    range: string = 'Borrowers!A1:CQ1000',
+  ): Promise<any> {
+    const response = await this.sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range,
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      throw new Error('No data found in the sheet.');
+    }
+
+    const headers = rows[0];
+    const data = rows.slice(1).map((row) =>
+      headers.reduce((obj, key, index) => {
+        obj[key] = row[index] || '';
+        return obj;
+      }, {}),
+    );
+    return data;
+  }
+
   async getSummary(data: any[]): Promise<any> {
     const allowedGrades = new Set(['primary', 'secondary', 'tertiary']);
     let totalMaleStudents = 0;

@@ -9,4 +9,9 @@ export class SpreadsheetController {
   async read(@Query('spreadsheetId') spreadsheetId: string) {
     return this.spreadsheetService.readSheet(spreadsheetId);
   }
+
+  @Get('read-dbsheet')
+  async readDbsheet(@Query('spreadsheetId') spreadsheetId: string) {
+    return this.spreadsheetService.readDbSheet(spreadsheetId);
+  }
 }
