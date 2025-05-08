@@ -332,7 +332,7 @@ export class BorrowersController {
       'How did the borrower hear about Jackfruit?': data.howHeard,
       County: data.county,
       'KRA PIN Number': data.kraPinNumber,
-      'Products Requested': data.productsRequested.join(', '),
+      'Products Requested': data.productsRequested,
       'Initial Contact Details and Notes': data.initialContactNotes,
       'Payment Method': data.paymentMethod,
       'Bank Name': data.bankName,
