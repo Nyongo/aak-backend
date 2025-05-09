@@ -8,4 +8,8 @@ export class CreateDirectorDto {
   'Date Of Birth': string;
   Gender: 'Male' | 'Female' | 'Other';
   Email?: string;
+  'Education Level'?: string;
+  'Insured For Credit Life'?: 'Yes' | 'No';
+  Address?: string;
+  'Postal Address'?: string;
 }

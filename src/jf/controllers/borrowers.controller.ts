@@ -26,17 +26,23 @@ export class BorrowersController {
   private readonly logger = new Logger(BorrowersController.name);
   private readonly BORROWERS_IMAGES_FOLDER_ID =
     process.env.GOOGLE_DRIVE_BORROWERS_IMAGES_FOLDER_ID;
-
+  private readonly SCHOOL_IMAGES_FOLDER_ID =
+    process.env.GOOGLE_DRIVE_SCHOOL_IMAGES_FOLDER_ID;
   // Document type to AppSheet field mapping
   private readonly documentFieldMapping = {
     'kra-pin': 'KRA PIN Photo',
-    'national-id-front': 'National ID Front',
-    'national-id-back': 'National ID Back',
     'moe-certificate': 'MOE Certificate',
+    'official-search': 'Official Search',
+    'cr-12': 'CR12',
+    'peleza-search': 'Peleza Search',
+    'society-cbo-incorporation-certificate':
+      'Society/CBO/Incorporation Certificate',
+    'document-verifying-payment-account': 'Document Verifying Payment Account',
   };
 
   private readonly folderNameMapping = {
     BORROWERS_IMAGES_FOLDER_ID: 'Borrowers_Images',
+    SCHOOL_IMAGES_FOLDER_ID: 'Schools_Images',
   };
 
   constructor(
@@ -61,6 +67,33 @@ export class BorrowersController {
       if (!allowedTypes.includes(documentType)) {
         return { success: false, error: 'Invalid document type' };
       }
+      let gdFolderId;
+      let gdFolderName;
+      if (documentType === 'moe-certificate') {
+        gdFolderId = this.SCHOOL_IMAGES_FOLDER_ID;
+        gdFolderName = this.folderNameMapping.SCHOOL_IMAGES_FOLDER_ID;
+      } else if (documentType === 'kra-pin') {
+        gdFolderId = this.BORROWERS_IMAGES_FOLDER_ID;
+        gdFolderName = this.folderNameMapping.BORROWERS_IMAGES_FOLDER_ID;
+      } else if (documentType === 'official-search') {
+        gdFolderId = this.SCHOOL_IMAGES_FOLDER_ID;
+        gdFolderName = this.folderNameMapping.SCHOOL_IMAGES_FOLDER_ID;
+      } else if (documentType === 'peleza-search') {
+        gdFolderId = this.SCHOOL_IMAGES_FOLDER_ID;
+        gdFolderName = this.folderNameMapping.SCHOOL_IMAGES_FOLDER_ID;
+      } else if (documentType === 'cr-12') {
+        gdFolderId = this.SCHOOL_IMAGES_FOLDER_ID;
+        gdFolderName = this.folderNameMapping.SCHOOL_IMAGES_FOLDER_ID;
+      } else if (documentType === 'national-id-back') {
+        gdFolderId = this.SCHOOL_IMAGES_FOLDER_ID;
+        gdFolderName = this.folderNameMapping.SCHOOL_IMAGES_FOLDER_ID;
+      } else if (documentType === 'society-cbo-incorporation-certificate') {
+        gdFolderId = this.SCHOOL_IMAGES_FOLDER_ID;
+        gdFolderName = this.folderNameMapping.SCHOOL_IMAGES_FOLDER_ID;
+      } else if (documentType === 'document-verifying-payment-account') {
+        gdFolderId = this.SCHOOL_IMAGES_FOLDER_ID;
+        gdFolderName = this.folderNameMapping.SCHOOL_IMAGES_FOLDER_ID;
+      }
 
       // Get existing borrower record
       const borrower = await this.sheetsService.findBorrowerById(borrowerId);
@@ -77,7 +110,7 @@ export class BorrowersController {
         file.buffer,
         filename,
         file.mimetype,
-        this.BORROWERS_IMAGES_FOLDER_ID,
+        gdFolderId,
       );
 
       // Update the borrower record with the file URL
@@ -86,11 +119,11 @@ export class BorrowersController {
       // };
       const updateData = {
         [this.documentFieldMapping[documentType]]:
-          `${this.folderNameMapping.BORROWERS_IMAGES_FOLDER_ID}/${filename}`,
+          `${gdFolderName}/${filename}`,
       };
 
       await this.sheetsService.updateBorrower(borrowerId, updateData);
-
+      console.log('fileUrl', fileUrl);
       return {
         success: true,
         fileUrl,
@@ -420,16 +453,33 @@ export class BorrowersController {
 
       for (const column of documentColumns) {
         if (borrower[column]) {
+          let gdFolderId;
+          if (column === 'MOE Certificate') {
+            gdFolderId = this.SCHOOL_IMAGES_FOLDER_ID;
+          } else if (column === 'Official Search') {
+            gdFolderId = this.SCHOOL_IMAGES_FOLDER_ID;
+          } else if (column === 'Peleza Search') {
+            gdFolderId = this.SCHOOL_IMAGES_FOLDER_ID;
+          } else if (column === 'CR12') {
+            gdFolderId = this.SCHOOL_IMAGES_FOLDER_ID;
+          } else if (column === 'Society/CBO/Incorporation Certificate') {
+            gdFolderId = this.SCHOOL_IMAGES_FOLDER_ID;
+          } else if (column === 'Document Verifying Payment Account') {
+            gdFolderId = this.SCHOOL_IMAGES_FOLDER_ID;
+          } else {
+            gdFolderId = this.BORROWERS_IMAGES_FOLDER_ID;
+          }
+
           try {
             // Extract just the filename from the path
             const filename = borrower[column].split('/').pop();
             this.logger.debug(
-              `Looking for file: ${filename} in folder: ${this.BORROWERS_IMAGES_FOLDER_ID}`,
+              `Looking for file: ${filename} in folder: ${gdFolderId}`,
             );
 
             const fileLink = await this.googleDriveService.getFileLink(
               filename,
-              this.BORROWERS_IMAGES_FOLDER_ID,
+              gdFolderId,
             );
 
             this.logger.debug(`File link for ${column}: ${fileLink}`);

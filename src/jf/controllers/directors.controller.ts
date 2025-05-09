@@ -24,7 +24,10 @@ interface ApiError {
 @Controller('jf/directors')
 export class DirectorsController {
   private readonly logger = new Logger(DirectorsController.name);
-
+  private readonly USERS_IMAGES_FOLDER_ID =
+    process.env.GOOGLE_DRIVE_USERS_IMAGES_FOLDER_ID;
+  private readonly USERS_IMAGES_FOLDER_NAME =
+    process.env.GOOGLE_DRIVE_USERS_IMAGES_FOLDER_NAME;
   constructor(
     private readonly usersService: UsersService,
     private readonly googleDriveService: GoogleDriveService,
@@ -36,11 +39,32 @@ export class DirectorsController {
       this.logger.log(`Fetching directors for borrower: ${borrowerId}`);
       const directors =
         await this.usersService.getDirectorsByBorrowerId(borrowerId);
-
+      const documentColumns = [
+        'KRA Pin Photo',
+        'National ID Front',
+        'National ID Back',
+        'Passport Photo',
+      ];
+      const directorsWithLinks = await Promise.all(
+        directors.map(async (director) => {
+          const directorWithLinks = { ...director };
+          for (const column of documentColumns) {
+            if (director[column]) {
+              const filename = director[column].split('/').pop();
+              const fileLink = await this.googleDriveService.getFileLink(
+                filename,
+                this.USERS_IMAGES_FOLDER_ID,
+              );
+              directorWithLinks[column] = fileLink;
+            }
+          }
+          return directorWithLinks;
+        }),
+      );
       return {
         success: true,
         count: directors.length,
-        data: directors,
+        data: directorsWithLinks,
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -57,6 +81,8 @@ export class DirectorsController {
     FileFieldsInterceptor([
       { name: 'nationalIdFront', maxCount: 1 },
       { name: 'kraPinPhoto', maxCount: 1 },
+      { name: 'nationalIdBack', maxCount: 1 },
+      { name: 'passportPhoto', maxCount: 1 },
     ]),
   )
   async addDirector(
@@ -65,6 +91,8 @@ export class DirectorsController {
     files: {
       nationalIdFront?: Express.Multer.File[];
       kraPinPhoto?: Express.Multer.File[];
+      nationalIdBack?: Express.Multer.File[];
+      passportPhoto?: Express.Multer.File[];
     },
   ) {
     try {
@@ -77,40 +105,95 @@ export class DirectorsController {
         };
       }
 
-      // Upload National ID Front if provided
-      let nationalIdFrontUrl = '';
+      // Upload National ID Front and Back if provided
+
+      let nationalIdFrontFileName = '';
       if (files.nationalIdFront?.[0]) {
         const file = files.nationalIdFront[0];
         const timestamp = new Date().getTime();
-        const filename = `national_id_front_${directorData.borrowerId}_${timestamp}.${file.originalname.split('.').pop()}`;
+        nationalIdFrontFileName = `national_id_front_${directorData.borrowerId}_${timestamp}.${file.originalname.split('.').pop()}`;
 
-        nationalIdFrontUrl = await this.googleDriveService.uploadFile(
+        await this.googleDriveService.uploadFile(
           file.buffer,
-          filename,
+          nationalIdFrontFileName,
           file.mimetype,
+          this.USERS_IMAGES_FOLDER_ID,
         );
       }
 
-      // Upload KRA PIN Photo if provided
-      let kraPinPhotoUrl = '';
-      if (files.kraPinPhoto?.[0]) {
-        const file = files.kraPinPhoto[0];
+      let nationalIdBackFileName = '';
+      if (files.nationalIdBack?.[0]) {
+        const file = files.nationalIdBack[0];
         const timestamp = new Date().getTime();
-        const filename = `kra_pin_photo_${directorData.borrowerId}_${timestamp}.${file.originalname.split('.').pop()}`;
+        nationalIdBackFileName = `national_id_back_${directorData.borrowerId}_${timestamp}.${file.originalname.split('.').pop()}`;
 
-        kraPinPhotoUrl = await this.googleDriveService.uploadFile(
+        await this.googleDriveService.uploadFile(
           file.buffer,
-          filename,
+          nationalIdBackFileName,
           file.mimetype,
+          this.USERS_IMAGES_FOLDER_ID,
+        );
+      }
+      // Upload KRA PIN Photo if provided
+      let kraPinFileName = '';
+      if (files.kraPinPhoto?.[0]) {
+        const file = files.passportPhoto[0];
+        const timestamp = new Date().getTime();
+        kraPinFileName = `kra_pin_photo_${directorData.borrowerId}_${timestamp}.${file.originalname.split('.').pop()}`;
+        await this.googleDriveService.uploadFile(
+          file.buffer,
+          kraPinFileName,
+          file.mimetype,
+          this.USERS_IMAGES_FOLDER_ID,
+        );
+      }
+
+      let passportFileName = '';
+      if (files.passportPhoto?.[0]) {
+        const file = files.passportPhoto[0];
+        const timestamp = new Date().getTime();
+        passportFileName = `passport_photo_${directorData.borrowerId}_${timestamp}.${file.originalname.split('.').pop()}`;
+        await this.googleDriveService.uploadFile(
+          file.buffer,
+          passportFileName,
+          file.mimetype,
+          this.USERS_IMAGES_FOLDER_ID,
         );
       }
 
       // Add director with file URLs
       const director = await this.usersService.addDirector({
-        ...directorData,
+        //  ...directorData,
+        ID: `D-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
         'Borrower ID': directorData.borrowerId,
-        'National ID Front': nationalIdFrontUrl,
-        'KRA Pin Photo': kraPinPhotoUrl,
+        Name: directorData['Name'],
+        'National ID Number': directorData['National ID Number'],
+        'KRA Pin Number': directorData['KRA Pin Number'],
+        'Phone Number': directorData['Phone'],
+        Email: directorData['Email'],
+        Gender: directorData['Gender'],
+        'Role in School': 'Director',
+        Status: directorData['Status'],
+        'Date of Birth': directorData['Date Of Birth']
+          ? new Date(directorData['Date Of Birth']).toLocaleDateString(
+              'en-US',
+              {
+                day: 'numeric',
+                month: 'numeric',
+                year: 'numeric',
+              },
+            )
+          : '',
+
+        'Education Level': directorData['Education Level'],
+        'Insured for Credit Life?':
+          directorData['Insured For Credit Life'] == 'Yes' ? 'TRUE' : 'FALSE',
+        Address: directorData['Address'],
+        'Postal Address': directorData['Postal Address'],
+        'National ID Front': `${this.USERS_IMAGES_FOLDER_NAME}/${nationalIdFrontFileName}`,
+        'National ID Back': `${this.USERS_IMAGES_FOLDER_NAME}/${nationalIdBackFileName}`,
+        'KRA Pin Photo': `${this.USERS_IMAGES_FOLDER_NAME}/${kraPinFileName}`,
+        'Passport Photo': `${this.USERS_IMAGES_FOLDER_NAME}/${passportFileName}`,
         'Created At': new Date().toISOString(),
       });
 
