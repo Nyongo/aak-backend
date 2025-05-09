@@ -46,7 +46,7 @@ export class MailService {
       html: finalHtml,
       text: finalText,
     };
-
+    console.log('mail options', mailOptions);
     try {
       await this.transporter.sendMail(mailOptions);
       console.log(`Email sent to ${to}`);
