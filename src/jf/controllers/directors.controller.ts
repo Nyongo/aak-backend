@@ -49,14 +49,14 @@ export class DirectorsController {
         directors.map(async (director) => {
           const directorWithLinks = { ...director };
           for (const column of documentColumns) {
-            // if (director[column]) {
-            //   const filename = director[column].split('/').pop();
-            //   const fileLink = await this.googleDriveService.getFileLink(
-            //     filename,
-            //     this.USERS_IMAGES_FOLDER_ID,
-            //   );
-            //   directorWithLinks[column] = fileLink;
-            // }
+            if (director[column]) {
+              const filename = director[column].split('/').pop();
+              const fileLink = await this.googleDriveService.getFileLink(
+                filename,
+                this.USERS_IMAGES_FOLDER_ID,
+              );
+              directorWithLinks[column] = fileLink;
+            }
           }
           return directorWithLinks;
         }),
