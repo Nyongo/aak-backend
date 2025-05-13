@@ -55,4 +55,16 @@ export class UsersController {
   async resetPassword(@Body() dto: any) {
     return this.usersService.resetPassword(dto.id);
   }
+
+  @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  async getProfile(@Request() req) {
+    return this.usersService.findOne(req.user.id);
+  }
+
+  @Put('profile')
+  @UseGuards(JwtAuthGuard)
+  async updateProfile(@Request() req, @Body() data: any) {
+    return this.usersService.update(req.user.id, data);
+  }
 }

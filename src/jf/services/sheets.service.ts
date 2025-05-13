@@ -427,4 +427,44 @@ export class SheetsService {
       throw error;
     }
   }
+
+  async updateRow(
+    sheetName: string,
+    id: string,
+    rowData: any[],
+  ): Promise<void> {
+    try {
+      this.logger.log(`Updating row in sheet ${sheetName} with ID: ${id}`);
+
+      // First, find the row number for this ID
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.BORROWERS_SHEET_ID,
+        range: `${sheetName}!A:A`, // Only get ID column
+      });
+
+      const rows = response.data.values;
+      const rowIndex = rows.findIndex((row) => row[0] === id);
+
+      if (rowIndex === -1) {
+        throw new Error(`Row with ID ${id} not found in sheet ${sheetName}`);
+      }
+
+      // Update the row
+      await this.sheets.spreadsheets.values.update({
+        spreadsheetId: this.BORROWERS_SHEET_ID,
+        range: `${sheetName}!A${rowIndex + 1}:ZZ${rowIndex + 1}`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [rowData],
+        },
+      });
+
+      this.logger.log(
+        `Successfully updated row in sheet ${sheetName} with ID: ${id}`,
+      );
+    } catch (error) {
+      this.logger.error(`Error updating row in sheet ${sheetName}:`, error);
+      throw error;
+    }
+  }
 }

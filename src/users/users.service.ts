@@ -122,7 +122,7 @@ export class UsersService {
       if (email || password) {
         return this.commonFunctions.returnFormattedResponse(
           HttpStatus.BAD_REQUEST,
-          'Email and password cannot be updated.',
+          'Email and password cannot be updated through this endpoint.',
           null,
         );
       }
@@ -135,21 +135,30 @@ export class UsersService {
           email: true,
           name: true,
           roleId: true,
-          role: true,
+          role: {
+            include: {
+              permissions: {
+                include: {
+                  permission: true,
+                },
+              },
+            },
+          },
           createdAt: true,
+          lastLoggedInOn: true,
         },
       });
 
       return this.commonFunctions.returnFormattedResponse(
         HttpStatus.OK,
-        'User updated successfully',
+        'Profile updated successfully',
         updatedUser,
       );
     } catch (error) {
       if (error instanceof PrismaClientKnownRequestError) {
         return this.commonFunctions.handlePrismaError(error);
       }
-      console.error('Unknown error in update user:', error);
+      console.error('Unknown error in update profile:', error);
       return this.commonFunctions.handleUnknownError(error);
     }
   }

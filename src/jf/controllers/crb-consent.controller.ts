@@ -23,7 +23,10 @@ interface ApiError {
 export class CrbConsentController {
   private readonly logger = new Logger(CrbConsentController.name);
   private readonly SHEET_NAME = 'CRB Consent';
-
+  private readonly USERS_IMAGES_FOLDER_ID =
+    process.env.GOOGLE_DRIVE_USERS_IMAGES_FOLDER_ID;
+  private readonly USERS_IMAGES_FOLDER_NAME =
+    process.env.GOOGLE_DRIVE_USERS_IMAGES_FOLDER_NAME;
   constructor(
     private readonly sheetsService: SheetsService,
     private readonly googleDriveService: GoogleDriveService,
@@ -66,10 +69,28 @@ export class CrbConsentController {
           return consent;
         });
 
+      const documentColumns = ['Signature'];
+
+      const consentsWithLinks = await Promise.all(
+        consents.map(async (consent) => {
+          const consentsWithLinks = { ...consent };
+          for (const column of documentColumns) {
+            if (consent[column]) {
+              const filename = consent[column].split('/').pop();
+              const fileLink = await this.googleDriveService.getFileLink(
+                filename,
+                this.USERS_IMAGES_FOLDER_ID,
+              );
+              consentsWithLinks[column] = fileLink;
+            }
+          }
+          return consentsWithLinks;
+        }),
+      );
       return {
         success: true,
         count: consents.length,
-        data: consents,
+        data: consentsWithLinks,
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -93,15 +114,16 @@ export class CrbConsentController {
       );
 
       // Upload signature if provided
-      let signatureUrl = '';
+      let signatureFileName = '';
       if (signature) {
         const timestamp = new Date().getTime();
-        const filename = `crb_consent_signature_${consentData['Borrower ID']}_${timestamp}.${signature.originalname.split('.').pop()}`;
+        signatureFileName = `crb_consent_signature_${consentData['Borrower ID']}_${timestamp}.${signature.originalname.split('.').pop()}`;
 
-        signatureUrl = await this.googleDriveService.uploadFile(
+        await this.googleDriveService.uploadFile(
           signature.buffer,
-          filename,
+          signatureFileName,
           signature.mimetype,
+          this.USERS_IMAGES_FOLDER_ID,
         );
       }
 
@@ -112,7 +134,9 @@ export class CrbConsentController {
       const newConsent = {
         ID: consentId,
         ...consentData,
-        Signature: signatureUrl,
+        Signature: signatureFileName
+          ? `${this.USERS_IMAGES_FOLDER_NAME}/${signatureFileName}`
+          : '',
         'Created At': new Date().toISOString(),
       };
 

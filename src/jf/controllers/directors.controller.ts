@@ -217,49 +217,140 @@ export class DirectorsController {
     FileFieldsInterceptor([
       { name: 'nationalIdFront', maxCount: 1 },
       { name: 'kraPinPhoto', maxCount: 1 },
+      { name: 'nationalIdBack', maxCount: 1 },
+      { name: 'passportPhoto', maxCount: 1 },
     ]),
   )
   async updateDirector(
     @Param('userId') userId: string,
-    @Body() updateData: any,
+    @Body() updateData: Partial<CreateDirectorDto>,
     @UploadedFiles()
     files: {
       nationalIdFront?: Express.Multer.File[];
       kraPinPhoto?: Express.Multer.File[];
+      nationalIdBack?: Express.Multer.File[];
+      passportPhoto?: Express.Multer.File[];
     },
   ) {
     try {
       this.logger.log(`Updating director: ${userId}`);
 
+      // First verify the director exists
+      const directors = await this.usersService.getDirectorsByBorrowerId(
+        updateData.borrowerId,
+      );
+      const director = directors.find((d) => d.ID === userId);
+
+      if (!director) {
+        return {
+          success: false,
+          error: 'Director not found',
+        };
+      }
+
       // Handle file uploads if provided
+      let nationalIdFrontFileName = '';
       if (files.nationalIdFront?.[0]) {
         const file = files.nationalIdFront[0];
         const timestamp = new Date().getTime();
-        const filename = `national_id_front_${userId}_${timestamp}.${file.originalname.split('.').pop()}`;
+        nationalIdFrontFileName = `national_id_front_${updateData.borrowerId}_${timestamp}.${file.originalname.split('.').pop()}`;
 
+        await this.googleDriveService.uploadFile(
+          file.buffer,
+          nationalIdFrontFileName,
+          file.mimetype,
+          this.USERS_IMAGES_FOLDER_ID,
+        );
         updateData['National ID Front'] =
-          await this.googleDriveService.uploadFile(
-            file.buffer,
-            filename,
-            file.mimetype,
-          );
+          `${this.USERS_IMAGES_FOLDER_NAME}/${nationalIdFrontFileName}`;
       }
 
+      let nationalIdBackFileName = '';
+      if (files.nationalIdBack?.[0]) {
+        const file = files.nationalIdBack[0];
+        const timestamp = new Date().getTime();
+        nationalIdBackFileName = `national_id_back_${updateData.borrowerId}_${timestamp}.${file.originalname.split('.').pop()}`;
+
+        await this.googleDriveService.uploadFile(
+          file.buffer,
+          nationalIdBackFileName,
+          file.mimetype,
+          this.USERS_IMAGES_FOLDER_ID,
+        );
+        updateData['National ID Back'] =
+          `${this.USERS_IMAGES_FOLDER_NAME}/${nationalIdBackFileName}`;
+      }
+
+      let kraPinFileName = '';
       if (files.kraPinPhoto?.[0]) {
         const file = files.kraPinPhoto[0];
         const timestamp = new Date().getTime();
-        const filename = `kra_pin_photo_${userId}_${timestamp}.${file.originalname.split('.').pop()}`;
-
-        updateData['KRA Pin Photo'] = await this.googleDriveService.uploadFile(
+        kraPinFileName = `kra_pin_photo_${updateData.borrowerId}_${timestamp}.${file.originalname.split('.').pop()}`;
+        await this.googleDriveService.uploadFile(
           file.buffer,
-          filename,
+          kraPinFileName,
           file.mimetype,
+          this.USERS_IMAGES_FOLDER_ID,
         );
+        updateData['KRA Pin Photo'] =
+          `${this.USERS_IMAGES_FOLDER_NAME}/${kraPinFileName}`;
       }
+
+      let passportFileName = '';
+      if (files.passportPhoto?.[0]) {
+        const file = files.passportPhoto[0];
+        const timestamp = new Date().getTime();
+        passportFileName = `passport_photo_${updateData.borrowerId}_${timestamp}.${file.originalname.split('.').pop()}`;
+        await this.googleDriveService.uploadFile(
+          file.buffer,
+          passportFileName,
+          file.mimetype,
+          this.USERS_IMAGES_FOLDER_ID,
+        );
+        updateData['Passport Photo'] =
+          `${this.USERS_IMAGES_FOLDER_NAME}/${passportFileName}`;
+      }
+
+      // Map update data to sheet columns
+      const mappedUpdateData = {
+        ID: userId,
+        'Borrower ID': updateData.borrowerId,
+        Name: updateData['Name'],
+        'National ID Number': updateData['National ID Number'],
+        'KRA Pin Number': updateData['KRA Pin Number'],
+        'Phone Number': updateData['Phone'],
+        Email: updateData['Email'],
+        Gender: updateData['Gender'],
+        'Role in School': 'Director',
+        Status: updateData['Status'],
+        'Date of Birth': updateData['Date Of Birth']
+          ? new Date(updateData['Date Of Birth']).toLocaleDateString('en-US', {
+              day: 'numeric',
+              month: 'numeric',
+              year: 'numeric',
+            })
+          : undefined,
+        'Education Level': updateData['Education Level'],
+        'Insured for Credit Life?':
+          updateData['Insured For Credit Life'] == 'Yes' ? 'TRUE' : undefined,
+        Address: updateData['Address'],
+        'Postal Address': updateData['Postal Address'],
+        'National ID Front': updateData['National ID Front'],
+        'National ID Back': updateData['National ID Back'],
+        'KRA Pin Photo': updateData['KRA Pin Photo'],
+        'Passport Photo': updateData['Passport Photo'],
+      };
+
+      // Remove undefined values to prevent updating those fields
+      Object.keys(mappedUpdateData).forEach((key) => {
+        if (mappedUpdateData[key] === undefined) {
+          delete mappedUpdateData[key];
+        }
+      });
 
       const updatedDirector = await this.usersService.updateDirector(
         userId,
-        updateData,
+        mappedUpdateData,
       );
 
       return {
