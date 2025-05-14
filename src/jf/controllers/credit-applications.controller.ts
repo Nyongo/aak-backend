@@ -126,6 +126,7 @@ export class CreditApplicationsController {
           createDto['Working Capital Application Number'] || '',
         'SSL Action Needed': createDto['SSL Action Needed'] || false,
         'SSL Action': createDto['SSL Action'] || '',
+        'SSL ID': createDto['SSL ID'] || '',
         'SSL Feedback on Action': createDto['SSL Feedback on Action'] || '',
         'School CRB Available?': createDto['School CRB Available?'] || 'FALSE',
         'Referred By': createDto['Referred By'] || '',
