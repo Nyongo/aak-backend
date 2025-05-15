@@ -7,6 +7,7 @@ import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter'
 import { CommonFunctionsService } from './common/services/common-functions.service';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import * as fs from 'fs';
+import * as bodyParser from 'body-parser';
 
 async function bootstrap() {
   const httpsOptions = {
@@ -16,11 +17,13 @@ async function bootstrap() {
   const host = process.env.HOST || 'localhost';
   const port = process.env.PORT || 3000;
   const app = await NestFactory.create(AppModule, { httpsOptions });
+  app.use(bodyParser.json({ limit: '10mb' }));
+  app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
+
   //const app = await NestFactory.create(AppModule);
   // Enable CORS
   app.enableCors({
     origin: [
-      'https://crm-ochre-pi.vercel.app',
       'http://localhost:4200',
       'http://localhost:4000',
       'https://jf-foundation.vercel.app',
