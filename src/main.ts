@@ -20,6 +20,7 @@ async function bootstrap() {
   // Enable CORS
   app.enableCors({
     origin: [
+      'https://crm-ochre-pi.vercel.app',
       'http://localhost:4200',
       'http://localhost:4000',
       'https://jf-foundation.vercel.app',

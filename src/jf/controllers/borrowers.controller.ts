@@ -53,7 +53,11 @@ export class BorrowersController {
   ) {}
 
   @Post('upload/:documentType/:borrowerId')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit, adjust as needed
+    }),
+  )
   async uploadDocument(
     @UploadedFile() file: Express.Multer.File,
     @Param('documentType') documentType: string,
