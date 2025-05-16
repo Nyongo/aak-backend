@@ -7,6 +7,7 @@ import {
   UseInterceptors,
   UploadedFile,
   Logger,
+  Put,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CreateActiveDebtDto } from '../dto/create-active-debt.dto';
@@ -118,8 +119,9 @@ export class ActiveDebtsController {
         'Debt Statement': debtStatementUrl,
         'Annual Declining Balance Interest Rate':
           createDto['Annual Declining Balance Interest Rate'],
-        'Is the loan collateralized?': createDto['Is the loan collateralized?'],
-        'Type of collateral': createDto['Type of collateral'] || '',
+        'Is the loan collateralized? ':
+          createDto['Is the loan collateralized?'],
+        'Type of collateral ': createDto['Type of collateral'] || '',
         'What was the loan used for': createDto['What was the loan used for'],
         'Created At': now,
       };
@@ -134,6 +136,76 @@ export class ActiveDebtsController {
     } catch (error: unknown) {
       const apiError = error as ApiError;
       this.logger.error(`Error adding active debt: ${apiError.message}`);
+      throw error;
+    }
+  }
+
+  @Put(':id')
+  @UseInterceptors(FileInterceptor('debtStatement'))
+  async updateActiveDebt(
+    @Param('id') id: string,
+    @Body() updateData: Partial<CreateActiveDebtDto>,
+    @UploadedFile() debtStatement?: Express.Multer.File,
+  ) {
+    try {
+      this.logger.log(`Updating active debt with ID: ${id}`);
+
+      // First verify the debt exists
+      const debts = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      if (!debts || debts.length === 0) {
+        return { success: false, message: 'No debts found' };
+      }
+
+      const headers = debts[0];
+      const idIndex = headers.indexOf('ID');
+      const debtRow = debts.find((row) => row[idIndex] === id);
+
+      if (!debtRow) {
+        return { success: false, message: 'Debt not found' };
+      }
+
+      // Handle debt statement upload if provided
+      let debtStatementUrl = '';
+      if (debtStatement) {
+        const timestamp = new Date().getTime();
+        const filename = `debt_statement_${updateData['Credit Application ID'] || debtRow[headers.indexOf('Credit Application ID')]}_${timestamp}.${debtStatement.originalname.split('.').pop()}`;
+
+        debtStatementUrl = await this.googleDriveService.uploadFile(
+          debtStatement.buffer,
+          filename,
+          debtStatement.mimetype,
+        );
+      }
+
+      // Create updated row data, only updating fields that are provided
+      const updatedRowData = headers.map((header, index) => {
+        // Only update debt statement if a new file was uploaded
+        if (header === 'Debt Statement') {
+          return debtStatementUrl || debtRow[index] || '';
+        }
+        if (updateData[header] !== undefined) {
+          return updateData[header];
+        }
+        return debtRow[index] || '';
+      });
+
+      // Update the row
+      await this.sheetsService.updateRow(this.SHEET_NAME, id, updatedRowData);
+
+      // Get the updated debt
+      const updatedDebt = {};
+      headers.forEach((header, index) => {
+        updatedDebt[header] = updatedRowData[index];
+      });
+
+      return {
+        success: true,
+        message: 'Active debt updated successfully',
+        data: updatedDebt,
+      };
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      this.logger.error(`Error updating active debt: ${apiError.message}`);
       throw error;
     }
   }

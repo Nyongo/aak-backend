@@ -137,7 +137,7 @@ export class DirectorsController {
       // Upload KRA PIN Photo if provided
       let kraPinFileName = '';
       if (files.kraPinPhoto?.[0]) {
-        const file = files.passportPhoto[0];
+        const file = files.kraPinPhoto[0];
         const timestamp = new Date().getTime();
         kraPinFileName = `kra_pin_photo_${directorData.borrowerId}_${timestamp}.${file.originalname.split('.').pop()}`;
         await this.googleDriveService.uploadFile(
