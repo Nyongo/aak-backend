@@ -33,10 +33,10 @@ export class AssetTitlesController {
   @Post()
   @UseInterceptors(
     FileFieldsInterceptor([
-      { name: 'logbookPhoto', maxCount: 1 },
-      { name: 'titleDeedPhoto', maxCount: 1 },
-      { name: 'fullTitleDeed', maxCount: 1 },
-      { name: 'evaluatorsReport', maxCount: 1 },
+      { name: 'Logbook Photo', maxCount: 1 },
+      { name: 'Title Deed Photo', maxCount: 1 },
+      { name: 'Full Title Deed', maxCount: 1 },
+      { name: "Evaluator's Report", maxCount: 1 },
     ]),
   )
   async createAssetTitle(
@@ -66,10 +66,10 @@ export class AssetTitlesController {
     },
     @UploadedFiles()
     files: {
-      logbookPhoto?: Express.Multer.File[];
-      titleDeedPhoto?: Express.Multer.File[];
-      fullTitleDeed?: Express.Multer.File[];
-      evaluatorsReport?: Express.Multer.File[];
+      'Logbook Photo'?: Express.Multer.File[];
+      'Title Deed Photo'?: Express.Multer.File[];
+      'Full Title Deed'?: Express.Multer.File[];
+      "Evaluator's Report"?: Express.Multer.File[];
     },
   ) {
     try {
@@ -90,42 +90,43 @@ export class AssetTitlesController {
 
       // Upload files if provided
       const fileUrls = {
-        logbookPhoto: '',
-        titleDeedPhoto: '',
-        fullTitleDeed: '',
-        evaluatorsReport: '',
+        'Logbook Photo': '',
+        'Title Deed Photo': '',
+        'Full Title Deed': '',
+        "Evaluator's Report": '',
       };
 
-      if (files.logbookPhoto?.[0]) {
-        fileUrls.logbookPhoto = await this.googleDriveService.uploadFile(
-          files.logbookPhoto[0].buffer,
-          files.logbookPhoto[0].originalname,
-          files.logbookPhoto[0].mimetype,
+      if (files['Logbook Photo']?.[0]) {
+        fileUrls['Logbook Photo'] = await this.googleDriveService.uploadFile(
+          files['Logbook Photo'][0].buffer,
+          files['Logbook Photo'][0].originalname,
+          files['Logbook Photo'][0].mimetype,
         );
       }
 
-      if (files.titleDeedPhoto?.[0]) {
-        fileUrls.titleDeedPhoto = await this.googleDriveService.uploadFile(
-          files.titleDeedPhoto[0].buffer,
-          files.titleDeedPhoto[0].originalname,
-          files.titleDeedPhoto[0].mimetype,
+      if (files['Title Deed Photo']?.[0]) {
+        fileUrls['Title Deed Photo'] = await this.googleDriveService.uploadFile(
+          files['Title Deed Photo'][0].buffer,
+          files['Title Deed Photo'][0].originalname,
+          files['Title Deed Photo'][0].mimetype,
         );
       }
 
-      if (files.fullTitleDeed?.[0]) {
-        fileUrls.fullTitleDeed = await this.googleDriveService.uploadFile(
-          files.fullTitleDeed[0].buffer,
-          files.fullTitleDeed[0].originalname,
-          files.fullTitleDeed[0].mimetype,
+      if (files['Full Title Deed']?.[0]) {
+        fileUrls['Full Title Deed'] = await this.googleDriveService.uploadFile(
+          files['Full Title Deed'][0].buffer,
+          files['Full Title Deed'][0].originalname,
+          files['Full Title Deed'][0].mimetype,
         );
       }
 
-      if (files.evaluatorsReport?.[0]) {
-        fileUrls.evaluatorsReport = await this.googleDriveService.uploadFile(
-          files.evaluatorsReport[0].buffer,
-          files.evaluatorsReport[0].originalname,
-          files.evaluatorsReport[0].mimetype,
-        );
+      if (files["Evaluator's Report"]?.[0]) {
+        fileUrls["Evaluator's Report"] =
+          await this.googleDriveService.uploadFile(
+            files["Evaluator's Report"][0].buffer,
+            files["Evaluator's Report"][0].originalname,
+            files["Evaluator's Report"][0].mimetype,
+          );
       }
 
       // Get the current sheet headers to ensure we save all fields
@@ -136,10 +137,10 @@ export class AssetTitlesController {
       const rowData = {
         ID: id,
         'Created At': createdAt,
-        'Logbook Photo': fileUrls.logbookPhoto,
-        'Title Deed Photo': fileUrls.titleDeedPhoto,
-        'Full Title Deed': fileUrls.fullTitleDeed,
-        "Evaluator's Report": fileUrls.evaluatorsReport,
+        'Logbook Photo': fileUrls['Logbook Photo'],
+        'Title Deed Photo': fileUrls['Title Deed Photo'],
+        'Full Title Deed': fileUrls['Full Title Deed'],
+        "Evaluator's Report": fileUrls["Evaluator's Report"],
       };
 
       // Add all fields from the DTO to the rowData
