@@ -84,7 +84,7 @@ export class PayrollController {
 
       const rowData = {
         ID: id,
-        'Credit Application ID': createDto['School ID'],
+        'Credit Application ID': createDto['Credit Application ID'],
         Role: createDto['Role'],
         'Number of Employees in Role': createDto['Number of Employees in Role'],
         'Monthly Salary': createDto['Monthly Salary'],
