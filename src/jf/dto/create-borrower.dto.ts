@@ -14,6 +14,10 @@ export class CreateBorrowerDto {
   @IsString()
   ID?: string;
 
+  @IsOptional()
+  @IsString()
+  'Customer Type'?: string;
+
   @IsNotEmpty()
   @IsString()
   Type: string;

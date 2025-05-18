@@ -356,6 +356,7 @@ export class BorrowersController {
   async addBorrower(@Body() data: any) {
     let createBorrowerDto: CreateBorrowerDto = {
       'SSL ID': data.sslId,
+      'Customer Type': 'School',
       Type: 'School',
       Name: data.name,
       'Location Description': data.locationDescription,
@@ -541,6 +542,7 @@ export class BorrowersController {
       // Map request fields to sheet column names
       const updateData = {
         'SSL ID': requestData.sslId,
+        'Customer Type': 'School',
         Type: requestData.type,
         Name: requestData.name,
         'Location Description': requestData.locationDescription,
