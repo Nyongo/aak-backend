@@ -7,6 +7,7 @@ import {
   UploadedFiles,
   Body,
   Logger,
+  Put,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { SheetsService } from '../services/sheets.service';
@@ -247,6 +248,133 @@ export class MpesaBankStatementController {
     } catch (error: unknown) {
       const apiError = error as ApiError;
       this.logger.error(`Error fetching all statements: ${apiError.message}`);
+      throw error;
+    }
+  }
+
+  @Put(':id')
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'statement', maxCount: 1 },
+      { name: 'convertedExcelFile', maxCount: 1 },
+    ]),
+  )
+  async updateStatement(
+    @Param('id') id: string,
+    @Body()
+    updateDto: {
+      creditApplicationId?: string;
+      personalOrBusinessAccount?: string;
+      type?: string;
+      accountDetails?: string;
+      description?: string;
+      statementStartDate?: string;
+      statementEndDate?: string;
+      totalRevenue?: number;
+    },
+    @UploadedFiles()
+    files: {
+      statement?: Express.Multer.File[];
+      convertedExcelFile?: Express.Multer.File[];
+    },
+  ) {
+    try {
+      this.logger.log(`Updating bank statement with ID: ${id}`);
+
+      // First verify the statement exists
+      const statements = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      if (!statements || statements.length === 0) {
+        return { success: false, message: 'No bank statements found' };
+      }
+
+      const headers = statements[0];
+      const idIndex = headers.indexOf('ID');
+      const statementRow = statements.find((row) => row[idIndex] === id);
+
+      if (!statementRow) {
+        return { success: false, message: 'Bank statement not found' };
+      }
+
+      // Upload statement file if provided
+      let statementUrl = '';
+      if (files.statement?.[0]) {
+        const statement = files.statement[0];
+        statementUrl = await this.googleDriveService.uploadFile(
+          statement.buffer,
+          statement.originalname,
+          statement.mimetype,
+        );
+      }
+
+      // Upload converted Excel file if provided
+      let convertedExcelFileUrl = '';
+      if (files.convertedExcelFile?.[0]) {
+        const excelFile = files.convertedExcelFile[0];
+        convertedExcelFileUrl = await this.googleDriveService.uploadFile(
+          excelFile.buffer,
+          excelFile.originalname,
+          excelFile.mimetype,
+        );
+      }
+
+      // Create updated row data, only updating fields that are provided
+      const updatedRowData = headers.map((header, index) => {
+        if (header === 'Statement' && statementUrl) {
+          return statementUrl;
+        }
+        if (header === 'Converted Excel File' && convertedExcelFileUrl) {
+          return convertedExcelFileUrl;
+        }
+        if (header === 'Credit Application' && updateDto.creditApplicationId) {
+          return updateDto.creditApplicationId;
+        }
+        if (
+          header === 'Personal Or Business Account' &&
+          updateDto.personalOrBusinessAccount
+        ) {
+          return updateDto.personalOrBusinessAccount;
+        }
+        if (header === 'Type' && updateDto.type) {
+          return updateDto.type;
+        }
+        if (header === 'Account Details' && updateDto.accountDetails) {
+          return updateDto.accountDetails;
+        }
+        if (header === 'Description' && updateDto.description) {
+          return updateDto.description;
+        }
+        if (header === 'Statement Start Date' && updateDto.statementStartDate) {
+          return updateDto.statementStartDate;
+        }
+        if (header === 'Statement End Date' && updateDto.statementEndDate) {
+          return updateDto.statementEndDate;
+        }
+        if (
+          header === 'Total Revenue' &&
+          updateDto.totalRevenue !== undefined
+        ) {
+          return updateDto.totalRevenue;
+        }
+        return statementRow[index] || '';
+      });
+
+      // Update the row
+      await this.sheetsService.updateRow(this.SHEET_NAME, id, updatedRowData);
+
+      // Get the updated statement record
+      const updatedStatement = {};
+      headers.forEach((header, index) => {
+        updatedStatement[header] = updatedRowData[index];
+      });
+
+      return {
+        success: true,
+        message: 'Bank statement updated successfully',
+        data: updatedStatement,
+      };
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      this.logger.error(`Error updating bank statement: ${apiError.message}`);
       throw error;
     }
   }

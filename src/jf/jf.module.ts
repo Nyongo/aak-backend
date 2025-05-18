@@ -33,6 +33,7 @@ import { FinancialSurveyController } from './controllers/financial-survey.contro
 import { HomeVisitController } from './controllers/home-visit.controller';
 import { AssetTitlesController } from './controllers/asset-titles.controller';
 import { ReferrersController } from './controllers/referrers.controller';
+import { TermsController } from './controllers/terms.controller';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { ReferrersController } from './controllers/referrers.controller';
     HomeVisitController,
     AssetTitlesController,
     ReferrersController,
+    TermsController,
   ],
 })
 export class JfModule {}

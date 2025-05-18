@@ -7,6 +7,8 @@ import {
   UseInterceptors,
   UploadedFiles,
   Logger,
+  Put,
+  Delete,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { SheetsService } from '../services/sheets.service';
@@ -264,6 +266,130 @@ export class AssetTitlesController {
     } catch (error: unknown) {
       const apiError = error as ApiError;
       this.logger.error(`Error fetching all asset titles: ${apiError.message}`);
+      throw error;
+    }
+  }
+
+  @Put(':id')
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'logbookPhoto', maxCount: 1 },
+      { name: 'titleDeedPhoto', maxCount: 1 },
+      { name: 'fullTitleDeed', maxCount: 1 },
+      { name: 'evaluatorsReport', maxCount: 1 },
+    ]),
+  )
+  async updateAssetTitle(
+    @Param('id') id: string,
+    @Body() updateDto: any,
+    @UploadedFiles()
+    files: {
+      logbookPhoto?: Express.Multer.File[];
+      titleDeedPhoto?: Express.Multer.File[];
+      fullTitleDeed?: Express.Multer.File[];
+      evaluatorsReport?: Express.Multer.File[];
+    },
+  ) {
+    try {
+      this.logger.log(`Updating asset title with ID: ${id}`);
+      const assets = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      if (!assets || assets.length === 0) {
+        return { success: false, message: 'No asset titles found' };
+      }
+      const headers = assets[0];
+      const idIndex = headers.indexOf('ID');
+      const assetRow = assets.find((row) => row[idIndex] === id);
+      if (!assetRow) {
+        return { success: false, message: 'Asset title not found' };
+      }
+      // Handle file uploads
+      const fileUrls = {
+        logbookPhoto: assetRow[headers.indexOf('Logbook Photo')] || '',
+        titleDeedPhoto: assetRow[headers.indexOf('Title Deed Photo')] || '',
+        fullTitleDeed: assetRow[headers.indexOf('Full Title Deed')] || '',
+        evaluatorsReport: assetRow[headers.indexOf("Evaluator's Report")] || '',
+      };
+      if (files.logbookPhoto?.[0]) {
+        fileUrls.logbookPhoto = await this.googleDriveService.uploadFile(
+          files.logbookPhoto[0].buffer,
+          files.logbookPhoto[0].originalname,
+          files.logbookPhoto[0].mimetype,
+        );
+      }
+      if (files.titleDeedPhoto?.[0]) {
+        fileUrls.titleDeedPhoto = await this.googleDriveService.uploadFile(
+          files.titleDeedPhoto[0].buffer,
+          files.titleDeedPhoto[0].originalname,
+          files.titleDeedPhoto[0].mimetype,
+        );
+      }
+      if (files.fullTitleDeed?.[0]) {
+        fileUrls.fullTitleDeed = await this.googleDriveService.uploadFile(
+          files.fullTitleDeed[0].buffer,
+          files.fullTitleDeed[0].originalname,
+          files.fullTitleDeed[0].mimetype,
+        );
+      }
+      if (files.evaluatorsReport?.[0]) {
+        fileUrls.evaluatorsReport = await this.googleDriveService.uploadFile(
+          files.evaluatorsReport[0].buffer,
+          files.evaluatorsReport[0].originalname,
+          files.evaluatorsReport[0].mimetype,
+        );
+      }
+      // Prepare updated row data
+      const updatedRowData = headers.map((header, index) => {
+        if (header === 'Logbook Photo') return fileUrls.logbookPhoto;
+        if (header === 'Title Deed Photo') return fileUrls.titleDeedPhoto;
+        if (header === 'Full Title Deed') return fileUrls.fullTitleDeed;
+        if (header === "Evaluator's Report") return fileUrls.evaluatorsReport;
+        if (header === 'ID') return id;
+        if (header === 'Created At')
+          return assetRow[headers.indexOf('Created At')];
+        return updateDto[header] !== undefined
+          ? updateDto[header]
+          : assetRow[index] || '';
+      });
+      await this.sheetsService.updateRow(this.SHEET_NAME, id, updatedRowData);
+      // Build updated asset object
+      const updatedAsset = {};
+      headers.forEach((header, idx) => {
+        updatedAsset[header] = updatedRowData[idx];
+      });
+      return {
+        success: true,
+        message: 'Asset title updated successfully',
+        data: updatedAsset,
+      };
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      this.logger.error(`Error updating asset title: ${apiError.message}`);
+      throw error;
+    }
+  }
+
+  @Delete(':id')
+  async deleteAssetTitle(@Param('id') id: string) {
+    try {
+      this.logger.log(`Deleting asset title with ID: ${id}`);
+      const assets = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      if (!assets || assets.length === 0) {
+        return { success: false, message: 'No asset titles found' };
+      }
+      const headers = assets[0];
+      const idIndex = headers.indexOf('ID');
+      const assetRow = assets.find((row) => row[idIndex] === id);
+      if (!assetRow) {
+        return { success: false, message: 'Asset title not found' };
+      }
+      await this.sheetsService.deleteRow(this.SHEET_NAME, id);
+      return {
+        success: true,
+        message: 'Asset title deleted successfully',
+      };
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      this.logger.error(`Error deleting asset title: ${apiError.message}`);
       throw error;
     }
   }

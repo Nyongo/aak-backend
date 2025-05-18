@@ -7,6 +7,7 @@ import {
   UseInterceptors,
   UploadedFiles,
   Logger,
+  Put,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { CreateFeePlanDto } from '../dto/create-fee-plan.dto';
@@ -145,6 +146,102 @@ export class FeePlansController {
     } catch (error: unknown) {
       const apiError = error as ApiError;
       this.logger.error(`Error adding fee plan: ${apiError.message}`);
+      throw error;
+    }
+  }
+
+  @Put(':id')
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'photo', maxCount: 1 },
+      { name: 'file', maxCount: 1 },
+    ]),
+  )
+  async updateFeePlan(
+    @Param('id') id: string,
+    @Body() updateData: Partial<CreateFeePlanDto>,
+    @UploadedFiles()
+    files: {
+      photo?: Express.Multer.File[];
+      file?: Express.Multer.File[];
+    },
+  ) {
+    try {
+      this.logger.log(`Updating fee plan with ID: ${id}`);
+
+      // First verify the fee plan exists
+      const feePlans = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      if (!feePlans || feePlans.length === 0) {
+        return { success: false, message: 'No fee plans found' };
+      }
+
+      const headers = feePlans[0];
+      const idIndex = headers.indexOf('ID');
+      const feePlanRow = feePlans.find((row) => row[idIndex] === id);
+
+      if (!feePlanRow) {
+        return { success: false, message: 'Fee plan not found' };
+      }
+
+      // Handle photo upload if provided
+      let photoUrl = '';
+      if (files.photo?.[0]) {
+        const photo = files.photo[0];
+        const timestamp = new Date().getTime();
+        const filename = `fee_plan_photo_${updateData['Credit Application ID'] || feePlanRow[headers.indexOf('Credit Application ID')]}_${timestamp}.${photo.originalname.split('.').pop()}`;
+
+        photoUrl = await this.googleDriveService.uploadFile(
+          photo.buffer,
+          filename,
+          photo.mimetype,
+        );
+      }
+
+      // Handle file upload if provided
+      let fileUrl = '';
+      if (files.file?.[0]) {
+        const file = files.file[0];
+        const timestamp = new Date().getTime();
+        const filename = `fee_plan_file_${updateData['Credit Application ID'] || feePlanRow[headers.indexOf('Credit Application ID')]}_${timestamp}.${file.originalname.split('.').pop()}`;
+
+        fileUrl = await this.googleDriveService.uploadFile(
+          file.buffer,
+          filename,
+          file.mimetype,
+        );
+      }
+
+      // Create updated row data, only updating fields that are provided
+      const updatedRowData = headers.map((header, index) => {
+        if (header === 'Photo' && photoUrl) {
+          return photoUrl;
+        }
+        if (header === 'File' && fileUrl) {
+          return fileUrl;
+        }
+        if (updateData[header] !== undefined) {
+          return updateData[header];
+        }
+        return feePlanRow[index] || '';
+      });
+
+      // Update the row
+      await this.sheetsService.updateRow(this.SHEET_NAME, id, updatedRowData);
+
+      // Get the updated fee plan
+      const updatedFeePlan = {};
+      headers.forEach((header, index) => {
+        updatedFeePlan[header] = updatedRowData[index];
+      });
+
+      return {
+        success: true,
+        message: 'Fee plan updated successfully',
+        data: updatedFeePlan,
+      };
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      this.logger.error(`Error updating fee plan: ${apiError.message}`);
       throw error;
     }
   }

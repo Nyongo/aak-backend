@@ -2,6 +2,8 @@ import {
   Controller,
   Post,
   Get,
+  Put,
+  Delete,
   Param,
   UseInterceptors,
   UploadedFiles,
@@ -242,6 +244,147 @@ export class OtherSupportingDocsController {
       const apiError = error as ApiError;
       this.logger.error(
         `Error fetching all supporting documents: ${apiError.message}`,
+      );
+      throw error;
+    }
+  }
+
+  @Put(':id')
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'file', maxCount: 1 },
+      { name: 'image', maxCount: 1 },
+    ]),
+  )
+  async updateSupportingDoc(
+    @Param('id') id: string,
+    @Body()
+    updateDto: {
+      creditApplicationId?: string;
+      documentType?: string;
+      notes?: string;
+    },
+    @UploadedFiles()
+    files: {
+      file?: Express.Multer.File[];
+      image?: Express.Multer.File[];
+    },
+  ) {
+    try {
+      this.logger.log(`Updating supporting document with ID: ${id}`);
+
+      // First verify the document exists
+      const documents = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      if (!documents || documents.length === 0) {
+        return { success: false, message: 'No supporting documents found' };
+      }
+
+      const headers = documents[0];
+      const idIndex = headers.indexOf('ID');
+      const documentRow = documents.find((row) => row[idIndex] === id);
+
+      if (!documentRow) {
+        return { success: false, message: 'Supporting document not found' };
+      }
+
+      // Upload new file if provided
+      let fileUrl = '';
+      if (files.file && files.file[0]) {
+        const file = files.file[0];
+        fileUrl = await this.googleDriveService.uploadFile(
+          file.buffer,
+          file.originalname,
+          file.mimetype,
+        );
+      }
+
+      // Upload new image if provided
+      let imageUrl = '';
+      if (files.image && files.image[0]) {
+        const image = files.image[0];
+        imageUrl = await this.googleDriveService.uploadFile(
+          image.buffer,
+          image.originalname,
+          image.mimetype,
+        );
+      }
+
+      // Create updated row data, only updating fields that are provided
+      const updatedRowData = headers.map((header, index) => {
+        if (
+          header === 'Credit Application ID' &&
+          updateDto.creditApplicationId
+        ) {
+          return updateDto.creditApplicationId;
+        }
+        if (header === 'Document Type' && updateDto.documentType) {
+          return updateDto.documentType;
+        }
+        if (header === 'Notes' && updateDto.notes !== undefined) {
+          return updateDto.notes;
+        }
+        if (header === 'File' && fileUrl) {
+          return fileUrl;
+        }
+        if (header === 'Image' && imageUrl) {
+          return imageUrl;
+        }
+        return documentRow[index] || '';
+      });
+
+      // Update the row
+      await this.sheetsService.updateRow(this.SHEET_NAME, id, updatedRowData);
+
+      // Get the updated document record
+      const updatedDocument = {};
+      headers.forEach((header, index) => {
+        updatedDocument[header] = updatedRowData[index];
+      });
+
+      return {
+        success: true,
+        message: 'Supporting document updated successfully',
+        data: updatedDocument,
+      };
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      this.logger.error(
+        `Error updating supporting document: ${apiError.message}`,
+      );
+      throw error;
+    }
+  }
+
+  @Delete(':id')
+  async deleteSupportingDoc(@Param('id') id: string) {
+    try {
+      this.logger.log(`Deleting supporting document with ID: ${id}`);
+
+      // First verify the document exists
+      const documents = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      if (!documents || documents.length === 0) {
+        return { success: false, message: 'No supporting documents found' };
+      }
+
+      const headers = documents[0];
+      const idIndex = headers.indexOf('ID');
+      const documentRow = documents.find((row) => row[idIndex] === id);
+
+      if (!documentRow) {
+        return { success: false, message: 'Supporting document not found' };
+      }
+
+      // Delete the row
+      await this.sheetsService.deleteRow(this.SHEET_NAME, id);
+
+      return {
+        success: true,
+        message: 'Supporting document deleted successfully',
+      };
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      this.logger.error(
+        `Error deleting supporting document: ${apiError.message}`,
       );
       throw error;
     }

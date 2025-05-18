@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Param, Logger } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Logger,
+  Put,
+} from '@nestjs/common';
 import { CreatePayrollDto } from '../dto/create-payroll.dto';
 import { SheetsService } from '../services/sheets.service';
 import * as moment from 'moment';
@@ -76,7 +84,7 @@ export class PayrollController {
 
       const rowData = {
         ID: id,
-        'Credit Application ID': createDto['Credit Application ID'],
+        'Credit Application ID': createDto['School ID'],
         Role: createDto['Role'],
         'Number of Employees in Role': createDto['Number of Employees in Role'],
         'Monthly Salary': createDto['Monthly Salary'],
@@ -84,6 +92,10 @@ export class PayrollController {
           createDto['Months per Year the Role is Paid'],
         Notes: createDto['Notes'] || '',
         'Created At': now,
+        'Total Annual Cost':
+          createDto['Number of Employees in Role'] *
+          createDto['Monthly Salary'] *
+          createDto['Months per Year the Role is Paid'],
       };
 
       await this.sheetsService.appendRow(this.SHEET_NAME, rowData);
@@ -173,6 +185,85 @@ export class PayrollController {
       this.logger.error(
         `Error calculating total monthly cost for application ${creditApplicationId}: ${apiError.message}`,
       );
+      throw error;
+    }
+  }
+
+  @Put(':id')
+  async updatePayrollRecord(
+    @Param('id') id: string,
+    @Body() updateData: Partial<CreatePayrollDto>,
+  ) {
+    try {
+      this.logger.log(`Updating payroll record with ID: ${id}`);
+
+      // First verify the payroll record exists
+      const payrollRecords = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+      );
+      if (!payrollRecords || payrollRecords.length === 0) {
+        return { success: false, message: 'No payroll records found' };
+      }
+
+      const headers = payrollRecords[0];
+      const idIndex = headers.indexOf('ID');
+      const payrollRow = payrollRecords.find((row) => row[idIndex] === id);
+
+      if (!payrollRow) {
+        return { success: false, message: 'Payroll record not found' };
+      }
+
+      // Create updated row data, only updating fields that are provided
+      const updatedRowData = headers.map((header, index) => {
+        if (updateData[header] !== undefined) {
+          return updateData[header];
+        }
+        return payrollRow[index] || '';
+      });
+
+      // Recalculate total annual cost if any of the relevant fields are updated
+      const employeesIndex = headers.indexOf('Number of Employees in Role');
+      const salaryIndex = headers.indexOf('Monthly Salary');
+      const monthsIndex = headers.indexOf('Months per Year the Role is Paid');
+      const totalCostIndex = headers.indexOf('Total Annual Cost');
+
+      if (
+        updateData['Number of Employees in Role'] !== undefined ||
+        updateData['Monthly Salary'] !== undefined ||
+        updateData['Months per Year the Role is Paid'] !== undefined
+      ) {
+        const employees =
+          Number(
+            updateData['Number of Employees in Role'] ||
+              payrollRow[employeesIndex],
+          ) || 0;
+        const salary =
+          Number(updateData['Monthly Salary'] || payrollRow[salaryIndex]) || 0;
+        const months =
+          Number(
+            updateData['Months per Year the Role is Paid'] ||
+              payrollRow[monthsIndex],
+          ) || 12;
+        updatedRowData[totalCostIndex] = employees * salary * months;
+      }
+
+      // Update the row
+      await this.sheetsService.updateRow(this.SHEET_NAME, id, updatedRowData);
+
+      // Get the updated payroll record
+      const updatedPayroll = {};
+      headers.forEach((header, index) => {
+        updatedPayroll[header] = updatedRowData[index];
+      });
+
+      return {
+        success: true,
+        message: 'Payroll record updated successfully',
+        data: updatedPayroll,
+      };
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      this.logger.error(`Error updating payroll record: ${apiError.message}`);
       throw error;
     }
   }

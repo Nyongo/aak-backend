@@ -7,6 +7,7 @@ import {
   UploadedFiles,
   Body,
   Logger,
+  Put,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { SheetsService } from '../services/sheets.service';
@@ -232,6 +233,136 @@ export class EnrollmentVerificationController {
       const apiError = error as ApiError;
       this.logger.error(
         `Error fetching all enrollment verifications: ${apiError.message}`,
+      );
+      throw error;
+    }
+  }
+
+  @Put(':id')
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'enrollmentVerification', maxCount: 1 },
+      { name: 'enrollmentReport', maxCount: 1 },
+    ]),
+  )
+  async updateEnrollmentVerification(
+    @Param('id') id: string,
+    @Body()
+    updateDto: {
+      creditApplicationId?: string;
+      numberOfStudentsThisYear?: number;
+      numberOfStudentsLastYear?: number;
+      numberOfStudentsTwoYearsAgo?: number;
+    },
+    @UploadedFiles()
+    files: {
+      enrollmentVerification?: Express.Multer.File[];
+      enrollmentReport?: Express.Multer.File[];
+    },
+  ) {
+    try {
+      this.logger.log(`Updating enrollment verification with ID: ${id}`);
+
+      // First verify the enrollment verification exists
+      const verifications = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+      );
+      if (!verifications || verifications.length === 0) {
+        return { success: false, message: 'No enrollment verifications found' };
+      }
+
+      const headers = verifications[0];
+      const idIndex = headers.indexOf('ID');
+      const verificationRow = verifications.find((row) => row[idIndex] === id);
+
+      if (!verificationRow) {
+        return { success: false, message: 'Enrollment verification not found' };
+      }
+
+      // Upload enrollment verification file if provided
+      let verificationUrl = '';
+      if (files.enrollmentVerification && files.enrollmentVerification[0]) {
+        const file = files.enrollmentVerification[0];
+        verificationUrl = await this.googleDriveService.uploadFile(
+          file.buffer,
+          file.originalname,
+          file.mimetype,
+        );
+      }
+
+      // Upload enrollment report file if provided
+      let reportUrl = '';
+      if (files.enrollmentReport && files.enrollmentReport[0]) {
+        const file = files.enrollmentReport[0];
+        reportUrl = await this.googleDriveService.uploadFile(
+          file.buffer,
+          file.originalname,
+          file.mimetype,
+        );
+      }
+
+      // Create updated row data, only updating fields that are provided
+      const updatedRowData = headers.map((header, index) => {
+        if (
+          header === 'Enrollment Verification for this Year' &&
+          verificationUrl
+        ) {
+          return verificationUrl;
+        }
+        if (header === 'Enrollment Report' && verificationUrl) {
+          return verificationUrl;
+        }
+        if (header === 'Sub County Enrollment Report' && reportUrl) {
+          return reportUrl;
+        }
+        if (header === 'Enrollment Report for this Year' && reportUrl) {
+          return reportUrl;
+        }
+        if (
+          header === 'Credit Application ID' &&
+          updateDto.creditApplicationId
+        ) {
+          return updateDto.creditApplicationId;
+        }
+        if (
+          header === 'Number of Students This Year' &&
+          updateDto.numberOfStudentsThisYear !== undefined
+        ) {
+          return updateDto.numberOfStudentsThisYear;
+        }
+        if (
+          header === 'Number of students last year' &&
+          updateDto.numberOfStudentsLastYear !== undefined
+        ) {
+          return updateDto.numberOfStudentsLastYear;
+        }
+        if (
+          header === 'Number of students two years ago' &&
+          updateDto.numberOfStudentsTwoYearsAgo !== undefined
+        ) {
+          return updateDto.numberOfStudentsTwoYearsAgo;
+        }
+        return verificationRow[index] || '';
+      });
+
+      // Update the row
+      await this.sheetsService.updateRow(this.SHEET_NAME, id, updatedRowData);
+
+      // Get the updated verification record
+      const updatedVerification = {};
+      headers.forEach((header, index) => {
+        updatedVerification[header] = updatedRowData[index];
+      });
+
+      return {
+        success: true,
+        message: 'Enrollment verification updated successfully',
+        data: updatedVerification,
+      };
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      this.logger.error(
+        `Error updating enrollment verification: ${apiError.message}`,
       );
       throw error;
     }

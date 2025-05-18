@@ -1,4 +1,12 @@
-import { Controller, Post, Get, Param, Body, Logger } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Put,
+  Param,
+  Body,
+  Logger,
+} from '@nestjs/common';
 import { SheetsService } from '../services/sheets.service';
 
 interface ApiError {
@@ -49,11 +57,11 @@ export class StudentBreakdownController {
         ID: id,
         'Credit Application': createDto.creditApplicationId,
         'Fee Type': createDto.feeType,
-        Term: createDto.term,
+        'Term ID': createDto.term,
         Grade: createDto.grade,
         'Number of Students': createDto.numberOfStudents,
         Fee: createDto.fee,
-        'Total Amount': totalAmount,
+        'Total Revenue': createDto.fee * createDto.numberOfStudents,
         'Created At': createdAt,
       };
 
@@ -182,6 +190,100 @@ export class StudentBreakdownController {
       const apiError = error as ApiError;
       this.logger.error(
         `Error fetching all student breakdowns: ${apiError.message}`,
+      );
+      throw error;
+    }
+  }
+
+  @Put(':id')
+  async updateStudentBreakdown(
+    @Param('id') id: string,
+    @Body()
+    updateDto: {
+      creditApplicationId?: string;
+      feeType?: string;
+      term?: string;
+      grade?: string;
+      numberOfStudents?: number;
+      fee?: number;
+    },
+  ) {
+    try {
+      this.logger.log(`Updating student breakdown with ID: ${id}`);
+
+      // First verify the breakdown exists
+      const breakdowns = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      if (!breakdowns || breakdowns.length === 0) {
+        return { success: false, message: 'No student breakdowns found' };
+      }
+
+      const headers = breakdowns[0];
+      const idIndex = headers.indexOf('ID');
+      const breakdownRow = breakdowns.find((row) => row[idIndex] === id);
+
+      if (!breakdownRow) {
+        return { success: false, message: 'Student breakdown not found' };
+      }
+
+      // Create updated row data, only updating fields that are provided
+      const updatedRowData = headers.map((header, index) => {
+        if (header === 'Credit Application' && updateDto.creditApplicationId) {
+          return updateDto.creditApplicationId;
+        }
+        if (header === 'Fee Type' && updateDto.feeType) {
+          return updateDto.feeType;
+        }
+        if (header === 'Term ID' && updateDto.term) {
+          return updateDto.term;
+        }
+        if (header === 'Grade' && updateDto.grade) {
+          return updateDto.grade;
+        }
+        if (
+          header === 'Number of Students' &&
+          updateDto.numberOfStudents !== undefined
+        ) {
+          return updateDto.numberOfStudents;
+        }
+        if (header === 'Fee' && updateDto.fee !== undefined) {
+          return updateDto.fee;
+        }
+        if (
+          header === 'Total Revenue' &&
+          (updateDto.numberOfStudents !== undefined ||
+            updateDto.fee !== undefined)
+        ) {
+          const students =
+            updateDto.numberOfStudents !== undefined
+              ? updateDto.numberOfStudents
+              : breakdownRow[headers.indexOf('Number of Students')];
+          const fee =
+            updateDto.fee !== undefined
+              ? updateDto.fee
+              : breakdownRow[headers.indexOf('Fee')];
+          return students * fee;
+        }
+        return breakdownRow[index] || '';
+      });
+
+      // Update the row
+      await this.sheetsService.updateRow(this.SHEET_NAME, id, updatedRowData);
+
+      // Get the updated breakdown record
+      const updatedBreakdown = {};
+      headers.forEach((header, index) => {
+        updatedBreakdown[header] = updatedRowData[index];
+      });
+
+      return {
+        success: true,
+        message: 'Student breakdown updated successfully',
+        data: updatedBreakdown,
+      };
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      this.logger.error(
+        `Error updating student breakdown: ${apiError.message}`,
       );
       throw error;
     }

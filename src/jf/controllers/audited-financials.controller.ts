@@ -7,6 +7,7 @@ import {
   UploadedFile,
   Body,
   Logger,
+  Put,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { SheetsService } from '../services/sheets.service';
@@ -220,6 +221,88 @@ export class AuditedFinancialsController {
       const apiError = error as ApiError;
       this.logger.error(
         `Error fetching all financial statements: ${apiError.message}`,
+      );
+      throw error;
+    }
+  }
+
+  @Put(':id')
+  @UseInterceptors(FileInterceptor('file'))
+  async updateFinancialStatement(
+    @Param('id') id: string,
+    @Body()
+    updateDto: {
+      creditApplicationId?: string;
+      statementType?: string;
+      notes?: string;
+    },
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    try {
+      this.logger.log(`Updating financial statement with ID: ${id}`);
+
+      // First verify the statement exists
+      const statements = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      if (!statements || statements.length === 0) {
+        return { success: false, message: 'No financial statements found' };
+      }
+
+      const headers = statements[0];
+      const idIndex = headers.indexOf('ID');
+      const statementRow = statements.find((row) => row[idIndex] === id);
+
+      if (!statementRow) {
+        return { success: false, message: 'Financial statement not found' };
+      }
+
+      // Upload file if provided
+      let fileUrl = '';
+      if (file) {
+        fileUrl = await this.googleDriveService.uploadFile(
+          file.buffer,
+          file.originalname,
+          file.mimetype,
+        );
+      }
+
+      // Create updated row data, only updating fields that are provided
+      const updatedRowData = headers.map((header, index) => {
+        if (header === 'File' && fileUrl) {
+          return fileUrl;
+        }
+        if (
+          header === 'Credit Application ID' &&
+          updateDto.creditApplicationId
+        ) {
+          return updateDto.creditApplicationId;
+        }
+        if (header === 'Statement Type' && updateDto.statementType) {
+          return updateDto.statementType;
+        }
+        if (header === 'Notes' && updateDto.notes) {
+          return updateDto.notes;
+        }
+        return statementRow[index] || '';
+      });
+
+      // Update the row
+      await this.sheetsService.updateRow(this.SHEET_NAME, id, updatedRowData);
+
+      // Get the updated statement record
+      const updatedStatement = {};
+      headers.forEach((header, index) => {
+        updatedStatement[header] = updatedRowData[index];
+      });
+
+      return {
+        success: true,
+        message: 'Financial statement updated successfully',
+        data: updatedStatement,
+      };
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      this.logger.error(
+        `Error updating financial statement: ${apiError.message}`,
       );
       throw error;
     }

@@ -467,4 +467,36 @@ export class SheetsService {
       throw error;
     }
   }
+
+  async deleteRow(sheetName: string, id: string): Promise<void> {
+    try {
+      this.logger.log(`Deleting row in sheet ${sheetName} with ID: ${id}`);
+
+      // First, find the row number for this ID
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.BORROWERS_SHEET_ID,
+        range: `${sheetName}!A:A`, // Only get ID column
+      });
+
+      const rows = response.data.values;
+      const rowIndex = rows.findIndex((row) => row[0] === id);
+
+      if (rowIndex === -1) {
+        throw new Error(`Row with ID ${id} not found in sheet ${sheetName}`);
+      }
+
+      // Delete the row by clearing its contents
+      await this.sheets.spreadsheets.values.clear({
+        spreadsheetId: this.BORROWERS_SHEET_ID,
+        range: `${sheetName}!A${rowIndex + 1}:ZZ${rowIndex + 1}`,
+      });
+
+      this.logger.log(
+        `Successfully deleted row in sheet ${sheetName} with ID: ${id}`,
+      );
+    } catch (error) {
+      this.logger.error(`Error deleting row in sheet ${sheetName}:`, error);
+      throw error;
+    }
+  }
 }
