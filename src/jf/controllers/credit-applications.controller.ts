@@ -118,6 +118,7 @@ export class CreditApplicationsController {
 
       const rowData = {
         ID: id,
+        'Customer Type': 'School',
         'Borrower ID': createDto['Borrower ID'],
         'Application Start Date': createDto['Application Start Date'],
         'Credit Type': createDto['Credit Type'],
