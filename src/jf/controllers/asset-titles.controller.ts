@@ -42,28 +42,27 @@ export class AssetTitlesController {
   async createAssetTitle(
     @Body()
     createDto: {
-      'Credit Application ID': string;
-      Type: string;
+      'Credit Application ID'?: string;
+      Type?: string;
       'To Be Used As Security?': 'Y' | 'N';
-      Description: string;
-      'Legal Owner': string;
-      'User ID': string;
-      'Full Owner Details': string;
-      'Collateral owned by director of school?': 'Y' | 'N';
-      'Plot Number': string;
-      'School sits on land?': 'Y' | 'N';
-      'Has Comprehensive Insurance': 'Y' | 'N';
-      'Original Insurance Coverage': number;
+      Description?: string;
+      'Legal Owner'?: string;
+      'User ID'?: string;
+      'Full Owner Details'?: string;
+      'Collateral owned by director of school?'?: 'Y' | 'N';
+      'Plot Number'?: string;
+      'School sits on land?'?: 'Y' | 'N';
+      'Has Comprehensive Insurance'?: 'Y' | 'N';
+      'Original Insurance Coverage'?: number;
       'Initial Estimated Value (KES)': number;
-      'Approved by Legal Team or NTSA Agent for use as Security?': 'Y' | 'N';
-      'Notes on Approval for Use': string;
-      "Evaluator's Market Value": number;
-      "Evaluator's Forced Value": number;
-      'Money Owed on Asset (If Any)': number;
-      'License Plate Number': string;
-      'Engine CC': number;
-      'Year of Manufacture': number;
-      '% Complete': number;
+      'Approved by Legal Team or NTSA Agent for use as Security?'?: 'Y' | 'N';
+      'Notes on Approval for Use'?: string;
+      "Evaluator's Market Value"?: number;
+      "Evaluator's Forced Value"?: number;
+      'Money Owed on Asset (If Any)'?: number;
+      'License Plate Number'?: string;
+      'Engine CC'?: number;
+      'Year of Manufacture'?: number;
     },
     @UploadedFiles()
     files: {
