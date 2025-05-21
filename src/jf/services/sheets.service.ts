@@ -436,17 +436,26 @@ export class SheetsService {
     try {
       this.logger.log(`Updating row in sheet ${sheetName} with ID: ${id}`);
 
-      // First, find the row number for this ID
-      const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
-        range: `${sheetName}!A:A`, // Only get ID column
-      });
+      // Check if id is a number (row number) or a string (row ID)
+      const isRowNumber = !isNaN(Number(id));
+      let rowIndex: number;
 
-      const rows = response.data.values;
-      const rowIndex = rows.findIndex((row) => row[0] === id);
+      if (isRowNumber) {
+        // If id is a row number, use it directly (subtract 1 for 0-based index)
+        rowIndex = Number(id) - 1;
+      } else {
+        // If id is a row ID, find the row by ID
+        const response = await this.sheets.spreadsheets.values.get({
+          spreadsheetId: this.BORROWERS_SHEET_ID,
+          range: `${sheetName}!A:A`, // Only get ID column
+        });
 
-      if (rowIndex === -1) {
-        throw new Error(`Row with ID ${id} not found in sheet ${sheetName}`);
+        const rows = response.data.values;
+        rowIndex = rows.findIndex((row) => row[0] === id);
+
+        if (rowIndex === -1) {
+          throw new Error(`Row with ID ${id} not found in sheet ${sheetName}`);
+        }
       }
 
       // Update the row

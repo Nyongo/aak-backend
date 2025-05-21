@@ -38,14 +38,14 @@ export class FinancialSurveyController {
       creditApplicationId: string;
       surveyDate: string;
       directorId: string;
-      createdBy: string;
+      // createdBy: string;
 
       // School Information
       schoolGrades: string[];
       isSchoolAPBETOrPrivate: 'APBET' | 'Private';
 
       // Church Support
-      isChurchSupported: 'Y' | 'N';
+      isChurchSupported: 'TRUE' | 'FALSE';
       churchName: string;
       churchAnnualSupport: string;
       churchBenefits: string;
@@ -159,7 +159,7 @@ export class FinancialSurveyController {
         'Credit Application ID': createDto.creditApplicationId,
         'Survey Date': createDto.surveyDate,
         'Director ID': createDto.directorId,
-        'Created By': createDto.createdBy,
+        // 'Created By': createDto.createdBy,
         'Created At': createdAt,
         'What grades does the school serve?': Array.isArray(
           createDto.schoolGrades,
@@ -227,10 +227,24 @@ export class FinancialSurveyController {
         'How much annual sponsorship revenue does the school collect?':
           createDto.annualSponsorshipRevenue,
         'Annual Expense Estimate Excluding Payroll, Rent, Debt, Owners Draw, Food, and Transport':
-          createDto.annualExpenseEstimate,
-        'Annual Food Expense Estimate': createDto.annualFoodExpenseEstimate,
+          createDto.annualEquipmentFurnitureExpense +
+          createDto.annualRepairMaintenanceExpense +
+          Number(createDto.termlyStationeryExpense) * 3 +
+          Number(createDto.monthlyWifiExpense) * 12 +
+          Number(createDto.monthlyElectricityExpense) * 12 +
+          Number(createDto.termlyAirtimeExpense) * 3 +
+          Number(createDto.monthlyWaterExpense) * 12 +
+          Number(createDto.termlyMiscExpense) * 3 +
+          Number(createDto.annualTaxLicenseExpense) +
+          createDto.annualStudentTextbookExpense +
+          createDto.annualTeacherTextbookExpense,
+
+        'Annual Food Expense Estimate':
+          Number(createDto.termlyFoodExpense) * 3 +
+          Number(createDto.termlyFuelExpense) * 3,
         'Annual Transport Expense Estimate':
-          createDto.annualTransportExpenseEstimate,
+          Number(createDto.termlyVehicleServiceExpense) * 3 +
+          Number(createDto.termlyVehicleFuelExpense) * 3,
         'What was the value of the assets held by the school last year?':
           createDto.lastYearAssetValue,
         'Loan Amount Deposited into Bank Accounts in Last Year':

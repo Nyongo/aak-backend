@@ -46,7 +46,7 @@ export class BorrowersController {
   };
 
   constructor(
-    private readonly appSheetService: AppSheetService,
+    private readonly appSheetService: AppSheetService, // Webservice
     private readonly sheetsService: SheetsService,
     private readonly googleDriveService: GoogleDriveService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
