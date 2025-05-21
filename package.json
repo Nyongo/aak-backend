@@ -49,6 +49,7 @@
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
     "pg": "^8.13.1",
+    "postmark": "^4.0.5",
     "read-excel-file": "^5.8.6",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.1",
