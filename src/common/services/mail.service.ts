@@ -1,23 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import * as nodemailer from 'nodemailer';
+import { Client } from 'postmark';
 
 @Injectable()
 export class MailService {
-  private transporter;
+  private client: Client;
 
   constructor() {
-    this.transporter = nodemailer.createTransport({
-      host: 'smtpout.secureserver.net', // GoDaddy's SMTP server
-      port: 465,
-      secure: true,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-      tls: {
-        rejectUnauthorized: false,
-      },
-    });
+    this.client = new Client(process.env.POSTMARK_API_TOKEN);
   }
 
   async sendEmail(options: {
@@ -40,16 +29,17 @@ export class MailService {
     }
 
     const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to,
-      subject,
-      html: finalHtml,
-      text: finalText,
+      From: process.env.POSTMARK_FROM_EMAIL,
+      To: Array.isArray(to) ? to.join(',') : to,
+      Subject: subject,
+      HtmlBody: finalHtml || undefined,
+      TextBody: finalText || undefined,
     };
     console.log('mail options', mailOptions);
     try {
-      await this.transporter.sendMail(mailOptions);
-      console.log(`Email sent to ${to}`);
+      const response = await this.client.sendEmail(mailOptions);
+
+      console.log(`Email sent to ${to}:`, response);
       return true;
     } catch (error) {
       console.error('Error sending email:', error);
@@ -61,10 +51,7 @@ export class MailService {
     template: string,
     context: Record<string, any>,
   ): string {
-    return template.replace(
-      /\${(\w+)}/g,
-      (match, key) => context[key] || match,
-    );
+    return template.replace(/\${(\w+)}/g, (_, key) => context[key] || '');
   }
 
   async sendPasswordEmail(email: string, password: string) {
