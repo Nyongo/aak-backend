@@ -227,8 +227,8 @@ export class FinancialSurveyController {
         'How much annual sponsorship revenue does the school collect?':
           createDto.annualSponsorshipRevenue,
         'Annual Expense Estimate Excluding Payroll, Rent, Debt, Owners Draw, Food, and Transport':
-          createDto.annualEquipmentFurnitureExpense +
-          createDto.annualRepairMaintenanceExpense +
+          Number(createDto.annualEquipmentFurnitureExpense) +
+          Number(createDto.annualRepairMaintenanceExpense) +
           Number(createDto.termlyStationeryExpense) * 3 +
           Number(createDto.monthlyWifiExpense) * 12 +
           Number(createDto.monthlyElectricityExpense) * 12 +
@@ -236,8 +236,8 @@ export class FinancialSurveyController {
           Number(createDto.monthlyWaterExpense) * 12 +
           Number(createDto.termlyMiscExpense) * 3 +
           Number(createDto.annualTaxLicenseExpense) +
-          createDto.annualStudentTextbookExpense +
-          createDto.annualTeacherTextbookExpense,
+          Number(createDto.annualStudentTextbookExpense) +
+          Number(createDto.annualTeacherTextbookExpense),
 
         'Annual Food Expense Estimate':
           Number(createDto.termlyFoodExpense) * 3 +
