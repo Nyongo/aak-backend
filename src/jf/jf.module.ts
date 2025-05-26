@@ -36,6 +36,7 @@ import { ReferrersController } from './controllers/referrers.controller';
 import { TermsController } from './controllers/terms.controller';
 import { ContractDetailsController } from './controllers/contract-details.controller';
 import { SchoolPhotosController } from './controllers/school-photos.controller';
+import { LoansController } from './controllers/loans.controller';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { SchoolPhotosController } from './controllers/school-photos.controller';
     TermsController,
     ContractDetailsController,
     SchoolPhotosController,
+    LoansController
   ],
 })
 export class JfModule {}
