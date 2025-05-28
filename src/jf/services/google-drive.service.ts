@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { google } from 'googleapis';
 import * as XLSX from 'xlsx';
 import { GoogleAuthService } from './google-auth.service';
@@ -6,7 +6,8 @@ import { Readable } from 'stream';
 
 @Injectable()
 export class GoogleDriveService {
-  private drive;
+  private readonly logger = new Logger(GoogleDriveService.name);
+  private readonly drive;
   private readonly GOOGLE_DRIVE_ROOT_FOLDER_ID =
     process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID;
 
@@ -117,6 +118,55 @@ export class GoogleDriveService {
     } catch (error) {
       console.error('Error getting file link from Google Drive:', error);
       throw new Error('Failed to get file link from Google Drive');
+    }
+  }
+
+  async getFileMetadata(fileId: string) {
+    try {
+      const response = await this.drive.files.get({
+        fileId: fileId,
+        fields: 'id, name, mimeType, size',
+      });
+
+      return response.data;
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to get file metadata';
+      this.logger.error(`Failed to get file metadata: ${errorMessage}`);
+      return null;
+    }
+  }
+
+  async getFileContent(fileId: string) {
+    try {
+      const response = await this.drive.files.get(
+        {
+          fileId: fileId,
+          alt: 'media',
+        },
+        {
+          responseType: 'arraybuffer',
+        },
+      );
+
+      // Ensure we return a Buffer
+      return Buffer.from(response.data);
+    } catch (error) {
+      this.logger.error(`Failed to get file content: ${error}`);
+      return null;
+    }
+  }
+
+  async deleteFile(fileId: string): Promise<boolean> {
+    try {
+      await this.drive.files.delete({
+        fileId: fileId,
+      });
+      this.logger.debug(`Successfully deleted file: ${fileId}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to delete file ${fileId}: ${error}`);
+      throw new Error('Failed to delete file from Google Drive');
     }
   }
 }
