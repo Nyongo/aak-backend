@@ -37,10 +37,17 @@ export class UsersService {
   async getDirectorsByBorrowerId(borrowerId: string): Promise<any[]> {
     try {
       this.logger.log(`Fetching directors for borrower ID: ${borrowerId}`);
+      this.logger.debug(`Using spreadsheet ID: ${this.USERS_SHEET_ID}`);
 
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.USERS_SHEET_ID,
         range: 'Users!A:AG',
+      });
+
+      this.logger.debug('Google Sheets response:', {
+        status: response.status,
+        statusText: response.statusText,
+        data: response.data ? 'Data received' : 'No data',
       });
 
       const rows = response.data.values;
@@ -50,12 +57,18 @@ export class UsersService {
       }
 
       const headers = rows[0];
+      this.logger.debug('Sheet headers:', headers);
 
       // Find relevant column indices
       const borrowerIdIndex = headers.findIndex(
         (header) => header === 'Borrower ID',
       );
       const typeIndex = headers.findIndex((header) => header === 'Type');
+
+      this.logger.debug('Column indices:', {
+        borrowerIdIndex,
+        typeIndex,
+      });
 
       if (borrowerIdIndex === -1 || typeIndex === -1) {
         throw new Error(
@@ -65,11 +78,20 @@ export class UsersService {
 
       // Filter rows for directors of the specified borrower
       const directors = rows.slice(1).filter((row) => {
-        return (
+        const isMatch =
           row[borrowerIdIndex] === borrowerId &&
-          row[typeIndex]?.toLowerCase() === 'director'
-        );
+          row[typeIndex]?.toLowerCase() === 'director';
+        this.logger.debug(`Row match check:`, {
+          rowBorrowerId: row[borrowerIdIndex],
+          rowType: row[typeIndex],
+          isMatch,
+        });
+        return isMatch;
       });
+
+      this.logger.debug(
+        `Found ${directors.length} directors for borrower ${borrowerId}`,
+      );
 
       // Convert rows to objects
       return directors.map((row) => {
@@ -82,7 +104,11 @@ export class UsersService {
         return director;
       });
     } catch (error) {
-      this.logger.error('Error fetching directors:', error);
+      this.logger.error('Error fetching directors:', {
+        error: error.message,
+        stack: error.stack,
+        spreadsheetId: this.USERS_SHEET_ID,
+      });
       throw error;
     }
   }
