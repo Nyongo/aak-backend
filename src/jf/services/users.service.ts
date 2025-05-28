@@ -104,11 +104,6 @@ export class UsersService {
         return director;
       });
     } catch (error) {
-      this.logger.error('Error fetching directors:', {
-        error: error.message,
-        stack: error.stack,
-        spreadsheetId: this.USERS_SHEET_ID,
-      });
       throw error;
     }
   }
