@@ -1,12 +1,14 @@
-import { Injectable } from '@nestjs/common';
-import { Client } from 'postmark';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import sgMail from '@sendgrid/mail';
 
 @Injectable()
 export class MailService {
-  private client: Client;
 
   constructor() {
-    this.client = new Client(process.env.POSTMARK_API_TOKEN);
+    if (!process.env.SENDGRID_API_KEY) {
+      throw new Error('SENDGRID_API_KEY is not defined');
+    }
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
   }
 
   async sendEmail(options: {
@@ -29,21 +31,23 @@ export class MailService {
     }
 
     const mailOptions = {
-      From: process.env.POSTMARK_FROM_EMAIL,
-      To: Array.isArray(to) ? to.join(',') : to,
-      Subject: subject,
-      HtmlBody: finalHtml || undefined,
-      TextBody: finalText || undefined,
+      to: Array.isArray(to) ? to.join(',') : to,
+      from: process.env.SENDGRID_FROM_EMAIL,
+      subject: subject,
+      html: finalHtml || undefined,
+      text: finalText || undefined
     };
     console.log('mail options', mailOptions);
     try {
-      const response = await this.client.sendEmail(mailOptions);
-
-      console.log(`Email sent to ${to}:`, response);
-      return true;
-    } catch (error) {
-      console.error('Error sending email:', error);
-      throw error;
+      const [result] = await sgMail.send(mailOptions);
+      
+      console.log(`Email sent to ${to}:`, result);
+      return result;
+    } catch (err: any) {
+      console.error('SendGrid error:', err);
+      throw new InternalServerErrorException(
+        'Failed to send email',
+      );
     }
   }
 
