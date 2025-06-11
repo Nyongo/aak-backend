@@ -23,7 +23,12 @@ interface ApiError {
 export class MpesaBankStatementController {
   private readonly logger = new Logger(MpesaBankStatementController.name);
   private readonly SHEET_NAME = 'Bank Statements';
-
+  private readonly financialRecordsFilesFolder = 'Financial Records_Files_';
+  private readonly financialRecordsImagesFolder = 'Financial Records_Images';
+  private readonly GOOGLE_DRIVE_FINANCIAL_RECORDS_IMAGES_FOLDER_ID =
+    process.env.GOOGLE_DRIVE_FINANCIAL_RECORDS_IMAGES_FOLDER_ID;
+  private readonly GOOGLE_DRIVE_FINANCIAL_RECORDS_FILES_FOLDER_ID =
+    process.env.GOOGLE_DRIVE_FINANCIAL_RECORDS_FILES_FOLDER_ID;
   constructor(
     private readonly sheetsService: SheetsService,
     private readonly googleDriveService: GoogleDriveService,
@@ -71,24 +76,31 @@ export class MpesaBankStatementController {
       });
 
       // Upload files to Google Drive if provided
-      let statementUrl = '';
-      let convertedExcelFileUrl = '';
-
+      let statementFileName = '';
       if (files.statement?.[0]) {
         const statement = files.statement[0];
-        statementUrl = await this.googleDriveService.uploadFile(
+        const timestamp = new Date().getTime();
+        statementFileName = `stmt_${createDto.creditApplicationId}_${timestamp}.${statement.originalname.split('.').pop()}`;
+
+        await this.googleDriveService.uploadFile(
           statement.buffer,
-          statement.originalname,
+          statementFileName,
           statement.mimetype,
+          this.GOOGLE_DRIVE_FINANCIAL_RECORDS_FILES_FOLDER_ID,
         );
       }
 
+      let convertedExcelFileName = '';
       if (files.convertedExcelFile?.[0]) {
         const excelFile = files.convertedExcelFile[0];
-        convertedExcelFileUrl = await this.googleDriveService.uploadFile(
+        const timestamp = new Date().getTime();
+        convertedExcelFileName = `stmt_converted_${createDto.creditApplicationId}_${timestamp}.${excelFile.originalname.split('.').pop()}`;
+
+        await this.googleDriveService.uploadFile(
           excelFile.buffer,
-          excelFile.originalname,
+          convertedExcelFileName,
           excelFile.mimetype,
+          this.GOOGLE_DRIVE_FINANCIAL_RECORDS_FILES_FOLDER_ID,
         );
       }
 
@@ -99,15 +111,19 @@ export class MpesaBankStatementController {
         Type: createDto.type,
         'Account Details': createDto.accountDetails,
         Description: createDto.description,
-        Statement: statementUrl,
+        Statement: statementFileName
+          ? `${this.financialRecordsFilesFolder}/${statementFileName}`
+          : '',
         'Statement Start Date': createDto.statementStartDate,
         'Statement End Date': createDto.statementEndDate,
         'Total Revenue': createDto.totalRevenue,
-        'Converted Excel File': convertedExcelFileUrl,
+        'Converted Excel File': convertedExcelFileName
+          ? `${this.financialRecordsFilesFolder}/${convertedExcelFileName}`
+          : '',
         'Created At': createdAt,
       };
 
-      await this.sheetsService.appendRow(this.SHEET_NAME, rowData);
+      await this.sheetsService.appendRow(this.SHEET_NAME, rowData, true);
 
       return {
         success: true,
@@ -130,7 +146,10 @@ export class MpesaBankStatementController {
         `Fetching statements for application ID: ${creditApplicationId}`,
       );
 
-      const statements = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const statements = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+        true,
+      );
       this.logger.debug(`Retrieved ${statements?.length || 0} rows from sheet`);
 
       if (!statements || statements.length === 0) {
@@ -172,12 +191,35 @@ export class MpesaBankStatementController {
           return statement;
         });
 
+      const documentColumns = ['Statement', 'Converted Excel File'];
+      const datasWithLinks = await Promise.all(
+        filteredData.map(async (director) => {
+          const dataWithLinks = { ...director };
+          for (const column of documentColumns) {
+            if (director[column]) {
+              let folderId = '';
+              if (column == 'Statement') {
+                folderId = this.GOOGLE_DRIVE_FINANCIAL_RECORDS_FILES_FOLDER_ID;
+              } else if (column == 'Converted Excel File') {
+                folderId = this.GOOGLE_DRIVE_FINANCIAL_RECORDS_FILES_FOLDER_ID;
+              }
+              const filename = director[column].split('/').pop();
+              const fileLink = await this.googleDriveService.getFileLink(
+                filename,
+                folderId,
+              );
+              dataWithLinks[column] = fileLink;
+            }
+          }
+          return dataWithLinks;
+        }),
+      );
       this.logger.debug(`Found ${filteredData.length} matching statements`);
 
       return {
         success: true,
         count: filteredData.length,
-        data: filteredData,
+        data: datasWithLinks,
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -222,7 +264,10 @@ export class MpesaBankStatementController {
     try {
       this.logger.debug('Fetching all statements');
 
-      const statements = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const statements = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+        true,
+      );
       this.logger.debug(`Retrieved ${statements?.length || 0} rows from sheet`);
 
       if (!statements || statements.length === 0) {
@@ -282,7 +327,10 @@ export class MpesaBankStatementController {
       this.logger.log(`Updating bank statement with ID: ${id}`);
 
       // First verify the statement exists
-      const statements = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const statements = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+        true,
+      );
       if (!statements || statements.length === 0) {
         return { success: false, message: 'No bank statements found' };
       }
@@ -296,34 +344,47 @@ export class MpesaBankStatementController {
       }
 
       // Upload statement file if provided
-      let statementUrl = '';
+
+      let statementFileName = '';
       if (files.statement?.[0]) {
         const statement = files.statement[0];
-        statementUrl = await this.googleDriveService.uploadFile(
+        const timestamp = new Date().getTime();
+        statementFileName = `stmt_${updateDto.creditApplicationId}_${timestamp}.${statement.originalname.split('.').pop()}`;
+
+        await this.googleDriveService.uploadFile(
           statement.buffer,
-          statement.originalname,
+          statementFileName,
           statement.mimetype,
+          this.GOOGLE_DRIVE_FINANCIAL_RECORDS_FILES_FOLDER_ID,
         );
       }
 
       // Upload converted Excel file if provided
-      let convertedExcelFileUrl = '';
+      let convertedExcelFileName = '';
       if (files.convertedExcelFile?.[0]) {
         const excelFile = files.convertedExcelFile[0];
-        convertedExcelFileUrl = await this.googleDriveService.uploadFile(
+        const timestamp = new Date().getTime();
+        convertedExcelFileName = `stmt_converted_${updateDto.creditApplicationId}_${timestamp}.${excelFile.originalname.split('.').pop()}`;
+
+        await this.googleDriveService.uploadFile(
           excelFile.buffer,
-          excelFile.originalname,
+          convertedExcelFileName,
           excelFile.mimetype,
+          this.GOOGLE_DRIVE_FINANCIAL_RECORDS_FILES_FOLDER_ID,
         );
       }
 
       // Create updated row data, only updating fields that are provided
       const updatedRowData = headers.map((header, index) => {
-        if (header === 'Statement' && statementUrl) {
-          return statementUrl;
+        if (header === 'Statement' && statementFileName) {
+          return statementFileName
+            ? `${this.financialRecordsFilesFolder}/${statementFileName}`
+            : '';
         }
-        if (header === 'Converted Excel File' && convertedExcelFileUrl) {
-          return convertedExcelFileUrl;
+        if (header === 'Converted Excel File' && convertedExcelFileName) {
+          return convertedExcelFileName
+            ? `${this.financialRecordsFilesFolder}/${convertedExcelFileName}`
+            : '';
         }
         if (header === 'Credit Application' && updateDto.creditApplicationId) {
           return updateDto.creditApplicationId;
@@ -359,7 +420,12 @@ export class MpesaBankStatementController {
       });
 
       // Update the row
-      await this.sheetsService.updateRow(this.SHEET_NAME, id, updatedRowData);
+      await this.sheetsService.updateRow(
+        this.SHEET_NAME,
+        id,
+        updatedRowData,
+        true,
+      );
 
       // Get the updated statement record
       const updatedStatement = {};

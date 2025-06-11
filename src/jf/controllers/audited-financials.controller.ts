@@ -23,7 +23,10 @@ interface ApiError {
 export class AuditedFinancialsController {
   private readonly logger = new Logger(AuditedFinancialsController.name);
   private readonly SHEET_NAME = 'Audited Financial Statements';
-
+  private readonly financialRecordsFolder =
+    'Audited Financial Statements_Files_';
+  private readonly GOOGLE_DRIVE_AUDITED_FINANCIAL_STATEMENTS_FILES_FOLDER_ID =
+    process.env.GOOGLE_DRIVE_AUDITED_FINANCIAL_STATEMENTS_FILES_FOLDER_ID;
   constructor(
     private readonly sheetsService: SheetsService,
     private readonly googleDriveService: GoogleDriveService,
@@ -57,12 +60,15 @@ export class AuditedFinancialsController {
       });
 
       // Upload file to Google Drive if provided
-      let fileUrl = '';
+      let statementFileName = '';
       if (file) {
-        fileUrl = await this.googleDriveService.uploadFile(
+        const timestamp = new Date().getTime();
+        statementFileName = `stmt_${createDto.creditApplicationId}_${timestamp}.${file.originalname.split('.').pop()}`;
+        await this.googleDriveService.uploadFile(
           file.buffer,
-          file.originalname,
+          statementFileName,
           file.mimetype,
+          this.GOOGLE_DRIVE_AUDITED_FINANCIAL_STATEMENTS_FILES_FOLDER_ID,
         );
       }
 
@@ -71,11 +77,13 @@ export class AuditedFinancialsController {
         'Credit Application ID': createDto.creditApplicationId,
         'Statement Type': createDto.statementType,
         Notes: createDto.notes,
-        File: fileUrl,
+        File: statementFileName
+          ? `${this.financialRecordsFolder}/${statementFileName}`
+          : '',
         'Created At': createdAt,
       };
 
-      await this.sheetsService.appendRow(this.SHEET_NAME, rowData);
+      await this.sheetsService.appendRow(this.SHEET_NAME, rowData, true);
 
       return {
         success: true,
@@ -100,7 +108,10 @@ export class AuditedFinancialsController {
         `Fetching financial statements for application ID: ${creditApplicationId}`,
       );
 
-      const statements = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const statements = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+        true,
+      );
       this.logger.debug(`Retrieved ${statements?.length || 0} rows from sheet`);
 
       if (!statements || statements.length === 0) {
@@ -142,12 +153,36 @@ export class AuditedFinancialsController {
           return statement;
         });
 
+      const documentColumns = ['File'];
+      const datasWithLinks = await Promise.all(
+        filteredData.map(async (director) => {
+          const dataWithLinks = { ...director };
+          for (const column of documentColumns) {
+            if (director[column]) {
+              let folderId = '';
+              if (column == 'File') {
+                folderId =
+                  this
+                    .GOOGLE_DRIVE_AUDITED_FINANCIAL_STATEMENTS_FILES_FOLDER_ID;
+              }
+              const filename = director[column].split('/').pop();
+              const fileLink = await this.googleDriveService.getFileLink(
+                filename,
+                folderId,
+              );
+              dataWithLinks[column] = fileLink;
+            }
+          }
+          return dataWithLinks;
+        }),
+      );
+
       this.logger.debug(`Found ${filteredData.length} matching statements`);
 
       return {
         success: true,
         count: filteredData.length,
-        data: filteredData,
+        data: datasWithLinks,
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -242,7 +277,10 @@ export class AuditedFinancialsController {
       this.logger.log(`Updating financial statement with ID: ${id}`);
 
       // First verify the statement exists
-      const statements = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const statements = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+        true,
+      );
       if (!statements || statements.length === 0) {
         return { success: false, message: 'No financial statements found' };
       }
@@ -256,19 +294,24 @@ export class AuditedFinancialsController {
       }
 
       // Upload file if provided
-      let fileUrl = '';
+      let statementFileName = '';
       if (file) {
-        fileUrl = await this.googleDriveService.uploadFile(
+        const timestamp = new Date().getTime();
+        statementFileName = `stmt_${updateDto.creditApplicationId}_${timestamp}.${file.originalname.split('.').pop()}`;
+        await this.googleDriveService.uploadFile(
           file.buffer,
-          file.originalname,
+          statementFileName,
           file.mimetype,
+          this.GOOGLE_DRIVE_AUDITED_FINANCIAL_STATEMENTS_FILES_FOLDER_ID,
         );
       }
 
       // Create updated row data, only updating fields that are provided
       const updatedRowData = headers.map((header, index) => {
-        if (header === 'File' && fileUrl) {
-          return fileUrl;
+        if (header === 'File' && statementFileName) {
+          return statementFileName
+            ? `${this.financialRecordsFolder}/${statementFileName}`
+            : '';
         }
         if (
           header === 'Credit Application ID' &&
@@ -286,7 +329,12 @@ export class AuditedFinancialsController {
       });
 
       // Update the row
-      await this.sheetsService.updateRow(this.SHEET_NAME, id, updatedRowData);
+      await this.sheetsService.updateRow(
+        this.SHEET_NAME,
+        id,
+        updatedRowData,
+        true,
+      );
 
       // Get the updated statement record
       const updatedStatement = {};

@@ -169,7 +169,7 @@ export class SchoolPhotosController {
         'Created By': createDto['Created By'],
       };
 
-      await this.sheetsService.appendRow(this.SHEET_NAME, rowData);
+      await this.sheetsService.appendRow(this.SHEET_NAME, rowData, true);
 
       return {
         success: true,
@@ -232,7 +232,7 @@ export class SchoolPhotosController {
           'Created By': createDto['Created By'],
         };
 
-        await this.sheetsService.appendRow(this.SHEET_NAME, rowData);
+        await this.sheetsService.appendRow(this.SHEET_NAME, rowData, true);
         uploadedPhotos.push(rowData);
       }
 
@@ -256,7 +256,7 @@ export class SchoolPhotosController {
   @Get()
   async getAllSchoolPhotos() {
     try {
-      const rows = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const rows = await this.sheetsService.getSheetData(this.SHEET_NAME, true);
       return {
         success: true,
         data: rows,
@@ -275,7 +275,7 @@ export class SchoolPhotosController {
   async getSchoolPhotoById(@Param('id') id: string) {
     try {
       this.logger.debug(`Fetching school photo with ID: ${id}`);
-      const rows = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const rows = await this.sheetsService.getSheetData(this.SHEET_NAME, true);
       this.logger.debug(`Retrieved ${rows?.length || 0} rows from sheet`);
 
       if (!rows || rows.length === 0) {
@@ -359,7 +359,10 @@ export class SchoolPhotosController {
   async getSchoolPhotosBySurveyId(@Param('surveyId') surveyId: string) {
     try {
       this.logger.debug(`Fetching photos for survey ID: ${surveyId}`);
-      const surveys = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const surveys = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+        true,
+      );
 
       if (!surveys || surveys.length === 0) {
         this.logger.debug('No photos found in sheet');
@@ -442,7 +445,7 @@ export class SchoolPhotosController {
       this.logger.debug(`Deleting school photo with ID: ${id}`);
 
       // First, get the photo details to get the filename
-      const rows = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const rows = await this.sheetsService.getSheetData(this.SHEET_NAME, true);
 
       if (!rows || rows.length === 0) {
         this.logger.debug('No photos found in sheet');
@@ -494,7 +497,7 @@ export class SchoolPhotosController {
       }
 
       // Delete the row from the Google Sheet
-      await this.sheetsService.deleteRow(this.SHEET_NAME, id);
+      await this.sheetsService.deleteRow(this.SHEET_NAME, id, true);
       this.logger.debug(`Deleted row from sheet for ID: ${id}`);
 
       return {

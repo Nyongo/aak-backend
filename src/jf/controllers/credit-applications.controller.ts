@@ -25,6 +25,10 @@ interface ApiError {
 export class CreditApplicationsController {
   private readonly logger = new Logger(CreditApplicationsController.name);
   private readonly SHEET_NAME = 'Credit Applications';
+  private readonly CREDIT_APPLICATIONS_IMAGES_FOLDER_ID =
+    process.env.GOOGLE_DRIVE_CREDIT_APPLICATIONS_IMAGES_FOLDER_ID;
+  private readonly CREDIT_APPLICATIONS_IMAGES_FOLDER_NAME =
+    process.env.GOOGLE_DRIVE_CREDIT_APPLICATIONS_IMAGES_FOLDER_NAME;
 
   constructor(
     private readonly sheetsService: SheetsService,
@@ -86,6 +90,14 @@ export class CreditApplicationsController {
       headers.forEach((header, index) => {
         application[header] = applicationRow[index];
       });
+      if (application['Photo of Check']) {
+        const filename = application['Photo of Check'].split('/').pop();
+        const fileLink = await this.googleDriveService.getFileLink(
+          filename,
+          this.CREDIT_APPLICATIONS_IMAGES_FOLDER_ID,
+        );
+        application['Photo of Check'] = fileLink;
+      }
 
       return { success: true, data: application };
     } catch (error: unknown) {
@@ -104,12 +116,16 @@ export class CreditApplicationsController {
     @UploadedFile() checkPhoto: Express.Multer.File,
   ) {
     try {
-      let checkPhotoUrl = '';
+      let checkPhotoName = '';
       if (checkPhoto) {
-        checkPhotoUrl = await this.googleDriveService.uploadFile(
+        const timestamp = new Date().getTime();
+        checkPhotoName = `check_photo_${createDto['Borrower ID']}_${timestamp}.${checkPhoto.originalname.split('.').pop()}`;
+
+        await this.googleDriveService.uploadFile(
           checkPhoto.buffer,
-          checkPhoto.originalname,
+          checkPhotoName,
           checkPhoto.mimetype,
+          this.CREDIT_APPLICATIONS_IMAGES_FOLDER_ID,
         );
       }
 
@@ -134,7 +150,7 @@ export class CreditApplicationsController {
         'Current Cost of Capital': createDto['Current Cost of Capital'] || 0,
         'Checks Collected': createDto['Checks Collected'] || 0,
         'Checks Needed for Loan': createDto['Checks Needed for Loan'] || 0,
-        'Photo of Check': checkPhotoUrl,
+        'Photo of Check': `${this.CREDIT_APPLICATIONS_IMAGES_FOLDER_NAME}/${checkPhotoName}`,
         Status: createDto['Status'] || 'In Progress',
         'Comments on Checks': createDto['Comments on Checks'] || '',
         'Created At': now,
@@ -276,14 +292,29 @@ export class CreditApplicationsController {
       }
 
       // Handle check photo upload if provided
-      let checkPhotoUrl = '';
+      // let checkPhotoUrl = '';
+      // if (checkPhoto) {
+      //   checkPhotoUrl = await this.googleDriveService.uploadFile(
+      //     checkPhoto.buffer,
+      //     checkPhoto.originalname,
+      //     checkPhoto.mimetype,
+      //   );
+      //   updateData['Photo of Check'] = checkPhotoUrl;
+      // }
+
+      let checkPhotoName = '';
       if (checkPhoto) {
-        checkPhotoUrl = await this.googleDriveService.uploadFile(
+        const timestamp = new Date().getTime();
+        checkPhotoName = `check_photo_${updateData['Borrower ID']}_${timestamp}.${checkPhoto.originalname.split('.').pop()}`;
+
+        await this.googleDriveService.uploadFile(
           checkPhoto.buffer,
-          checkPhoto.originalname,
+          checkPhotoName,
           checkPhoto.mimetype,
+          this.CREDIT_APPLICATIONS_IMAGES_FOLDER_ID,
         );
-        updateData['Photo of Check'] = checkPhotoUrl;
+        updateData['Photo of Check'] =
+          `${this.CREDIT_APPLICATIONS_IMAGES_FOLDER_NAME}/${checkPhotoName}`;
       }
 
       // Create updated row data, only updating fields that are provided
@@ -293,10 +324,10 @@ export class CreditApplicationsController {
         if (updateData[dtoField] !== undefined) {
           return updateData[dtoField];
         }
-        // For check photo, use the new URL if provided
-        if (header === 'Photo of Check' && checkPhotoUrl) {
-          return checkPhotoUrl;
-        }
+        // // For check photo, use the new URL if provided
+        // if (header === 'Photo of Check' && checkPhotoName) {
+        //   return checkPhotoName;
+        // }
         return applicationRow[index] || '';
       });
 

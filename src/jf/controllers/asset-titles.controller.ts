@@ -130,7 +130,10 @@ export class AssetTitlesController {
       }
 
       // Get the current sheet headers to ensure we save all fields
-      const sheetData = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const sheetData = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+        true,
+      );
       const headers = sheetData[0];
 
       // Create a map of all fields to save
@@ -155,7 +158,7 @@ export class AssetTitlesController {
         }
       }
 
-      await this.sheetsService.appendRow(this.SHEET_NAME, rowData);
+      await this.sheetsService.appendRow(this.SHEET_NAME, rowData, true);
 
       return {
         success: true,
@@ -176,7 +179,10 @@ export class AssetTitlesController {
     @Param('creditApplicationId') creditApplicationId: string,
   ) {
     try {
-      const assets = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const assets = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+        true,
+      );
       if (!assets || assets.length === 0) {
         return { success: true, count: 0, data: [] };
       }
@@ -212,7 +218,10 @@ export class AssetTitlesController {
   @Get(':id')
   async getAssetTitleById(@Param('id') id: string) {
     try {
-      const assets = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const assets = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+        true,
+      );
       if (!assets || assets.length === 0) {
         return { success: false, message: 'No asset titles found' };
       }
@@ -243,7 +252,10 @@ export class AssetTitlesController {
   @Get()
   async getAllAssetTitles() {
     try {
-      const assets = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const assets = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+        true,
+      );
 
       if (!assets || assets.length === 0) {
         return { success: true, count: 0, data: [] };
@@ -292,7 +304,10 @@ export class AssetTitlesController {
   ) {
     try {
       this.logger.log(`Updating asset title with ID: ${id}`);
-      const assets = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const assets = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+        true,
+      );
       if (!assets || assets.length === 0) {
         return { success: false, message: 'No asset titles found' };
       }
@@ -350,7 +365,12 @@ export class AssetTitlesController {
           ? updateDto[header]
           : assetRow[index] || '';
       });
-      await this.sheetsService.updateRow(this.SHEET_NAME, id, updatedRowData);
+      await this.sheetsService.updateRow(
+        this.SHEET_NAME,
+        id,
+        updatedRowData,
+        true,
+      );
       // Build updated asset object
       const updatedAsset = {};
       headers.forEach((header, idx) => {
@@ -372,7 +392,10 @@ export class AssetTitlesController {
   async deleteAssetTitle(@Param('id') id: string) {
     try {
       this.logger.log(`Deleting asset title with ID: ${id}`);
-      const assets = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const assets = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+        true,
+      );
       if (!assets || assets.length === 0) {
         return { success: false, message: 'No asset titles found' };
       }
@@ -382,7 +405,7 @@ export class AssetTitlesController {
       if (!assetRow) {
         return { success: false, message: 'Asset title not found' };
       }
-      await this.sheetsService.deleteRow(this.SHEET_NAME, id);
+      await this.sheetsService.deleteRow(this.SHEET_NAME, id, true);
       return {
         success: true,
         message: 'Asset title deleted successfully',

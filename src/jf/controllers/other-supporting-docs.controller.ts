@@ -24,7 +24,10 @@ interface ApiError {
 export class OtherSupportingDocsController {
   private readonly logger = new Logger(OtherSupportingDocsController.name);
   private readonly SHEET_NAME = 'Other Supporting Documents';
-
+  private readonly otherSupportingDocsFolder =
+    'Other Supporting Documents_Images';
+  private readonly GOOGLE_DRIVE_OTHER_SUPPORTING_DOCS_FILES_FOLDER_ID =
+    process.env.GOOGLE_DRIVE_OTHER_SUPPORTING_DOCS_FILES_FOLDER_ID;
   constructor(
     private readonly sheetsService: SheetsService,
     private readonly googleDriveService: GoogleDriveService,
@@ -74,6 +77,7 @@ export class OtherSupportingDocsController {
           file.buffer,
           file.originalname,
           file.mimetype,
+          this.GOOGLE_DRIVE_OTHER_SUPPORTING_DOCS_FILES_FOLDER_ID,
         );
       }
 
@@ -85,6 +89,7 @@ export class OtherSupportingDocsController {
           image.buffer,
           image.originalname,
           image.mimetype,
+          this.GOOGLE_DRIVE_OTHER_SUPPORTING_DOCS_FILES_FOLDER_ID,
         );
       }
 
@@ -98,7 +103,7 @@ export class OtherSupportingDocsController {
         'Created At': createdAt,
       };
 
-      await this.sheetsService.appendRow(this.SHEET_NAME, rowData);
+      await this.sheetsService.appendRow(this.SHEET_NAME, rowData, true);
 
       return {
         success: true,
@@ -123,7 +128,10 @@ export class OtherSupportingDocsController {
         `Fetching supporting documents for application ID: ${creditApplicationId}`,
       );
 
-      const documents = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const documents = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+        true,
+      );
       this.logger.debug(`Retrieved ${documents?.length || 0} rows from sheet`);
 
       if (!documents || documents.length === 0) {

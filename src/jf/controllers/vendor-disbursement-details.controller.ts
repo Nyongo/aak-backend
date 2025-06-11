@@ -25,7 +25,15 @@ export class VendorDisbursementDetailsController {
   private readonly logger = new Logger(
     VendorDisbursementDetailsController.name,
   );
+  private readonly DISBURSEMENT_FILES_FOLDER_ID =
+    process.env.GOOGLE_DRIVE_DISBURSEMENT_FILES_FOLDER_ID;
   private readonly SHEET_NAME = 'Vendor Disbursement Details';
+  private readonly docsFolder = 'Vendor Disbursement Details_Files_';
+  private readonly imagesFolder = 'Vendor Disbursement Details_Images';
+  private readonly GOOGLE_DRIVE_VENDOR_DIS_DOCS_FILES_FOLDER_ID =
+    process.env.GOOGLE_DRIVE_VENDOR_DIS_DOCS_FILES_FOLDER_ID;
+  private readonly GOOGLE_DRIVE_VENDOR_DIS_DOCS_PHOTOS_FOLDER_ID =
+    process.env.GOOGLE_DRIVE_VENDOR_DIS_DOCS_PHOTOS_FOLDER_ID;
 
   constructor(
     private readonly sheetsService: SheetsService,
@@ -67,12 +75,17 @@ export class VendorDisbursementDetailsController {
       });
 
       // Upload document if provided
-      let documentUrl = '';
+      let fileName = '';
       if (documentVerifyingPaymentAccount) {
-        documentUrl = await this.googleDriveService.uploadFile(
+        const file = documentVerifyingPaymentAccount;
+        const timestamp = new Date().getTime();
+        fileName = `paymentverifdoc_${createDto.creditApplicationId}_${timestamp}.${file.originalname.split('.').pop()}`;
+
+        await this.googleDriveService.uploadFile(
           documentVerifyingPaymentAccount.buffer,
-          documentVerifyingPaymentAccount.originalname,
+          fileName,
           documentVerifyingPaymentAccount.mimetype,
+          this.GOOGLE_DRIVE_VENDOR_DIS_DOCS_PHOTOS_FOLDER_ID,
         );
       }
 
@@ -84,7 +97,7 @@ export class VendorDisbursementDetailsController {
           createDto.phoneNumberForMPesaPayment || '',
         'Manager Verification of Payment Account':
           createDto.managerVerification,
-        'Document Verifying Payment Account': documentUrl,
+        'Document Verifying Payment Account': `${this.imagesFolder}/${fileName}`,
         'Bank Name': createDto.bankName || '',
         'Account Name': createDto.accountName || '',
         'Account Number': createDto.accountNumber || '',
@@ -95,7 +108,7 @@ export class VendorDisbursementDetailsController {
         'Created At': createdAt,
       };
 
-      await this.sheetsService.appendRow(this.SHEET_NAME, rowData);
+      await this.sheetsService.appendRow(this.SHEET_NAME, rowData, true);
 
       return {
         success: true,
@@ -120,7 +133,10 @@ export class VendorDisbursementDetailsController {
         `Fetching disbursement details for application: ${creditApplicationId}`,
       );
 
-      const details = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const details = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+        true,
+      );
 
       if (!details || details.length === 0) {
         return { success: true, count: 0, data: [] };
@@ -147,11 +163,31 @@ export class VendorDisbursementDetailsController {
           });
           return detail;
         });
-
+      const documentColumns = ['Document Verifying Payment Account'];
+      const datasWithLinks = await Promise.all(
+        filteredData.map(async (director) => {
+          const dataWithLinks = { ...director };
+          for (const column of documentColumns) {
+            if (director[column]) {
+              let folderId = '';
+              if (column == 'Document Verifying Payment Account') {
+                folderId = this.GOOGLE_DRIVE_VENDOR_DIS_DOCS_PHOTOS_FOLDER_ID;
+              }
+              const filename = director[column].split('/').pop();
+              const fileLink = await this.googleDriveService.getFileLink(
+                filename,
+                folderId,
+              );
+              dataWithLinks[column] = fileLink;
+            }
+          }
+          return dataWithLinks;
+        }),
+      );
       return {
         success: true,
         count: filteredData.length,
-        data: filteredData,
+        data: datasWithLinks,
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -165,7 +201,10 @@ export class VendorDisbursementDetailsController {
   @Get(':id')
   async getDetailById(@Param('id') id: string) {
     try {
-      const details = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const details = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+        true,
+      );
       if (!details || details.length === 0) {
         return { success: false, message: 'No disbursement details found' };
       }
@@ -248,7 +287,10 @@ export class VendorDisbursementDetailsController {
       this.logger.log(`Updating vendor disbursement detail with ID: ${id}`);
 
       // First verify the detail exists
-      const details = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const details = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+        true,
+      );
       if (!details || details.length === 0) {
         return { success: false, message: 'No disbursement details found' };
       }
@@ -261,13 +303,18 @@ export class VendorDisbursementDetailsController {
         return { success: false, message: 'Disbursement detail not found' };
       }
 
-      // Upload new document if provided
-      let documentUrl = '';
+      // Upload document if provided
+      let fileName = '';
       if (documentVerifyingPaymentAccount) {
-        documentUrl = await this.googleDriveService.uploadFile(
+        const file = documentVerifyingPaymentAccount;
+        const timestamp = new Date().getTime();
+        fileName = `paymentverifdoc_${updateDto.creditApplicationId}_${timestamp}.${file.originalname.split('.').pop()}`;
+
+        await this.googleDriveService.uploadFile(
           documentVerifyingPaymentAccount.buffer,
-          documentVerifyingPaymentAccount.originalname,
+          fileName,
           documentVerifyingPaymentAccount.mimetype,
+          this.GOOGLE_DRIVE_VENDOR_DIS_DOCS_PHOTOS_FOLDER_ID,
         );
       }
 
@@ -297,8 +344,13 @@ export class VendorDisbursementDetailsController {
         ) {
           return updateDto.managerVerification;
         }
-        if (header === 'Document Verifying Payment Account' && documentUrl) {
-          return documentUrl;
+        if (
+          header === 'Document Verifying Payment Account' &&
+          documentVerifyingPaymentAccount
+        ) {
+          return documentVerifyingPaymentAccount
+            ? `${this.imagesFolder}/${fileName}`
+            : '';
         }
         if (header === 'Bank Name' && updateDto.bankName) {
           return updateDto.bankName;
@@ -328,7 +380,12 @@ export class VendorDisbursementDetailsController {
       });
 
       // Update the row
-      await this.sheetsService.updateRow(this.SHEET_NAME, id, updatedRowData);
+      await this.sheetsService.updateRow(
+        this.SHEET_NAME,
+        id,
+        updatedRowData,
+        true,
+      );
 
       // Get the updated detail record
       const updatedDetail = {};
@@ -356,7 +413,10 @@ export class VendorDisbursementDetailsController {
       this.logger.log(`Deleting vendor disbursement detail with ID: ${id}`);
 
       // First verify the detail exists
-      const details = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const details = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+        true,
+      );
       if (!details || details.length === 0) {
         return { success: false, message: 'No disbursement details found' };
       }
@@ -370,7 +430,7 @@ export class VendorDisbursementDetailsController {
       }
 
       // Delete the row
-      await this.sheetsService.deleteRow(this.SHEET_NAME, id);
+      await this.sheetsService.deleteRow(this.SHEET_NAME, id, true);
 
       return {
         success: true,

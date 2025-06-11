@@ -24,7 +24,10 @@ interface ApiError {
 export class ActiveDebtsController {
   private readonly logger = new Logger(ActiveDebtsController.name);
   private readonly SHEET_NAME = 'Active Debt';
-
+  private readonly GOOGLE_DRIVE_ACTIVE_DEBT_FILES_FOLDER_ID =
+    process.env.GOOGLE_DRIVE_ACTIVE_DEBT_FILES_FOLDER_ID;
+  private readonly GOOGLE_DRIVE_ACTIVE_DEBT_FILES_FOLDER_NAME =
+    process.env.GOOGLE_DRIVE_ACTIVE_DEBT_FILES_FOLDER_NAME;
   constructor(
     private readonly sheetsService: SheetsService,
     private readonly googleDriveService: GoogleDriveService,
@@ -61,11 +64,27 @@ export class ActiveDebtsController {
           });
           return debt;
         });
-
+      const documentColumns = ['Debt Statement'];
+      const datasWithLinks = await Promise.all(
+        filteredData.map(async (record) => {
+          const dataWithLinks = { ...record };
+          for (const column of documentColumns) {
+            if (record[column]) {
+              const filename = record[column].split('/').pop();
+              const fileLink = await this.googleDriveService.getFileLink(
+                filename,
+                this.GOOGLE_DRIVE_ACTIVE_DEBT_FILES_FOLDER_ID,
+              );
+              dataWithLinks[column] = fileLink;
+            }
+          }
+          return dataWithLinks;
+        }),
+      );
       return {
         success: true,
         count: filteredData.length,
-        data: filteredData,
+        data: datasWithLinks,
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -87,15 +106,16 @@ export class ActiveDebtsController {
         `Adding new active debt for application: ${createDto['Credit Application ID']}`,
       );
 
-      let debtStatementUrl = '';
+      let activeDebtStatementFileName = '';
       if (debtStatement) {
         const timestamp = new Date().getTime();
-        const filename = `debt_statement_${createDto['Credit Application ID']}_${timestamp}.${debtStatement.originalname.split('.').pop()}`;
+        activeDebtStatementFileName = `debt_statement_${createDto['Credit Application ID']}_${timestamp}.${debtStatement.originalname.split('.').pop()}`;
 
-        debtStatementUrl = await this.googleDriveService.uploadFile(
+        await this.googleDriveService.uploadFile(
           debtStatement.buffer,
-          filename,
+          activeDebtStatementFileName,
           debtStatement.mimetype,
+          this.GOOGLE_DRIVE_ACTIVE_DEBT_FILES_FOLDER_ID,
         );
       }
 
@@ -116,7 +136,7 @@ export class ActiveDebtsController {
         Balance: createDto['Balance'],
         'Amount Overdue': createDto['Amount Overdue'] || 0,
         'Monthly Payment': createDto['Monthly Payment'],
-        'Debt Statement': debtStatementUrl,
+        'Debt Statement': `${this.GOOGLE_DRIVE_ACTIVE_DEBT_FILES_FOLDER_NAME}/${activeDebtStatementFileName}`,
         'Annual Declining Balance Interest Rate':
           createDto['Annual Declining Balance Interest Rate'],
         'Is the loan collateralized? ':
@@ -165,15 +185,16 @@ export class ActiveDebtsController {
       }
 
       // Handle debt statement upload if provided
-      let debtStatementUrl = '';
+      let activeDebtStatementFileName = '';
       if (debtStatement) {
         const timestamp = new Date().getTime();
-        const filename = `debt_statement_${updateData['Credit Application ID'] || debtRow[headers.indexOf('Credit Application ID')]}_${timestamp}.${debtStatement.originalname.split('.').pop()}`;
+        const activeDebtStatementFileName = `debt_statement_${updateData['Credit Application ID'] || debtRow[headers.indexOf('Credit Application ID')]}_${timestamp}.${debtStatement.originalname.split('.').pop()}`;
 
-        debtStatementUrl = await this.googleDriveService.uploadFile(
+        await this.googleDriveService.uploadFile(
           debtStatement.buffer,
-          filename,
+          activeDebtStatementFileName,
           debtStatement.mimetype,
+          this.GOOGLE_DRIVE_ACTIVE_DEBT_FILES_FOLDER_ID,
         );
       }
 
@@ -181,7 +202,7 @@ export class ActiveDebtsController {
       const updatedRowData = headers.map((header, index) => {
         // Only update debt statement if a new file was uploaded
         if (header === 'Debt Statement') {
-          return debtStatementUrl || debtRow[index] || '';
+          return activeDebtStatementFileName || debtRow[index] || '';
         }
         if (updateData[header] !== undefined) {
           return updateData[header];

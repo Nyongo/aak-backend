@@ -24,6 +24,12 @@ interface ApiError {
 export class FeePlansController {
   private readonly logger = new Logger(FeePlansController.name);
   private readonly SHEET_NAME = 'Fee Plan Documents';
+  private readonly FeePLanDocFolder = 'Fee Plan Documents_Files_';
+  private readonly FeePLanImageFolder = 'Fee Plan Documents_Images';
+  private readonly FEE_PLAN_IMAGES_FOLDER_ID =
+    process.env.GOOGLE_DRIVE_FEE_PLANS_IMAGES_FOLDER_ID;
+  private readonly FEE_PLAN_FILES_FOLDER_ID =
+    process.env.GOOGLE_DRIVE_FEE_PLANS_FILES_FOLDER_ID;
 
   constructor(
     private readonly sheetsService: SheetsService,
@@ -38,7 +44,10 @@ export class FeePlansController {
       this.logger.log(
         `Fetching fee plans for credit application: ${creditApplicationId}`,
       );
-      const feePlans = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const feePlans = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+        true,
+      );
 
       if (!feePlans || feePlans.length === 0) {
         return { success: true, count: 0, data: [] };
@@ -62,10 +71,34 @@ export class FeePlansController {
           return feePlan;
         });
 
+      const documentColumns = ['Photo', 'File'];
+      const datasWithLinks = await Promise.all(
+        filteredData.map(async (director) => {
+          const dataWithLinks = { ...director };
+          for (const column of documentColumns) {
+            if (director[column]) {
+              let folderId = '';
+              if (column == 'Photo') {
+                folderId = this.FEE_PLAN_IMAGES_FOLDER_ID;
+              } else if (column == 'File') {
+                folderId = this.FEE_PLAN_FILES_FOLDER_ID;
+              }
+              const filename = director[column].split('/').pop();
+              const fileLink = await this.googleDriveService.getFileLink(
+                filename,
+                folderId,
+              );
+              dataWithLinks[column] = fileLink;
+            }
+          }
+          return dataWithLinks;
+        }),
+      );
+
       return {
         success: true,
         count: filteredData.length,
-        data: filteredData,
+        data: datasWithLinks,
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -97,30 +130,32 @@ export class FeePlansController {
       );
 
       // Handle photo upload
-      let photoUrl = '';
+      let photoName = '';
       if (files.photo?.[0]) {
         const photo = files.photo[0];
         const timestamp = new Date().getTime();
-        const filename = `fee_plan_photo_${createDto['Credit Application ID']}_${timestamp}.${photo.originalname.split('.').pop()}`;
+        photoName = `fee_plan_photo_${createDto['Credit Application ID']}_${timestamp}.${photo.originalname.split('.').pop()}`;
 
-        photoUrl = await this.googleDriveService.uploadFile(
+        await this.googleDriveService.uploadFile(
           photo.buffer,
-          filename,
+          photoName,
           photo.mimetype,
+          this.FEE_PLAN_IMAGES_FOLDER_ID,
         );
       }
 
       // Handle file upload
-      let fileUrl = '';
+      let filename = '';
       if (files.file?.[0]) {
         const file = files.file[0];
         const timestamp = new Date().getTime();
-        const filename = `fee_plan_file_${createDto['Credit Application ID']}_${timestamp}.${file.originalname.split('.').pop()}`;
+        filename = `fee_plan_file_${createDto['Credit Application ID']}_${timestamp}.${file.originalname.split('.').pop()}`;
 
-        fileUrl = await this.googleDriveService.uploadFile(
+        await this.googleDriveService.uploadFile(
           file.buffer,
           filename,
           file.mimetype,
+          this.FEE_PLAN_FILES_FOLDER_ID,
         );
       }
 
@@ -131,12 +166,12 @@ export class FeePlansController {
         ID: id,
         'Credit Application ID': createDto['Credit Application ID'],
         'School Year': createDto['School Year'],
-        Photo: photoUrl,
-        File: fileUrl,
+        Photo: photoName ? `${this.FeePLanImageFolder}/${photoName}` : '',
+        File: filename ? `${this.FeePLanDocFolder}/${filename}` : '',
         'Created At': now,
       };
 
-      await this.sheetsService.appendRow(this.SHEET_NAME, rowData);
+      await this.sheetsService.appendRow(this.SHEET_NAME, rowData, true);
 
       return {
         success: true,
@@ -170,7 +205,10 @@ export class FeePlansController {
       this.logger.log(`Updating fee plan with ID: ${id}`);
 
       // First verify the fee plan exists
-      const feePlans = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const feePlans = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+        true,
+      );
       if (!feePlans || feePlans.length === 0) {
         return { success: false, message: 'No fee plans found' };
       }
@@ -184,40 +222,42 @@ export class FeePlansController {
       }
 
       // Handle photo upload if provided
-      let photoUrl = '';
+      let photoname = '';
       if (files.photo?.[0]) {
         const photo = files.photo[0];
         const timestamp = new Date().getTime();
-        const filename = `fee_plan_photo_${updateData['Credit Application ID'] || feePlanRow[headers.indexOf('Credit Application ID')]}_${timestamp}.${photo.originalname.split('.').pop()}`;
+        photoname = `fee_plan_photo_${updateData['Credit Application ID'] || feePlanRow[headers.indexOf('Credit Application ID')]}_${timestamp}.${photo.originalname.split('.').pop()}`;
 
-        photoUrl = await this.googleDriveService.uploadFile(
+        await this.googleDriveService.uploadFile(
           photo.buffer,
-          filename,
+          photoname,
           photo.mimetype,
+          this.FEE_PLAN_IMAGES_FOLDER_ID,
         );
       }
 
       // Handle file upload if provided
-      let fileUrl = '';
+      let filename = '';
       if (files.file?.[0]) {
         const file = files.file[0];
         const timestamp = new Date().getTime();
-        const filename = `fee_plan_file_${updateData['Credit Application ID'] || feePlanRow[headers.indexOf('Credit Application ID')]}_${timestamp}.${file.originalname.split('.').pop()}`;
+        filename = `fee_plan_file_${updateData['Credit Application ID'] || feePlanRow[headers.indexOf('Credit Application ID')]}_${timestamp}.${file.originalname.split('.').pop()}`;
 
-        fileUrl = await this.googleDriveService.uploadFile(
+        await this.googleDriveService.uploadFile(
           file.buffer,
           filename,
           file.mimetype,
+          this.FEE_PLAN_FILES_FOLDER_ID,
         );
       }
 
       // Create updated row data, only updating fields that are provided
       const updatedRowData = headers.map((header, index) => {
-        if (header === 'Photo' && photoUrl) {
-          return photoUrl;
+        if (header === 'Photo' && photoname) {
+          return `${this.FeePLanImageFolder}/${photoname}`;
         }
-        if (header === 'File' && fileUrl) {
-          return fileUrl;
+        if (header === 'File' && filename) {
+          return `${this.FeePLanDocFolder}/${filename}`;
         }
         if (updateData[header] !== undefined) {
           return updateData[header];
@@ -226,7 +266,12 @@ export class FeePlansController {
       });
 
       // Update the row
-      await this.sheetsService.updateRow(this.SHEET_NAME, id, updatedRowData);
+      await this.sheetsService.updateRow(
+        this.SHEET_NAME,
+        id,
+        updatedRowData,
+        true,
+      );
 
       // Get the updated fee plan
       const updatedFeePlan = {};

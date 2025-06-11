@@ -23,6 +23,12 @@ interface ApiError {
 export class EnrollmentVerificationController {
   private readonly logger = new Logger(EnrollmentVerificationController.name);
   private readonly SHEET_NAME = 'Enrollment Reports';
+  private readonly enrollmentReportDocFolder = 'Enrollment Reports_Files_';
+  private readonly enrollmentReportImageFolder = 'Enrollment Reports_Images';
+  private readonly GOOGLE_DRIVE_ENROLLMENT_REPORTS_IMAGES_FOLDER_ID =
+    process.env.GOOGLE_DRIVE_ENROLLMENT_REPORTS_IMAGES_FOLDER_ID;
+  private readonly GOOGLE_DRIVE_ENROLLMENT_REPORTS_FILES_FOLDER_ID =
+    process.env.GOOGLE_DRIVE_ENROLLMENT_REPORTS_FILES_FOLDER_ID;
 
   constructor(
     private readonly sheetsService: SheetsService,
@@ -67,35 +73,51 @@ export class EnrollmentVerificationController {
       });
 
       // Upload enrollment verification file if provided
-      let verificationUrl = '';
+      let verificationFileName = '';
       if (files.enrollmentVerification && files.enrollmentVerification[0]) {
         const file = files.enrollmentVerification[0];
-        verificationUrl = await this.googleDriveService.uploadFile(
+        const timestamp = new Date().getTime();
+        verificationFileName = `verification_file_${createDto.creditApplicationId}_${timestamp}.${file.originalname.split('.').pop()}`;
+
+        await this.googleDriveService.uploadFile(
           file.buffer,
-          file.originalname,
+          verificationFileName,
           file.mimetype,
+          this.GOOGLE_DRIVE_ENROLLMENT_REPORTS_IMAGES_FOLDER_ID,
         );
       }
 
       // Upload enrollment report file if provided
-      let reportUrl = '';
+      let reportFileName = '';
       if (files.enrollmentReport && files.enrollmentReport[0]) {
         const file = files.enrollmentReport[0];
-        reportUrl = await this.googleDriveService.uploadFile(
+        const timestamp = new Date().getTime();
+        reportFileName = `enr_report_file_${createDto.creditApplicationId}_${timestamp}.${file.originalname.split('.').pop()}`;
+
+        await this.googleDriveService.uploadFile(
           file.buffer,
-          file.originalname,
+          reportFileName,
           file.mimetype,
+          this.GOOGLE_DRIVE_ENROLLMENT_REPORTS_FILES_FOLDER_ID,
         );
       }
 
       const rowData = {
         ID: id,
         'Credit Application ID': createDto.creditApplicationId,
-        'Enrollment Verification for this Year': verificationUrl,
-        'Enrollment Report': verificationUrl,
-        'Sub County Enrollment Report': reportUrl,
+        // 'Enrollment Verification for this Year': verificationFileName
+        //   ? `${this.enrollmentReportImageFolder}/${verificationFileName}`
+        //   : '',
+        'Sub County Enrollment Report': verificationFileName
+          ? `${this.enrollmentReportImageFolder}/${verificationFileName}`
+          : '',
+        'Enrollment Report': reportFileName
+          ? `${this.enrollmentReportDocFolder}/${reportFileName}`
+          : '',
         'Number of Students This Year': createDto.numberOfStudentsThisYear,
-        'Enrollment Report for this Year': reportUrl,
+        // 'Enrollment Report for this Year': reportFileName
+        //   ? `${this.enrollmentReportDocFolder}/${reportFileName}`
+        //   : '',
         'Number of students last year': createDto.numberOfStudentsLastYear,
         'Number of students two years ago':
           createDto.numberOfStudentsTwoYearsAgo,
@@ -157,10 +179,38 @@ export class EnrollmentVerificationController {
           return verification;
         });
 
+      const documentColumns = [
+        'Enrollment Report',
+        'Sub County Enrollment Report',
+      ];
+      const datasWithLinks = await Promise.all(
+        filteredData.map(async (director) => {
+          const dataWithLinks = { ...director };
+          for (const column of documentColumns) {
+            if (director[column]) {
+              let folderId = '';
+              if (column == 'Sub County Enrollment Report') {
+                folderId =
+                  this.GOOGLE_DRIVE_ENROLLMENT_REPORTS_IMAGES_FOLDER_ID;
+              } else if (column == 'Enrollment Report') {
+                folderId = this.GOOGLE_DRIVE_ENROLLMENT_REPORTS_FILES_FOLDER_ID;
+              }
+              const filename = director[column].split('/').pop();
+              const fileLink = await this.googleDriveService.getFileLink(
+                filename,
+                folderId,
+              );
+              dataWithLinks[column] = fileLink;
+            }
+          }
+          return dataWithLinks;
+        }),
+      );
+
       return {
         success: true,
         count: filteredData.length,
-        data: filteredData,
+        data: datasWithLinks,
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -280,44 +330,48 @@ export class EnrollmentVerificationController {
       }
 
       // Upload enrollment verification file if provided
-      let verificationUrl = '';
+      let verificationFileName = '';
       if (files.enrollmentVerification && files.enrollmentVerification[0]) {
         const file = files.enrollmentVerification[0];
-        verificationUrl = await this.googleDriveService.uploadFile(
+        const timestamp = new Date().getTime();
+        verificationFileName = `verification_file_${updateDto.creditApplicationId}_${timestamp}.${file.originalname.split('.').pop()}`;
+
+        await this.googleDriveService.uploadFile(
           file.buffer,
-          file.originalname,
+          verificationFileName,
           file.mimetype,
+          this.GOOGLE_DRIVE_ENROLLMENT_REPORTS_IMAGES_FOLDER_ID,
         );
       }
 
       // Upload enrollment report file if provided
-      let reportUrl = '';
+      let reportFileName = '';
       if (files.enrollmentReport && files.enrollmentReport[0]) {
         const file = files.enrollmentReport[0];
-        reportUrl = await this.googleDriveService.uploadFile(
+        const timestamp = new Date().getTime();
+        reportFileName = `enr_report_file_${updateDto.creditApplicationId}_${timestamp}.${file.originalname.split('.').pop()}`;
+
+        await this.googleDriveService.uploadFile(
           file.buffer,
-          file.originalname,
+          reportFileName,
           file.mimetype,
+          this.GOOGLE_DRIVE_ENROLLMENT_REPORTS_FILES_FOLDER_ID,
         );
       }
 
       // Create updated row data, only updating fields that are provided
       const updatedRowData = headers.map((header, index) => {
-        if (
-          header === 'Enrollment Verification for this Year' &&
-          verificationUrl
-        ) {
-          return verificationUrl;
+        if (header === 'Enrollment Report' && reportFileName) {
+          return reportFileName
+            ? `${this.enrollmentReportDocFolder}/${reportFileName}`
+            : '';
         }
-        if (header === 'Enrollment Report' && verificationUrl) {
-          return verificationUrl;
+        if (header === 'Sub County Enrollment Report' && verificationFileName) {
+          return verificationFileName
+            ? `${this.enrollmentReportImageFolder}/${verificationFileName}`
+            : '';
         }
-        if (header === 'Sub County Enrollment Report' && reportUrl) {
-          return reportUrl;
-        }
-        if (header === 'Enrollment Report for this Year' && reportUrl) {
-          return reportUrl;
-        }
+
         if (
           header === 'Credit Application ID' &&
           updateDto.creditApplicationId

@@ -50,7 +50,7 @@ export class CreditApplicationCommentsController {
         'Created At': createdAt,
       };
 
-      await this.sheetsService.appendRow(this.SHEET_NAME, rowData);
+      await this.sheetsService.appendRow(this.SHEET_NAME, rowData, true);
 
       return {
         success: true,
@@ -73,7 +73,10 @@ export class CreditApplicationCommentsController {
         `Fetching comments for credit application: ${creditApplicationId}`,
       );
 
-      const comments = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const comments = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+        true,
+      );
 
       if (!comments || comments.length === 0) {
         return { success: true, count: 0, data: [] };
@@ -118,7 +121,10 @@ export class CreditApplicationCommentsController {
   @Get(':id')
   async getCommentById(@Param('id') id: string) {
     try {
-      const comments = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const comments = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+        true,
+      );
       if (!comments || comments.length === 0) {
         return { success: false, message: 'No comments found' };
       }
@@ -147,7 +153,10 @@ export class CreditApplicationCommentsController {
   @Get()
   async getAllComments() {
     try {
-      const comments = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const comments = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+        true,
+      );
 
       if (!comments || comments.length === 0) {
         return { success: true, count: 0, data: [] };

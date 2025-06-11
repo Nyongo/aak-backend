@@ -39,6 +39,7 @@ export class GoogleDriveService {
         requestBody: fileMetadata,
         media: media,
         fields: 'id,webViewLink',
+        supportsAllDrives: true,
       });
 
       return response.data.webViewLink || response.data.id;
@@ -103,6 +104,8 @@ export class GoogleDriveService {
         q: searchQuery,
         fields: 'files(id, webViewLink)',
         spaces: 'drive',
+        supportsAllDrives: true, // ← Add this line
+        includeItemsFromAllDrives: true,
       });
 
       console.log('Google Drive response:', response.data);
@@ -126,6 +129,7 @@ export class GoogleDriveService {
       const response = await this.drive.files.get({
         fileId: fileId,
         fields: 'id, name, mimeType, size',
+        supportsAllDrives: true,
       });
 
       return response.data;
@@ -161,6 +165,7 @@ export class GoogleDriveService {
     try {
       await this.drive.files.delete({
         fileId: fileId,
+        supportsAllDrives: true,
       });
       this.logger.debug(`Successfully deleted file: ${fileId}`);
       return true;

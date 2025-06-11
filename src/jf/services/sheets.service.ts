@@ -19,6 +19,7 @@ export class SheetsService {
   private sheets;
   private readonly logger = new Logger(SheetsService.name);
   private readonly BORROWERS_SHEET_ID: string;
+  private readonly BORROWERS_SHEET_ID_2: string;
   private auth;
 
   constructor(
@@ -31,7 +32,10 @@ export class SheetsService {
     this.BORROWERS_SHEET_ID = this.configService.get(
       'GOOGLE_SHEETS_BORROWERS_ID',
     );
-    if (!this.BORROWERS_SHEET_ID) {
+    this.BORROWERS_SHEET_ID_2 = this.configService.get(
+      'GOOGLE_SHEETS_BORROWERS_ID_2',
+    );
+    if (!this.BORROWERS_SHEET_ID || !this.BORROWERS_SHEET_ID_2) {
       throw new Error(
         'GOOGLE_SHEETS_BORROWERS_ID environment variable is not set',
       );
@@ -382,10 +386,12 @@ export class SheetsService {
     }
   }
 
-  async getSheetData(sheetName: string): Promise<any[]> {
+  async getSheetData(sheetName: string, useDb2?: boolean): Promise<any[]> {
     try {
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: useDb2
+          ? this.BORROWERS_SHEET_ID_2
+          : this.BORROWERS_SHEET_ID,
         range: `${sheetName}!A:ZZ`,
       });
 
@@ -396,11 +402,19 @@ export class SheetsService {
     }
   }
 
-  async appendRow(sheetName: string, rowData: any): Promise<void> {
+  async appendRow(
+    sheetName: string,
+    rowData: any,
+    useDb2?: boolean,
+  ): Promise<void> {
     try {
+      const spreadsheetId = useDb2
+        ? this.BORROWERS_SHEET_ID_2
+        : this.BORROWERS_SHEET_ID;
+      console.log('Spreadsheet ID', spreadsheetId);
       // First get headers to ensure correct column order
       const headerResponse = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId,
         range: `${sheetName}!A1:ZZ1`,
       });
 
@@ -414,7 +428,7 @@ export class SheetsService {
       const orderedRowData = headers.map((header) => rowData[header] || '');
 
       await this.sheets.spreadsheets.values.append({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId,
         range: `${sheetName}!A2:ZZ2`,
         valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS',
@@ -432,10 +446,13 @@ export class SheetsService {
     sheetName: string,
     id: string,
     rowData: any[],
+    useDb2?: boolean,
   ): Promise<void> {
     try {
       this.logger.log(`Updating row in sheet ${sheetName} with ID: ${id}`);
-
+      const spreadsheetId = useDb2
+        ? this.BORROWERS_SHEET_ID_2
+        : this.BORROWERS_SHEET_ID;
       // Check if id is a number (row number) or a string (row ID)
       const isRowNumber = !isNaN(Number(id));
       let rowIndex: number;
@@ -446,7 +463,7 @@ export class SheetsService {
       } else {
         // If id is a row ID, find the row by ID
         const response = await this.sheets.spreadsheets.values.get({
-          spreadsheetId: this.BORROWERS_SHEET_ID,
+          spreadsheetId,
           range: `${sheetName}!A:A`, // Only get ID column
         });
 
@@ -460,7 +477,7 @@ export class SheetsService {
 
       // Update the row
       await this.sheets.spreadsheets.values.update({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId,
         range: `${sheetName}!A${rowIndex + 1}:ZZ${rowIndex + 1}`,
         valueInputOption: 'USER_ENTERED',
         requestBody: {
@@ -477,13 +494,19 @@ export class SheetsService {
     }
   }
 
-  async deleteRow(sheetName: string, id: string): Promise<void> {
+  async deleteRow(
+    sheetName: string,
+    id: string,
+    useDb2?: boolean,
+  ): Promise<void> {
     try {
       this.logger.log(`Deleting row in sheet ${sheetName} with ID: ${id}`);
-
+      const spreadsheetId = useDb2
+        ? this.BORROWERS_SHEET_ID_2
+        : this.BORROWERS_SHEET_ID;
       // First, find the row number for this ID
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId,
         range: `${sheetName}!A:A`, // Only get ID column
       });
 
@@ -496,7 +519,7 @@ export class SheetsService {
 
       // Delete the row by clearing its contents
       await this.sheets.spreadsheets.values.clear({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId,
         range: `${sheetName}!A${rowIndex + 1}:ZZ${rowIndex + 1}`,
       });
 
