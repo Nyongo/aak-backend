@@ -402,6 +402,26 @@ export class SheetsService {
     }
   }
 
+  async getSheetFormulas(sheetName: string, row: number): Promise<string[]> {
+    try {
+      const range = `${sheetName}!A${row}:${row}`;
+      this.logger.debug(`Fetching formulas from range: ${range}`);
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.BORROWERS_SHEET_ID,
+        range,
+        valueRenderOption: 'FORMULA',
+      });
+
+      return response.data.values?.[0] || [];
+    } catch (error) {
+      this.logger.error(
+        `Error fetching formulas from sheet ${sheetName}:`,
+        error,
+      );
+      throw error;
+    }
+  }
+
   async appendRow(
     sheetName: string,
     rowData: any,
@@ -528,6 +548,92 @@ export class SheetsService {
       );
     } catch (error) {
       this.logger.error(`Error deleting row in sheet ${sheetName}:`, error);
+      throw error;
+    }
+  }
+
+  // New methods specifically for handling formulas
+  async getSheetDataWithFormulas(sheetName: string): Promise<{
+    headers: string[];
+    formulas: string[];
+  }> {
+    try {
+      // Get headers
+      const headerResponse = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.BORROWERS_SHEET_ID,
+        range: `${sheetName}!A1:ZZ1`,
+      });
+
+      if (!headerResponse.data.values || !headerResponse.data.values[0]) {
+        throw new Error(`Failed to get headers from sheet: ${sheetName}`);
+      }
+
+      const headers = headerResponse.data.values[0];
+
+      // Get formulas from row 2 (assuming formulas are in the second row)
+      const formulaResponse = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.BORROWERS_SHEET_ID,
+        range: `${sheetName}!A2:ZZ2`,
+        valueRenderOption: 'FORMULA',
+      });
+
+      const formulas = formulaResponse.data.values?.[0] || [];
+
+      return { headers, formulas };
+    } catch (error) {
+      this.logger.error(
+        `Error fetching data with formulas from sheet ${sheetName}:`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  async appendRowWithFormulas(
+    sheetName: string,
+    rowData: Record<string, any>,
+  ): Promise<void> {
+    try {
+      this.logger.log(`Appending row with formulas to sheet ${sheetName}`);
+      this.logger.debug('Row data:', rowData);
+
+      // Get headers and formulas
+      const { headers, formulas } =
+        await this.getSheetDataWithFormulas(sheetName);
+      this.logger.debug(`Sheet headers for ${sheetName}:`, headers);
+
+      // Map rowData object to an array in the correct order, preserving formulas
+      const finalRowData = headers.map((header, index) => {
+        if (rowData[header] !== undefined) {
+          return rowData[header];
+        } else if (formulas[index] && formulas[index].startsWith('=')) {
+          // If there's a formula in this column and no data provided, use the formula
+          return formulas[index];
+        } else {
+          return '';
+        }
+      });
+
+      this.logger.debug('Final row data array with formulas:', finalRowData);
+
+      await this.sheets.spreadsheets.values.append({
+        spreadsheetId: this.BORROWERS_SHEET_ID,
+        range: `${sheetName}!A:A`,
+        valueInputOption: 'USER_ENTERED', // This allows formulas to be interpreted
+        insertDataOption: 'INSERT_ROWS',
+        requestBody: {
+          values: [finalRowData],
+        },
+      });
+
+      this.logger.log(
+        `Successfully appended row with formulas to sheet ${sheetName}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Error appending row with formulas to sheet ${sheetName}:`,
+        error,
+      );
       throw error;
     }
   }

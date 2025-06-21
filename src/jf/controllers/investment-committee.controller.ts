@@ -18,20 +18,24 @@ export class InvestmentCommitteeController {
   async createInvestmentCommitteeRecord(
     @Body()
     createDto: {
-      creditApplication: string;
-      auditedFinancialsProvided: string;
-      hasBankAccountAndChecks: 'Y' | 'N';
-      annualRevenue: number;
-      totalCashHeld: number;
-      debtRatio: number;
-      loanLength: number;
-      annualReducingInterestRate: number;
-      totalEstimatedAssetValue: number;
-      predictedDaysLate: number;
-      averageBankBalance: number;
+      'Credit Application ID': string;
+      'Audited financials provided?': string;
+      'School has a bank account and checks from that bank account?': string;
+      'Total annual revenue from fees from student breakdown, Unadjusted'?: string;
+      'Annual revenue from Banka and M Pesa Statements': string;
+      'Total cash held in bank and M Pesa accounts at time of credit scoring (KES)': string;
+      'Debt Ratio': string;
+      'Loan Length (Months)': string;
+      'Annual Reducing Interest Rate': string;
+      'Total estimated value of assets held by school and directors (KES)': string;
+      'Predicted Days Late': string;
+      'Average bank balance (KES)': string;
+      creditApplication?: string; // This is redundant, but we handle it.
     },
   ) {
     try {
+      this.logger.debug('Creating new investment committee record', createDto);
+
       // Generate unique ID for the record
       const id = `IC-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
 
@@ -49,25 +53,39 @@ export class InvestmentCommitteeController {
 
       const rowData = {
         ID: id,
-        'Credit Application ID': createDto.creditApplication,
-        'Audited financials provided?': createDto.auditedFinancialsProvided,
+        'Credit Application ID':
+          createDto['Credit Application ID'] || createDto.creditApplication,
+        'Audited financials provided?':
+          createDto['Audited financials provided?'],
         'School has a bank account and checks from that bank account?':
-          createDto.hasBankAccountAndChecks,
+          createDto[
+            'School has a bank account and checks from that bank account?'
+          ],
+        'Total annual revenue from fees from student breakdown, Unadjusted':
+          createDto[
+            'Total annual revenue from fees from student breakdown, Unadjusted'
+          ],
         'Annual revenue from Banka and M Pesa Statements':
-          createDto.annualRevenue,
+          createDto['Annual revenue from Banka and M Pesa Statements'],
         'Total cash held in bank and M Pesa accounts at time of credit scoring (KES)':
-          createDto.totalCashHeld,
-        'Debt Ratio': createDto.debtRatio,
-        'Loan Length (Months)': createDto.loanLength,
-        'Annual Reducing Interest Rate': createDto.annualReducingInterestRate,
+          createDto[
+            'Total cash held in bank and M Pesa accounts at time of credit scoring (KES)'
+          ],
+        'Debt Ratio': createDto['Debt Ratio'],
+        'Loan Length (Months)': createDto['Loan Length (Months)'],
+        'Annual Reducing Interest Rate':
+          createDto['Annual Reducing Interest Rate'],
         'Total estimated value of assets held by school and directors (KES)':
-          createDto.totalEstimatedAssetValue,
-        'Predicted Days Late': createDto.predictedDaysLate,
-        'Average bank balance (KES)': createDto.averageBankBalance,
+          createDto[
+            'Total estimated value of assets held by school and directors (KES)'
+          ],
+        'Predicted Days Late': createDto['Predicted Days Late'],
+        'Average bank balance (KES)': createDto['Average bank balance (KES)'],
         'Created At': createdAt,
       };
 
-      await this.sheetsService.appendRow(this.SHEET_NAME, rowData);
+      // Use the new method that handles formulas automatically
+      await this.sheetsService.appendRowWithFormulas(this.SHEET_NAME, rowData);
 
       return {
         success: true,
