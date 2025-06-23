@@ -597,18 +597,33 @@ export class SheetsService {
       this.logger.log(`Appending row with formulas to sheet ${sheetName}`);
       this.logger.debug('Row data:', rowData);
 
+      // Get the current number of rows to determine the new row number
+      const sheetStateResponse = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.BORROWERS_SHEET_ID,
+        range: `${sheetName}!A:A`, // Check against column A to get row count
+      });
+      const newRowNumber = (sheetStateResponse.data.values?.length || 0) + 1;
+      this.logger.debug(`New row will be at index: ${newRowNumber}`);
+
       // Get headers and formulas
       const { headers, formulas } =
         await this.getSheetDataWithFormulas(sheetName);
       this.logger.debug(`Sheet headers for ${sheetName}:`, headers);
 
-      // Map rowData object to an array in the correct order, preserving formulas
+      const formulaSourceRow = 2; // Formulas are copied from row 2
+      const formulaRegex = new RegExp(`\\b([A-Z]+)${formulaSourceRow}\\b`, 'g');
+
+      // Map rowData object to an array in the correct order, preserving and updating formulas
       const finalRowData = headers.map((header, index) => {
         if (rowData[header] !== undefined) {
           return rowData[header];
         } else if (formulas[index] && formulas[index].startsWith('=')) {
-          // If there's a formula in this column and no data provided, use the formula
-          return formulas[index];
+          // If there's a formula in this column and no data provided, update and use it
+          const updatedFormula = formulas[index].replace(
+            formulaRegex,
+            `$1${newRowNumber}`,
+          );
+          return updatedFormula;
         } else {
           return '';
         }
