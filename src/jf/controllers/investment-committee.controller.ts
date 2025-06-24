@@ -73,8 +73,7 @@ export class InvestmentCommitteeController {
           ],
         'Debt Ratio': createDto['Debt Ratio'],
         'Loan Length (Months)': createDto['Loan Length (Months)'],
-        'Annual Reducing Interest Rate':
-          createDto['Annual Reducing Interest Rate'],
+        'Annual Reducing Interest Rate': `${createDto['Annual Reducing Interest Rate']}%`,
         'Total estimated value of assets held by school and directors (KES)':
           createDto[
             'Total estimated value of assets held by school and directors (KES)'
