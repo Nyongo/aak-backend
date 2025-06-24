@@ -71,7 +71,7 @@ export class InvestmentCommitteeController {
           createDto[
             'Total cash held in bank and M Pesa accounts at time of credit scoring (KES)'
           ],
-        'Debt Ratio': createDto['Debt Ratio'],
+        'Debt Ratio': `${createDto['Debt Ratio']}%`,
         'Loan Length (Months)': createDto['Loan Length (Months)'],
         'Annual Reducing Interest Rate': `${createDto['Annual Reducing Interest Rate']}%`,
         'Total estimated value of assets held by school and directors (KES)':
