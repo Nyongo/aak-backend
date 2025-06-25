@@ -249,7 +249,7 @@ export class FinancialSurveyController {
           createDto.lastYearAssetValue,
         'Loan Amount Deposited into Bank Accounts in Last Year':
           createDto.lastYearLoanDeposits,
-        'How many students did the school have the previous academic year':
+        'How many students did the school have the previous academic year ':
           createDto.previousYearStudentCount,
         'Lease agreement, if any': leaseAgreementUrl,
         'Does the school receive significant revenue from donations?':
