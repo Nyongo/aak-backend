@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Param, Logger } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Logger,
+  Put,
+} from '@nestjs/common';
 import { SheetsService } from '../services/sheets.service';
 import { GoogleDriveService } from '../services/google-drive.service';
 
@@ -150,6 +158,86 @@ export class ContractDetailsController {
         `Error fetching financial surveys for application ${creditApplicationId}: ${apiError.message}`,
       );
       throw error;
+    }
+  }
+
+  @Put(':id')
+  async updateContractDetails(
+    @Param('id') id: string,
+    @Body()
+    updateDto: {
+      'Credit Application ID'?: string;
+      'Loan Length Requested (Months)'?: number;
+      'Months the School Requests Forgiveness'?: number;
+      'Disbursal Date Requested'?: string;
+      '10% Down on Vehicle or Land Financing?'?: 'TRUE' | 'FALSE';
+      'Created By'?: string;
+    },
+  ) {
+    try {
+      this.logger.debug(`Updating contract details with ID: ${id}`, updateDto);
+
+      // First verify the record exists
+      const records = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      if (!records || records.length === 0) {
+        return {
+          success: false,
+          error: 'No contract details found',
+        };
+      }
+
+      const headers = records[0];
+      const idIndex = headers.indexOf('ID');
+      const recordRow = records.find((row) => row[idIndex] === id);
+
+      if (!recordRow) {
+        return {
+          success: false,
+          error: 'Contract details not found',
+        };
+      }
+
+      // Create updated row data, only updating fields that are provided
+      const updatedRowData = headers.map((header, index) => {
+        const currentValue = recordRow[index] || '';
+
+        // Check if the field is provided in the update DTO
+        if (updateDto[header] !== undefined) {
+          return updateDto[header];
+        }
+
+        // Keep existing value for all other fields
+        return currentValue;
+      });
+
+      // Update the row
+      await this.sheetsService.updateRow(this.SHEET_NAME, id, updatedRowData);
+
+      // Get the updated record
+      const updatedRecords = await this.sheetsService.getSheetData(
+        this.SHEET_NAME,
+      );
+      const updatedRecordRow = updatedRecords.find(
+        (row) => row[idIndex] === id,
+      );
+
+      const updatedRecord = {};
+      headers.forEach((header, index) => {
+        updatedRecord[header] = updatedRecordRow[index];
+      });
+
+      return {
+        success: true,
+        message: 'Contract details updated successfully',
+        data: updatedRecord,
+      };
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      this.logger.error(`Error updating contract details: ${apiError.message}`);
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
     }
   }
 }
