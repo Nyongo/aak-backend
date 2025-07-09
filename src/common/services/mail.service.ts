@@ -6,7 +6,7 @@ export class MailService {
   private client: Client;
 
   constructor() {
-    this.client = new Client(process.env.POSTMARK_API_TOKEN);
+    // this.client = new Client(process.env.POSTMARK_API_TOKEN);
   }
 
   async sendEmail(options: {
@@ -37,9 +37,9 @@ export class MailService {
     };
     console.log('mail options', mailOptions);
     try {
-      const response = await this.client.sendEmail(mailOptions);
+    //   const response = await this.client.sendEmail(mailOptions);
 
-      console.log(`Email sent to ${to}:`, response);
+    //   console.log(`Email sent to ${to}:`, response);
       return true;
     } catch (error) {
       console.error('Error sending email:', error);
