@@ -23,7 +23,10 @@ model User {
   updatedPesticides     Pesticide[] @relation("LastUpdatedBy") // Add this reverse relation
   sspUser               SspUser?    @relation("UserSspUser")
   farmerUser            FarmerUser? @relation("UserFarmerUser")
-
+  createdSslStaff       SslStaff[]  @relation("SslStaffCreatedBy")
+  updatedSslStaff       SslStaff[]  @relation("SslStaffLastUpdatedBy")
+  createdDailyWorkPlans DailyWorkPlan[] @relation("DailyWorkPlanCreatedBy")
+  updatedDailyWorkPlans DailyWorkPlan[] @relation("DailyWorkPlanLastUpdatedBy")
 }
 
 model Role {
@@ -290,7 +293,6 @@ model SspBidding {
   lastUpdatedAt  DateTime     @updatedAt
 }
 
-
 // Shared enums
 enum SectionType {
   banner
@@ -388,4 +390,69 @@ model NewsletterSectionMedia {
   section                NewsletterSection    @relation(fields: [newsletterSectionId], references: [id], onDelete: Cascade)
 
   @@index([newsletterSectionId])
+}
+
+model SslStaff {
+  id                    String    @id // Changed from Int to String for alphanumeric IDs
+  name                  String
+  type                  String
+  borrowerId            String    @unique
+  email                 String    @unique
+  sslId                 String
+  nationalIdNumber      String    @unique
+  nationalIdFront       String?   // File path/URL
+  nationalIdBack        String?   // File path/URL
+  kraPinNumber          String?
+  kraPinPhoto           String?   // File path/URL
+  phoneNumber           String
+  status                String    @default("Active")
+  roleInSchool          String
+  dateOfBirth           String
+  address               String
+  gender                String
+  postalAddress         String?
+  startDate             String
+  insuredForCreditLife  Boolean   @default(false)
+  paymentThisMonth      Boolean   @default(false)
+  terminationDate       String?
+  educationLevel        String?
+  sslEmail              String?
+  secondaryRole         String?
+  monthlyTarget         String?
+  creditLifeHelper      String?
+  teamLeader            String?
+  passportPhoto         String?   // File path/URL
+  sslLevel              String?
+  sslArea               String?
+  isActive              Boolean   @default(true)
+  createdAt             DateTime  @default(now())
+  lastUpdatedAt         DateTime  @updatedAt
+  createdById           Int?
+  lastUpdatedById       Int?
+  createdBy             User?     @relation("SslStaffCreatedBy", fields: [createdById], references: [id])
+  lastUpdatedBy         User?     @relation("SslStaffLastUpdatedBy", fields: [lastUpdatedById], references: [id])
+  dailyWorkPlans        DailyWorkPlan[]
+
+  @@map("ssl_staff")
+}
+
+model DailyWorkPlan {
+  id                    Int       @id @default(autoincrement())
+  date                  DateTime
+  plannedVisit          String    @db.Text
+  actualGpsCoordinates  String?
+  callsMadeDescription  String    @db.Text
+  notes                 String?   @db.Text
+  supervisorReview      String?   @db.Text
+  status                String    @default("Pending")
+  sslStaffId            String    // Changed from Int to String to match SslStaff ID
+  sslStaff              SslStaff  @relation(fields: [sslStaffId], references: [id], onDelete: Cascade)
+  createdAt             DateTime  @default(now())
+  lastUpdatedAt         DateTime  @updatedAt
+  createdById           Int?
+  lastUpdatedById       Int?
+  createdBy             User?     @relation("DailyWorkPlanCreatedBy", fields: [createdById], references: [id])
+  lastUpdatedBy         User?     @relation("DailyWorkPlanLastUpdatedBy", fields: [lastUpdatedById], references: [id])
+
+  @@map("daily_work_plan")
 }

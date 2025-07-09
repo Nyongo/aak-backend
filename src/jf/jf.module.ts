@@ -105,5 +105,6 @@ import { CaseStudiesService } from './services/case-studies.service';
     NewslettersController,
     NewsletterSectionsController
   ],
+  exports: [GoogleDriveService, SheetsService],
 })
 export class JfModule {}
