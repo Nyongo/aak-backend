@@ -289,3 +289,103 @@ model SspBidding {
   createdAt      DateTime     @default(now())
   lastUpdatedAt  DateTime     @updatedAt
 }
+
+
+// Shared enums
+enum SectionType {
+  banner
+  content
+}
+
+enum NewsletterCategory {
+  IMPACT_STORIES
+  SUCCESS_STORIES
+  PARTNERSHIPS
+  ALL_UPDATES
+}
+// === Top‐level Case Study ===
+model CaseStudy {
+  id         String               @id @default(uuid())
+  slug       String               @unique
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  sections   CaseStudySection[]   @relation("CaseStudyToSections")
+
+  @@map("CaseStudy")
+}
+
+model CaseStudySection {
+  id           String                 @id @default(uuid())
+  caseStudyId  String
+  order        Int
+  type         SectionType
+  data         Json
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  media        CaseStudySectionMedia[]
+  caseStudy    CaseStudy              @relation("CaseStudyToSections", fields: [caseStudyId], references: [id], onDelete: Cascade)
+
+  @@index([caseStudyId])
+}
+
+/// This model maps exactly to your existing `SectionMedia` table
+model CaseStudySectionMedia {
+  id                  String               @id @default(uuid())
+  caseStudySectionId  String
+  mimeType            String
+  blob                Bytes
+
+  section             CaseStudySection     @relation(fields: [caseStudySectionId], references: [id], onDelete: Cascade)
+
+  @@index([caseStudySectionId])
+  @@map("SectionMedia")       // ← reuse existing table name
+}
+
+// === Newsletter metadata ===
+
+model Newsletter {
+  id             String               @id @default(uuid())
+  title          String
+  description    String
+  date           DateTime
+  category       NewsletterCategory
+  imageBlob      Bytes
+  imageMimeType  String
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  sections       NewsletterSection[]  @relation("NewsletterToSections")
+
+  @@index([date])
+}
+
+// === Newsletter subsections ===
+
+model NewsletterSection {
+  id                 String                  @id @default(uuid())
+  newsletterId       String
+  order              Int
+  type               SectionType
+  data               Json
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  newsletter         Newsletter               @relation("NewsletterToSections", fields: [newsletterId], references: [id], onDelete: Cascade)
+  media              NewsletterSectionMedia[]
+
+  @@index([newsletterId])
+}
+
+/// This will create a new table `NewsletterSectionMedia`
+model NewsletterSectionMedia {
+  id                     String               @id @default(uuid())
+  newsletterSectionId    String
+  mimeType               String
+  blob                   Bytes
+
+  section                NewsletterSection    @relation(fields: [newsletterSectionId], references: [id], onDelete: Cascade)
+
+  @@index([newsletterSectionId])
+}
