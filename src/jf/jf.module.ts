@@ -85,7 +85,8 @@ import { LoansController } from './controllers/loans.controller';
     TermsController,
     ContractDetailsController,
     SchoolPhotosController,
-    LoansController
+    LoansController,
   ],
+  exports: [GoogleDriveService, SheetsService],
 })
 export class JfModule {}
