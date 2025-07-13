@@ -121,15 +121,6 @@ export class SslStaffService {
 
       const newRecord = await this.prisma.sslStaff.create({
         data,
-        include: {
-          createdBy: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-        },
       });
 
       return this.commonFunctions.returnFormattedResponse(
@@ -167,22 +158,6 @@ export class SslStaffService {
 
       const data = await this.prisma.sslStaff.findMany({
         where,
-        include: {
-          createdBy: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-          lastUpdatedBy: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-        },
         orderBy: {
           createdAt: 'desc',
         },
@@ -208,22 +183,6 @@ export class SslStaffService {
     try {
       const record = await this.prisma.sslStaff.findUnique({
         where: { id },
-        include: {
-          createdBy: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-          lastUpdatedBy: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-        },
       });
 
       if (!record) {
@@ -334,9 +293,7 @@ export class SslStaffService {
         nationalIdBack: nationalIdBackPath,
         kraPinPhoto: kraPinPhotoPath,
         passportPhoto: passportPhotoPath,
-        lastUpdatedBy: {
-          connect: { id: lastUpdatedById || 1 },
-        },
+        lastUpdatedById: lastUpdatedById || 1,
       };
 
       // Remove undefined values
@@ -349,22 +306,6 @@ export class SslStaffService {
       const updatedRecord = await this.prisma.sslStaff.update({
         where: { id },
         data: updateData,
-        include: {
-          createdBy: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-          lastUpdatedBy: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-        },
       });
 
       return this.commonFunctions.returnFormattedResponse(

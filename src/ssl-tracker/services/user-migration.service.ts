@@ -204,7 +204,8 @@ export class UserMigrationService {
       isActive: this.parseBoolean(
         sheetData['Active'] || sheetData['isActive'] || 'true',
       ),
-      createdById: 1, // Default to user ID 1, should be updated based on authenticated user
+      // createdById is optional, so we'll leave it null for now
+      // It can be updated later when we have proper user authentication
     };
 
     return mappedStaff;
