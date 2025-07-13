@@ -23,10 +23,6 @@ model User {
   updatedPesticides     Pesticide[] @relation("LastUpdatedBy") // Add this reverse relation
   sspUser               SspUser?    @relation("UserSspUser")
   farmerUser            FarmerUser? @relation("UserFarmerUser")
-  createdSslStaff       SslStaff[]  @relation("SslStaffCreatedBy")
-  updatedSslStaff       SslStaff[]  @relation("SslStaffLastUpdatedBy")
-  createdDailyWorkPlans DailyWorkPlan[] @relation("DailyWorkPlanCreatedBy")
-  updatedDailyWorkPlans DailyWorkPlan[] @relation("DailyWorkPlanLastUpdatedBy")
 }
 
 model Role {
@@ -297,10 +293,10 @@ model SslStaff {
   id                    String    @id // Changed from Int to String for alphanumeric IDs
   name                  String
   type                  String
-  borrowerId            String    @unique
-  email                 String    @unique
+  borrowerId            String
+  email                 String
   sslId                 String
-  nationalIdNumber      String    @unique
+  nationalIdNumber      String
   nationalIdFront       String?   // File path/URL
   nationalIdBack        String?   // File path/URL
   kraPinNumber          String?
@@ -330,8 +326,6 @@ model SslStaff {
   lastUpdatedAt         DateTime  @updatedAt
   createdById           Int?
   lastUpdatedById       Int?
-  createdBy             User?     @relation("SslStaffCreatedBy", fields: [createdById], references: [id])
-  lastUpdatedBy         User?     @relation("SslStaffLastUpdatedBy", fields: [lastUpdatedById], references: [id])
   dailyWorkPlans        DailyWorkPlan[]
 
   @@map("ssl_staff")
@@ -348,12 +342,50 @@ model DailyWorkPlan {
   status                String    @default("Pending")
   sslStaffId            String    // Changed from Int to String to match SslStaff ID
   sslStaff              SslStaff  @relation(fields: [sslStaffId], references: [id], onDelete: Cascade)
+  schoolId              String?   // School ID reference
+  school                School?   @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  teamLeaderId          String?   // Team Leader ID
+  schoolName            String?   // School Name (auto-populated from school.name)
+  region                String?   // Region (auto-populated from sslStaff.sslArea)
+  taskOfTheDay          String?   @db.Text // Task of the Day
+  pinnedLocation        String?   // Pinned Location
+  locationIsVerified    Boolean   @default(false) // Location Is Verified
+  marketingOfficerComments String? @db.Text // Marketing Officer Comments
   createdAt             DateTime  @default(now())
   lastUpdatedAt         DateTime  @updatedAt
   createdById           Int?
   lastUpdatedById       Int?
-  createdBy             User?     @relation("DailyWorkPlanCreatedBy", fields: [createdById], references: [id])
-  lastUpdatedBy         User?     @relation("DailyWorkPlanLastUpdatedBy", fields: [lastUpdatedById], references: [id])
 
   @@map("daily_work_plan")
+}
+
+model School {
+  id                    String    @id // Alphanumeric ID from sheet
+  name                  String
+  schoolId              String    @unique // Unique school identifier
+  sslId                 String?   // SSL ID from sheet
+  locationPin           String?   // Location Pin from sheet
+  email                 String?
+  phoneNumber           String?
+  address               String?
+  postalAddress         String?
+  county                String?
+  region                String?
+  schoolType            String?   // Primary, Secondary, etc.
+  status                String    @default("Active")
+  principalName         String?
+  principalPhone        String?
+  principalEmail        String?
+  totalStudents         Int?
+  totalTeachers         Int?
+  registrationNumber    String?
+  establishmentDate     String?
+  isActive              Boolean   @default(true)
+  createdAt             DateTime  @default(now())
+  lastUpdatedAt         DateTime  @updatedAt
+  createdById           Int?
+  lastUpdatedById       Int?
+  dailyWorkPlans        DailyWorkPlan[]
+
+  @@map("schools")
 }

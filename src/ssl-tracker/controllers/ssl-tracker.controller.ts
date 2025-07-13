@@ -30,17 +30,13 @@ export class SslTrackerController {
   @Get()
   async getAllSslRecords(
     @Query('sslId') sslId?: string,
-    @Query('page') page: string = '1',
-    @Query('pageSize') pageSize: string = '10',
+    @Query('type') type?: string,
+    @Query('teamLeader') teamLeader?: string,
   ) {
     try {
       this.logger.debug(
-        `Fetching SSL tracker records${sslId ? ` for SSL ID: ${sslId}` : ''}`,
+        `Fetching SSL tracker records${sslId ? ` for SSL ID: ${sslId}` : ''}${type ? ` with type: ${type}` : ''}`,
       );
-
-      const pageNum = parseInt(page, 10);
-      const pageSizeNum = parseInt(pageSize, 10);
-      const skip = (pageNum - 1) * pageSizeNum;
 
       const where: any = {
         isActive: true,
@@ -50,61 +46,49 @@ export class SslTrackerController {
         where.sslId = sslId;
       }
 
-      const [data, totalItems] = await Promise.all([
-        this.prisma.sslStaff.findMany({
-          where,
-          skip,
-          take: pageSizeNum,
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            borrowerId: true,
-            email: true,
-            sslId: true,
-            nationalIdNumber: true,
-            phoneNumber: true,
-            status: true,
-            roleInSchool: true,
-            dateOfBirth: true,
-            address: true,
-            gender: true,
-            startDate: true,
-            sslEmail: true,
-            sslLevel: true,
-            sslArea: true,
-            isActive: true,
-            createdAt: true,
-            createdBy: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
-            },
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-        }),
-        this.prisma.sslStaff.count({ where }),
-      ]);
+      if (type) {
+        where.type = type;
+      }
 
-      const totalPages = Math.ceil(totalItems / pageSizeNum);
+      if (teamLeader) {
+        where.teamLeader = teamLeader;
+      }
+
+      const data = await this.prisma.sslStaff.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          borrowerId: true,
+          email: true,
+          sslId: true,
+          nationalIdNumber: true,
+          phoneNumber: true,
+          status: true,
+          roleInSchool: true,
+          dateOfBirth: true,
+          address: true,
+          gender: true,
+          startDate: true,
+          sslEmail: true,
+          sslLevel: true,
+          sslArea: true,
+          teamLeader: true,
+          isActive: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
 
       return this.commonFunctions.returnFormattedResponse(
         200,
         `Found ${data.length} SSL tracker record(s)`,
         {
           data,
-          pagination: {
-            currentPage: pageNum,
-            pageSize: pageSizeNum,
-            totalItems,
-            totalPages,
-            hasNextPage: pageNum < totalPages,
-            hasPreviousPage: pageNum > 1,
-          },
+          totalItems: data.length,
         },
       );
     } catch (error: unknown) {
@@ -146,13 +130,6 @@ export class SslTrackerController {
           sslArea: true,
           isActive: true,
           createdAt: true,
-          createdBy: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
         },
       });
 
@@ -215,9 +192,6 @@ export class SslTrackerController {
           id,
           ...createDto,
           status: createDto.status || 'Active',
-          createdBy: {
-            connect: { id: createdById },
-          },
         },
         select: {
           id: true,
@@ -239,13 +213,6 @@ export class SslTrackerController {
           sslArea: true,
           isActive: true,
           createdAt: true,
-          createdBy: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
         },
       });
 
@@ -314,9 +281,6 @@ export class SslTrackerController {
         where: { id },
         data: {
           ...updateDto,
-          lastUpdatedBy: {
-            connect: { id: lastUpdatedById },
-          },
         },
         select: {
           id: true,
@@ -337,13 +301,6 @@ export class SslTrackerController {
           sslLevel: true,
           sslArea: true,
           isActive: true,
-          lastUpdatedBy: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
         },
       });
 
