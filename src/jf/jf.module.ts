@@ -4,9 +4,9 @@ import * as cacheStore from 'cache-manager-memory-store';
 import { GoogleAuthService } from './services/google-auth.service';
 import { GoogleDriveService } from './services/google-drive.service';
 import { SpreadsheetService } from './services/spread-sheet.service';
+import { CaseStudySectionsService } from './services/case-study-sections.service';
 import { SpreadsheetController } from './controllers/spread-sheet.controller';
 import { NotificationController } from './controllers/notification.controller';
-import { MailService } from '../common/services/mail.service';
 import { AppSheetService } from './services/appsheet.service';
 import { SheetsService } from './services/sheets.service';
 import { UsersService } from './services/users.service';
@@ -37,6 +37,15 @@ import { TermsController } from './controllers/terms.controller';
 import { ContractDetailsController } from './controllers/contract-details.controller';
 import { SchoolPhotosController } from './controllers/school-photos.controller';
 import { LoansController } from './controllers/loans.controller';
+import { CaseStudySectionsController } from './controllers/case-study-sections.controller';
+import { PrismaService } from '../prisma/prisma.service';
+import { NewslettersController } from './controllers/newsletters.controller';
+import { NewsletterSectionsController } from './controllers/newsletter-sections.controller';
+import { NewslettersService } from './services/newsletters.service';
+import { NewsletterSectionsService } from './services/newsletter-sections.service';
+import { MailService } from 'src/common/services/mail.service';
+import { CaseStudiesController } from './controllers/case-studies.controller';
+import { CaseStudiesService } from './services/case-studies.service';
 
 @Module({
   imports: [
@@ -45,7 +54,7 @@ import { LoansController } from './controllers/loans.controller';
       store: cacheStore.memoryStore,
       ttl: 600, // Cache TTL in seconds (e.g., 600 = 10 minutes)
       // max: 100, // Optional: Max number of items in cache
-    }),
+    })
   ],
   providers: [
     GoogleAuthService,
@@ -55,9 +64,16 @@ import { LoansController } from './controllers/loans.controller';
     AppSheetService,
     SheetsService,
     UsersService,
+    CaseStudiesService,
+    CaseStudySectionsService,
+    NewslettersService,
+    NewsletterSectionsService,
+    PrismaService
   ],
   controllers: [
     SpreadsheetController,
+    CaseStudiesController,
+    CaseStudySectionsController,
     NotificationController,
     AppSheetController,
     BorrowersController,
@@ -86,6 +102,8 @@ import { LoansController } from './controllers/loans.controller';
     ContractDetailsController,
     SchoolPhotosController,
     LoansController,
+    NewslettersController,
+    NewsletterSectionsController
   ],
   exports: [GoogleDriveService, SheetsService],
 })
