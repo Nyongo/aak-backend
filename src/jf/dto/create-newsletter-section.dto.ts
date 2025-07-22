@@ -1,23 +1,9 @@
-import {
-  IsString,
-  IsNotEmpty,
-  IsEnum,
-  IsInt,
-  Min,
-  IsJSON,
-} from 'class-validator';
-import { SectionType } from '../interfaces/newsletter-section.interface';
+import { IsString, IsInt, Min, IsEnum, IsObject } from 'class-validator';
+import { SectionType } from '@prisma/client';
 
 export class CreateNewsletterSectionDto {
-  @IsString() @IsNotEmpty()
-  newsletterId: string;
-
-  @IsEnum(SectionType)
-  type: SectionType;
-
-  @IsInt() @Min(0)
-  order: number;
-
-  @IsJSON()
-  data: any;
+  @IsString() newsletterId!: string;
+  @IsInt() @Min(0) order!: number;
+  @IsEnum(SectionType) type!: SectionType;
+  @IsObject() data!: Record<string, any>;
 }

@@ -289,35 +289,80 @@ model SspBidding {
   lastUpdatedAt  DateTime     @updatedAt
 }
 
-// Shared enums
+
+// Shared enum
 enum SectionType {
   banner
   content
 }
 
-enum NewsletterCategory {
-  IMPACT_STORIES
-  SUCCESS_STORIES
-  PARTNERSHIPS
-  ALL_UPDATES
-}
 // === Top‐level Case Study ===
 model CaseStudy {
-  id         String               @id @default(uuid())
-  slug       String               @unique
-  createdAt  DateTime             @default(now())
-  updatedAt  DateTime             @updatedAt
+  id          String               @id @default(uuid())
+  link        String               @unique
+  order       Int
+  title       String
+  description String
+  stats       Json
+  isActive    Boolean              @default(true)
 
-  sections   CaseStudySection[]   @relation("CaseStudyToSections")
+  // Banner image blob
+  bannerMime  String?
+  bannerBlob  Bytes?
+
+  // relations
+  sections    CaseStudySection[]   @relation("CaseStudyToSections")
+  cta         CaseStudyCta?
+
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
 
   @@map("CaseStudy")
 }
 
+// Per‐item CTA
+model CaseStudyCta {
+  caseStudyId String  @id
+  title       String
+  description String
+  buttonText  String
+  buttonRoute String
+
+  caseStudy   CaseStudy @relation(fields: [caseStudyId], references: [id], onDelete: Cascade)
+
+  @@map("CaseStudyCta")
+}
+
+// Page‐level banner (singleton)
+model CaseStudiesPageBanner {
+  id          Int     @id @default(1)
+  eyebrow     String
+  headline    String
+  subtitle    String?
+  // can also store blob but now we have URL or JSON
+  imageUrl    String?
+
+  @@map("CaseStudiesPageBanner")
+}
+
+// Page‐level CTA (singleton)
+model CaseStudiesPageCta {
+  id          Int     @id @default(1)
+  title       String
+  description String
+  buttonText  String
+  buttonLink  String
+
+  @@map("CaseStudiesPageCta")
+}
+
+// === Case Study Sections ===
 model CaseStudySection {
   id           String                 @id @default(uuid())
   caseStudyId  String
   order        Int
   type         SectionType
+  isActive     Boolean                    @default(true)
   data         Json
   createdAt    DateTime               @default(now())
   updatedAt    DateTime               @updatedAt
@@ -328,7 +373,6 @@ model CaseStudySection {
   @@index([caseStudyId])
 }
 
-/// This model maps exactly to your existing `SectionMedia` table
 model CaseStudySectionMedia {
   id                  String               @id @default(uuid())
   caseStudySectionId  String
@@ -338,55 +382,100 @@ model CaseStudySectionMedia {
   section             CaseStudySection     @relation(fields: [caseStudySectionId], references: [id], onDelete: Cascade)
 
   @@index([caseStudySectionId])
-  @@map("SectionMedia")       // ← reuse existing table name
+  @@map("SectionMedia")
 }
 
-// === Newsletter metadata ===
+// ── newsletter listing page singletons ─────────────────────────────────────────
+
+model NewsletterPageBanner {
+  id        String  @id @default(uuid())
+  eyebrow   String
+  headline  String
+  subtitle  String?
+  // store as blob or Data‑URL?
+  imageUrl  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model NewsletterPageCta {
+  id          String  @id @default(uuid())
+  title       String
+  description String
+  buttonText  String
+  buttonLink  String
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ── per‑newsletter record + its per‑item CTA ─────────────────────────────────
 
 model Newsletter {
-  id             String               @id @default(uuid())
-  title          String
-  description    String
-  date           DateTime
-  category       NewsletterCategory
-  imageBlob      Bytes
-  imageMimeType  String
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
+  id          String    @id @default(uuid())
+  order       Int
+  title       String
+  date        String
+  description String
+  category    String
+  isActive    Boolean   @default(true)
 
-  sections       NewsletterSection[]  @relation("NewsletterToSections")
+  // optional per‑item banner image
+  bannerMime  String?
+  bannerBlob  Bytes?
 
-  @@index([date])
+  // per‑item “Read more” CTA
+  cta         NewsletterCta?
+
+  sections    NewsletterSection[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
-// === Newsletter subsections ===
+model NewsletterCta {
+  newsletterId String @id
+  title        String
+  description  String
+  buttonText   String
+  buttonLink   String
 
+  newsletter   Newsletter @relation(fields: [newsletterId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ── newsletter detail sections ────────────────────────────────────────────────
 model NewsletterSection {
-  id                 String                  @id @default(uuid())
-  newsletterId       String
-  order              Int
-  type               SectionType
-  data               Json
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
+  id            String               @id @default(uuid())
+  newsletterId  String
+  order         Int
+  type          SectionType
+  data          Json                // holds SectionDataBanner or SectionDataContent
+  isActive      Boolean              @default(true)
 
-  newsletter         Newsletter               @relation("NewsletterToSections", fields: [newsletterId], references: [id], onDelete: Cascade)
-  media              NewsletterSectionMedia[]
+  media         NewsletterSectionMedia[]
+  newsletter    Newsletter           @relation(fields: [newsletterId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
 
   @@index([newsletterId])
 }
 
-/// This will create a new table `NewsletterSectionMedia`
 model NewsletterSectionMedia {
-  id                     String               @id @default(uuid())
-  newsletterSectionId    String
-  mimeType               String
-  blob                   Bytes
+  id                   String   @id @default(uuid())
+  newsletterSectionId  String
+  mimeType             String
+  blob                 Bytes
 
-  section                NewsletterSection    @relation(fields: [newsletterSectionId], references: [id], onDelete: Cascade)
+  section              NewsletterSection @relation(fields: [newsletterSectionId], references: [id], onDelete: Cascade)
 
   @@index([newsletterSectionId])
 }
+
 
 model SslStaff {
   id                    String    @id // Changed from Int to String for alphanumeric IDs

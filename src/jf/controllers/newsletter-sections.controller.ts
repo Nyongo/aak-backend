@@ -1,19 +1,13 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Param,
-  Put,
-  Delete,
-  UseInterceptors,
-  UploadedFiles,
-  BadRequestException,
+  Controller, Get, Post, Put, Patch, Delete,
+  Param, Body, UseInterceptors, UploadedFiles, BadRequestException
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { NewsletterSectionsService } from '../services/newsletter-sections.service';
 import { CreateNewsletterSectionDto } from '../dto/create-newsletter-section.dto';
 import { UpdateNewsletterSectionDto } from '../dto/update-newsletter-section.dto';
-import { NewsletterSectionsService } from '../services/newsletter-sections.service';
+import { SectionType } from '@prisma/client';
+import { ReorderSectionsDto } from '../dto/reorder-sections-newsletter.dto';
 
 @Controller('jf/newsletters/:newsletterId/sections')
 export class NewsletterSectionsController {
@@ -26,37 +20,67 @@ export class NewsletterSectionsController {
 
   @Post()
   @UseInterceptors(FileFieldsInterceptor([{ name: 'mediaFiles', maxCount: 10 }]))
-  create(
+  async create(
     @Param('newsletterId') newsletterId: string,
-    @Body() body: any,
+    @Body() body: Record<string, any>,
     @UploadedFiles() files: { mediaFiles?: Express.Multer.File[] },
   ) {
+    const order = Number(body.order);
+    if (isNaN(order)) throw new BadRequestException('order must be a number');
+    let data: any;
+    try {
+      data = typeof body.data === 'string' ? JSON.parse(body.data) : body.data;
+    } catch {
+      throw new BadRequestException('data must be valid JSON');
+    }
+    if (![SectionType.banner, SectionType.content].includes(body.type)) {
+      throw new BadRequestException('type must be banner|content');
+    }
     const dto: CreateNewsletterSectionDto = {
       newsletterId,
+      order,
       type: body.type,
-      order: Number(body.order),
-      data: JSON.parse(body.data),
+      data,
     };
-    if (isNaN(dto.order)) throw new BadRequestException('order must be a number');
     return this.svc.create(dto, files.mediaFiles || []);
   }
 
   @Put(':id')
   @UseInterceptors(FileFieldsInterceptor([{ name: 'mediaFiles', maxCount: 10 }]))
-  update(
+  async update(
     @Param('id') id: string,
-    @Body() body: any,
+    @Body() body: Record<string, any>,
     @UploadedFiles() files: { mediaFiles?: Express.Multer.File[] },
   ) {
     const dto: UpdateNewsletterSectionDto = {};
-    if (body.type    !== undefined) dto.type  = body.type;
-    if (body.order   !== undefined) dto.order = Number(body.order);
-    if (body.data    !== undefined) dto.data  = JSON.parse(body.data);
+    if (body.order !== undefined) {
+      const o = Number(body.order);
+      if (isNaN(o)) throw new BadRequestException('order must be a number');
+      dto.order = o;
+    }
+    if (body.type !== undefined) {
+      if (![SectionType.banner, SectionType.content].includes(body.type)) {
+        throw new BadRequestException('type must be banner|content');
+      }
+      dto.type = body.type;
+    }
+    if (body.data !== undefined) {
+      try {
+        dto.data = typeof body.data === 'string' ? JSON.parse(body.data) : body.data;
+      } catch {
+        throw new BadRequestException('data must be valid JSON');
+      }
+    }
     return this.svc.update(id, dto, files.mediaFiles || []);
   }
 
-  @Delete(':sectionId')
-  remove(@Param('sectionId') id: string) {
+  @Patch('reorder')
+  reorder(@Body() dto: ReorderSectionsDto) {
+    return this.svc.reorder(dto);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string) {
     return this.svc.remove(id);
   }
 }

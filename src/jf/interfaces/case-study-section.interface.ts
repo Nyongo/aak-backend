@@ -8,7 +8,7 @@ export enum SectionType {
 export interface SectionMedia {
   id: string;
   mimeType: string;
-  blob: Uint8Array;          // Prisma returns Uint8Array, not Buffer
+  blob: Uint8Array;          // Prisma returns Uint8Array
 }
 
 export interface CaseStudySection {
@@ -16,6 +16,7 @@ export interface CaseStudySection {
   caseStudyId: string;
   order: number;
   type: SectionType;
+  isActive: boolean;
   data: JsonValue;           // Prisma’s JSON type
   media: SectionMedia[];
   createdAt: Date;

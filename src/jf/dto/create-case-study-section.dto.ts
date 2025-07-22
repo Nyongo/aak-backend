@@ -4,6 +4,7 @@ import {
   IsEnum,
   IsObject,
   ValidateNested,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { SectionType } from '../interfaces/case-study-section.interface';
@@ -17,6 +18,9 @@ export class CreateCaseStudySectionDto {
 
   @IsEnum(SectionType)
   type: SectionType;
+
+  @IsBoolean() 
+  isActive!: boolean;
 
   @IsObject()
   @ValidateNested()

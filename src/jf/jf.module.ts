@@ -46,6 +46,10 @@ import { NewsletterSectionsService } from './services/newsletter-sections.servic
 import { MailService } from 'src/common/services/mail.service';
 import { CaseStudiesController } from './controllers/case-studies.controller';
 import { CaseStudiesService } from './services/case-studies.service';
+import { CaseStudiesPageController } from './controllers/case‑studies‑page.controller';
+import { CaseStudiesPageService } from './services/case‑studies‑page.service';
+import { NewsletterPageController } from './controllers/newsletter-page.controller';
+import { NewsletterPageService } from './services/newsletter-page.service';
 
 @Module({
   imports: [
@@ -66,14 +70,17 @@ import { CaseStudiesService } from './services/case-studies.service';
     UsersService,
     CaseStudiesService,
     CaseStudySectionsService,
+    CaseStudiesPageService,
     NewslettersService,
     NewsletterSectionsService,
+    NewsletterPageService,
     PrismaService
   ],
   controllers: [
     SpreadsheetController,
     CaseStudiesController,
     CaseStudySectionsController,
+    CaseStudiesPageController,
     NotificationController,
     AppSheetController,
     BorrowersController,
@@ -103,7 +110,8 @@ import { CaseStudiesService } from './services/case-studies.service';
     SchoolPhotosController,
     LoansController,
     NewslettersController,
-    NewsletterSectionsController
+    NewsletterSectionsController,
+    NewsletterPageController
   ],
   exports: [GoogleDriveService, SheetsService],
 })

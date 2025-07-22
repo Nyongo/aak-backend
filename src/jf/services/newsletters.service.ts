@@ -2,63 +2,73 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateNewsletterDto } from '../dto/create-newsletter.dto';
 import { UpdateNewsletterDto } from '../dto/update-newsletter.dto';
-import { Newsletter } from '../interfaces/newsletter.interface';
+import { CtaDto } from '../dto/cta-news-letter.dto';
 
 @Injectable()
 export class NewslettersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateNewsletterDto, image: Express.Multer.File): Promise<Newsletter> {
-    const nl = await this.prisma.newsletter.create({
-      data: {
-        title: dto.title,
-        description: dto.description,
-        date: new Date(dto.date),
-        category: dto.category,
-        imageBlob: image.buffer,
-        imageMimeType: image.mimetype,
-      },
-    });
-    return nl as Newsletter;
-  }
-
-  findAll(): Promise<Newsletter[]> {
-    return this.prisma.newsletter.findMany({
-      orderBy: { date: 'desc' },
-    }) as Promise<Newsletter[]>;
-  }
-
-  async findOne(id: string): Promise<Newsletter> {
-    const nl = await this.prisma.newsletter.findUnique({ where: { id } });
-    if (!nl) throw new NotFoundException(`Newsletter ${id} not found`);
-    return nl as Newsletter;
-  }
-
-  async update(
-    id: string,
-    dto: UpdateNewsletterDto,
-    image?: Express.Multer.File,
-  ): Promise<Newsletter> {
-    await this.findOne(id);
-    const data: any = {
-      title: dto.title,
-      description: dto.description,
-      date: dto.date ? new Date(dto.date) : undefined,
-      category: dto.category,
+  async findAll(page: number, size: number) {
+    const [items, total] = await Promise.all([
+      this.prisma.newsletter.findMany({
+        skip: (page - 1) * size,
+        take: size,
+        orderBy: { order: 'asc' },
+      }),
+      this.prisma.newsletter.count(),
+    ]);
+    // convert blob→dataURL here
+    return {
+      items: items.map(n => this.attachBannerUrl(n)),
+      total,
     };
-    if (image) {
-      data.imageBlob = image.buffer;
-      data.imageMimeType = image.mimetype;
+  }
+
+  async create(dto: CreateNewsletterDto, file?: Express.Multer.File) {
+    const data: any = { ...dto };
+    if (file) {
+      data.bannerMime = file.mimetype;
+      data.bannerBlob = file.buffer;
+    }
+    const created = await this.prisma.newsletter.create({ data });
+    return this.attachBannerUrl(created);
+  }
+
+  async findOne(id: string) {
+    const rec = await this.prisma.newsletter.findUnique({ where: { id } });
+    if (!rec) throw new NotFoundException(`Newsletter ${id} not found`);
+    return this.attachBannerUrl(rec);
+  }
+
+  async update(id: string, dto: UpdateNewsletterDto, file?: Express.Multer.File) {
+    const updateData: any = { ...dto };
+    if (file) {
+      updateData.bannerMime = file.mimetype;
+      updateData.bannerBlob = file.buffer;
     }
     const updated = await this.prisma.newsletter.update({
       where: { id },
-      data,
+      data: updateData,
     });
-    return updated as Newsletter;
+    return this.attachBannerUrl(updated);
   }
 
-  async remove(id: string): Promise<void> {
-    await this.findOne(id);
+  async remove(id: string) {
     await this.prisma.newsletter.delete({ where: { id } });
+  }
+
+  async saveCta(id: string, dto: CtaDto) {
+    await this.prisma.newsletterCta.upsert({
+      where: { newsletterId: id },
+      create: { newsletterId: id, ...dto },
+      update: dto,
+    });
+  }
+
+  private attachBannerUrl(rec: any) {
+    if (rec.bannerBlob && rec.bannerMime) {
+      rec.bannerUrl = `data:${rec.bannerMime};base64,${Buffer.from(rec.bannerBlob).toString('base64')}`;
+    }
+    return rec;
   }
 }
