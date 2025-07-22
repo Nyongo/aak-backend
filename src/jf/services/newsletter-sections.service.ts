@@ -1,113 +1,73 @@
-import {
-  Injectable,
-  NotFoundException,
-  UnsupportedMediaTypeException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateNewsletterSectionDto } from '../dto/create-newsletter-section.dto';
 import { UpdateNewsletterSectionDto } from '../dto/update-newsletter-section.dto';
-import { SectionType, NewsletterSection } from '../interfaces/newsletter-section.interface';
+import { ReorderSectionsDto } from '../dto/reorder-sections-newsletter.dto';
 
 @Injectable()
 export class NewsletterSectionsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private map(raw: any): NewsletterSection {
-    return {
-      id: raw.id,
-      newsletterId: raw.newsletterId,
-      order: raw.order,
-      type: raw.type as SectionType,
-      data: raw.data,
-      media: raw.media.map((m: any) => ({
-        id: m.id,
-        mimeType: m.mimeType,
-        blob: m.blob,
-      })),
-      createdAt: raw.createdAt,
-      updatedAt: raw.updatedAt,
-    };
-  }
-
-  async findAll(newsletterId: string): Promise<NewsletterSection[]> {
-    const raws = await this.prisma.newsletterSection.findMany({
+  async findAll(newsletterId: string) {
+    const raw = await this.prisma.newsletterSection.findMany({
       where: { newsletterId },
       orderBy: { order: 'asc' },
       include: { media: true },
     });
-    return raws.map(this.map);
+    return raw.map(sec => ({
+      ...sec,
+      createdAt: sec.createdAt.toISOString(),
+      updatedAt: sec.updatedAt.toISOString(),
+    }));
   }
 
-  async create(
-    dto: CreateNewsletterSectionDto,
-    files: Express.Multer.File[],
-  ): Promise<NewsletterSection> {
+  async create(dto: CreateNewsletterSectionDto, files: Express.Multer.File[] = []) {
     const sec = await this.prisma.newsletterSection.create({
-      data: {
-        newsletterId: dto.newsletterId,
-        order: dto.order,
-        type: dto.type,
-        data: dto.data,
-      },
+      data: { ...dto },
     });
-    for (const file of files ?? []) {
-      if (!file.mimetype.startsWith('image/') && !file.mimetype.startsWith('video/')) {
-        throw new UnsupportedMediaTypeException('Only images/videos allowed');
-      }
-      await this.prisma.newsletterSectionMedia.create({
-        data: {
-          newsletterSectionId: sec.id,
-          mimeType: file.mimetype,
-          blob: file.buffer,
-        },
-      });
+    if (files.length) {
+      await Promise.all(files.map(f =>
+        this.prisma.newsletterSectionMedia.create({
+          data: {
+            newsletterSectionId: sec.id,
+            mimeType: f.mimetype,
+            blob: f.buffer,
+          },
+        }),
+      ));
     }
-    const fresh = await this.prisma.newsletterSection.findUnique({
-      where: { id: sec.id },
-      include: { media: true },
-    });
-    if (!fresh) throw new NotFoundException('Section not found after creation');
-    return this.map(fresh);
+    return this.findAll(sec.newsletterId).then(all => all.find(s => s.id === sec.id));
   }
 
-  async update(
-    id: string,
-    dto: UpdateNewsletterSectionDto,
-    files: Express.Multer.File[],
-  ): Promise<NewsletterSection> {
+  async update(id: string, dto: UpdateNewsletterSectionDto, files: Express.Multer.File[] = []) {
     const existing = await this.prisma.newsletterSection.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException(`Section ${id} not found`);
-
+    if (!existing) throw new NotFoundException('Section not found');
     await this.prisma.newsletterSection.update({
       where: { id },
-      data: {
-        order: dto.order ?? existing.order,
-        type: dto.type ?? existing.type,
-        data: dto.data ?? existing.data,
-      },
+      data: { ...dto },
     });
-    for (const file of files ?? []) {
-      if (!file.mimetype.startsWith('image/') && !file.mimetype.startsWith('video/')) {
-        throw new UnsupportedMediaTypeException('Only images/videos allowed');
-      }
-      await this.prisma.newsletterSectionMedia.create({
-        data: {
-          newsletterSectionId: id,
-          mimeType: file.mimetype,
-          blob: file.buffer,
-        },
-      });
+    if (files.length) {
+      await Promise.all(files.map(f =>
+        this.prisma.newsletterSectionMedia.create({
+          data: { newsletterSectionId: id, mimeType: f.mimetype, blob: f.buffer },
+        }),
+      ));
     }
-    const fresh = await this.prisma.newsletterSection.findUnique({
-      where: { id },
-      include: { media: true },
-    });
-    if (!fresh) throw new NotFoundException('Section not found after update');
-    return this.map(fresh);
+    return this.findAll(existing.newsletterId).then(all => all.find(s => s.id === id));
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string) {
     await this.prisma.newsletterSectionMedia.deleteMany({ where: { newsletterSectionId: id } });
     await this.prisma.newsletterSection.delete({ where: { id } });
+  }
+
+  async reorder(dto: ReorderSectionsDto) {
+    await Promise.all(dto.sections.map(s =>
+      this.prisma.newsletterSection.update({
+        where: { id: s.id },
+        data: { order: s.order },
+      }),
+    ));
+    return this.findAll(dto.newsletterId);
   }
 }

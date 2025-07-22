@@ -1,16 +1,40 @@
-import { IsString, IsNotEmpty, IsDateString, IsEnum } from 'class-validator';
-import { NewsletterCategory } from '../interfaces/newsletter.interface';
+import {
+  IsString,
+  IsNotEmpty,
+  IsInt,
+  Min,
+  IsBoolean,
+  IsOptional,
+} from 'class-validator';
 
 export class CreateNewsletterDto {
-  @IsString() @IsNotEmpty()
-  title: string;
+  @IsInt()
+  @Min(0)
+  order!: number;
 
-  @IsString() @IsNotEmpty()
-  description: string;
+  @IsString()
+  @IsNotEmpty()
+  title!: string;
 
-  @IsDateString()
-  date: string;
+  @IsString()
+  @IsNotEmpty()
+  date!: string;
 
-  @IsEnum(NewsletterCategory)
-  category: NewsletterCategory;
+  @IsString()
+  @IsNotEmpty()
+  description!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  category!: string;
+
+  /** Whether this newsletter is active/published */
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
+
+  /** Optional Data‑URL or upstream banner URL if you want to store that; actual blob handled by controller */
+  @IsString()
+  @IsOptional()
+  bannerUrl?: string;
 }
