@@ -9,10 +9,15 @@ import {
   Query,
   UseInterceptors,
   UploadedFiles,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
-import { UsersService } from '../services/users.service';
+import { DirectorsDbService } from '../services/directors-db.service';
+import { DirectorsSyncService } from '../services/directors-sync.service';
 import { GoogleDriveService } from '../services/google-drive.service';
+import { FileUploadService } from '../services/file-upload.service';
+import { BackgroundUploadService } from '../services/background-upload.service';
 import { CreateDirectorDto } from '../dto/create-director.dto';
 
 interface ApiError {
@@ -28,17 +33,208 @@ export class DirectorsController {
     process.env.GOOGLE_DRIVE_USERS_IMAGES_FOLDER_ID;
   private readonly USERS_IMAGES_FOLDER_NAME =
     process.env.GOOGLE_DRIVE_USERS_IMAGES_FOLDER_NAME;
+
   constructor(
-    private readonly usersService: UsersService,
+    private readonly directorsDbService: DirectorsDbService,
+    private readonly directorsSyncService: DirectorsSyncService,
     private readonly googleDriveService: GoogleDriveService,
+    private readonly fileUploadService: FileUploadService,
+    private readonly backgroundUploadService: BackgroundUploadService,
   ) {}
+
+  @Get('/')
+  async getAllDirectors() {
+    this.logger.log('Getting all directors from Postgres');
+    try {
+      const directors = await this.directorsDbService.findAll();
+      const directorsInSheetFormat =
+        this.directorsDbService.convertDbArrayToSheet(directors);
+
+      return {
+        success: true,
+        data: directorsInSheetFormat,
+        source: 'postgres',
+        total: directors.length,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to get directors: ${errorMessage}`);
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  @Get('/synced')
+  async getSyncedDirectors() {
+    this.logger.log('Getting synced directors from Postgres');
+    try {
+      const directors = await this.directorsDbService.findSynced();
+      const directorsInSheetFormat =
+        this.directorsDbService.convertDbArrayToSheet(directors);
+
+      return {
+        success: true,
+        data: directorsInSheetFormat,
+        source: 'postgres',
+        total: directors.length,
+        status: 'synced',
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to get synced directors: ${errorMessage}`);
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  @Get('/unsynced')
+  async getUnsyncedDirectors() {
+    this.logger.log('Getting unsynced directors from Postgres');
+    try {
+      const directors = await this.directorsDbService.findUnsynced();
+      const directorsInSheetFormat =
+        this.directorsDbService.convertDbArrayToSheet(directors);
+
+      return {
+        success: true,
+        data: directorsInSheetFormat,
+        source: 'postgres',
+        total: directors.length,
+        status: 'unsynced',
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to get unsynced directors: ${errorMessage}`);
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  @Get('/missing-sheetids')
+  async getDirectorsWithMissingSheetIds() {
+    this.logger.log('Getting directors with missing sheetIds from Postgres');
+    try {
+      const directors = await this.directorsDbService.findAll();
+      const directorsWithMissingSheetIds = directors.filter(
+        (director) =>
+          !director.sheetId ||
+          director.sheetId.startsWith('D-') ||
+          director.sheetId === null,
+      );
+
+      const directorsInSheetFormat =
+        this.directorsDbService.convertDbArrayToSheet(
+          directorsWithMissingSheetIds,
+        );
+
+      return {
+        success: true,
+        data: directorsInSheetFormat,
+        source: 'postgres',
+        total: directorsWithMissingSheetIds.length,
+        status: 'missing-sheetids',
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Failed to get directors with missing sheetIds: ${errorMessage}`,
+      );
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  @Get('/upload-queue/status')
+  async getUploadQueueStatus() {
+    this.logger.log('Getting upload queue status');
+    try {
+      const status = this.backgroundUploadService.getQueueStatus();
+      return {
+        success: true,
+        data: status,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to get upload queue status: ${errorMessage}`);
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  @Post('/sync-missing-sheetids')
+  async syncMissingSheetIds() {
+    this.logger.log('Syncing directors with missing sheetIds');
+    try {
+      // Get all directors that don't have a valid sheetId
+      const directors = await this.directorsDbService.findAll();
+      const directorsWithMissingSheetIds = directors.filter(
+        (director) =>
+          !director.sheetId ||
+          director.sheetId.startsWith('D-') ||
+          director.sheetId === null,
+      );
+
+      this.logger.log(
+        `Found ${directorsWithMissingSheetIds.length} directors with missing sheetIds`,
+      );
+
+      let synced = 0;
+      let errors = 0;
+      const errorDetails: any[] = [];
+
+      for (const director of directorsWithMissingSheetIds) {
+        try {
+          const result = await this.directorsSyncService.syncDirectorById(
+            director.id,
+          );
+          if (result.success) {
+            synced++;
+          } else {
+            errors++;
+            errorDetails.push({
+              directorId: director.id,
+              name: director.name,
+              error: result.error,
+            });
+          }
+        } catch (error) {
+          errors++;
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          errorDetails.push({
+            directorId: director.id,
+            name: director.name,
+            error: errorMessage,
+          });
+        }
+      }
+
+      return {
+        success: true,
+        message: `Sync completed: ${synced} synced, ${errors} errors`,
+        synced,
+        errors,
+        errorDetails,
+        total: directorsWithMissingSheetIds.length,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to sync missing sheetIds: ${errorMessage}`);
+      return { success: false, error: errorMessage };
+    }
+  }
 
   @Get('by-borrower/:borrowerId')
   async getDirectorsByBorrower(@Param('borrowerId') borrowerId: string) {
+    this.logger.log(`Getting directors for borrower: ${borrowerId}`);
     try {
-      this.logger.log(`Fetching directors for borrower: ${borrowerId}`);
       const directors =
-        await this.usersService.getDirectorsByBorrowerId(borrowerId);
+        await this.directorsDbService.findByBorrowerId(borrowerId);
+      const directorsInSheetFormat =
+        this.directorsDbService.convertDbArrayToSheet(directors);
+
+      // Add Google Drive links for document columns
       const documentColumns = [
         'KRA Pin Photo',
         'National ID Front',
@@ -46,7 +242,7 @@ export class DirectorsController {
         'Passport Photo',
       ];
       const directorsWithLinks = await Promise.all(
-        directors.map(async (director) => {
+        directorsInSheetFormat.map(async (director) => {
           const directorWithLinks = { ...director };
           for (const column of documentColumns) {
             if (director[column]) {
@@ -61,10 +257,13 @@ export class DirectorsController {
           return directorWithLinks;
         }),
       );
+
       return {
         success: true,
         count: directors.length,
         data: directorsWithLinks,
+        source: 'postgres',
+        borrowerId: borrowerId,
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -85,6 +284,13 @@ export class DirectorsController {
       { name: 'passportPhoto', maxCount: 1 },
     ]),
   )
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: false, // Allow extra fields for file uploads
+      transform: true,
+    }),
+  )
   async addDirector(
     @Body() directorData: CreateDirectorDto,
     @UploadedFiles()
@@ -96,7 +302,7 @@ export class DirectorsController {
     },
   ) {
     try {
-      this.logger.log('Adding new director');
+      this.logger.log('Adding new director via Postgres');
 
       if (!directorData.borrowerId) {
         return {
@@ -105,76 +311,69 @@ export class DirectorsController {
         };
       }
 
-      // Upload National ID Front and Back if provided
+      // Save files locally first for faster response
+      let nationalIdFrontPath = '';
+      let nationalIdBackPath = '';
+      let kraPinPath = '';
+      let passportPath = '';
 
-      let nationalIdFrontFileName = '';
+      // Save National ID Front if provided
       if (files.nationalIdFront?.[0]) {
         const file = files.nationalIdFront[0];
-        const timestamp = new Date().getTime();
-        nationalIdFrontFileName = `national_id_front_${directorData.borrowerId}_${timestamp}.${file.originalname.split('.').pop()}`;
-
-        await this.googleDriveService.uploadFile(
-          file.buffer,
-          nationalIdFrontFileName,
-          file.mimetype,
-          this.USERS_IMAGES_FOLDER_ID,
+        const customName = `national_id_front_${directorData.borrowerId}`;
+        nationalIdFrontPath = await this.fileUploadService.saveFile(
+          file,
+          'directors',
+          customName,
         );
       }
 
-      let nationalIdBackFileName = '';
+      // Save National ID Back if provided
       if (files.nationalIdBack?.[0]) {
         const file = files.nationalIdBack[0];
-        const timestamp = new Date().getTime();
-        nationalIdBackFileName = `national_id_back_${directorData.borrowerId}_${timestamp}.${file.originalname.split('.').pop()}`;
-
-        await this.googleDriveService.uploadFile(
-          file.buffer,
-          nationalIdBackFileName,
-          file.mimetype,
-          this.USERS_IMAGES_FOLDER_ID,
+        const customName = `national_id_back_${directorData.borrowerId}`;
+        nationalIdBackPath = await this.fileUploadService.saveFile(
+          file,
+          'directors',
+          customName,
         );
       }
-      // Upload KRA PIN Photo if provided
-      let kraPinFileName = '';
+
+      // Save KRA PIN Photo if provided
       if (files.kraPinPhoto?.[0]) {
         const file = files.kraPinPhoto[0];
-        const timestamp = new Date().getTime();
-        kraPinFileName = `kra_pin_photo_${directorData.borrowerId}_${timestamp}.${file.originalname.split('.').pop()}`;
-        await this.googleDriveService.uploadFile(
-          file.buffer,
-          kraPinFileName,
-          file.mimetype,
-          this.USERS_IMAGES_FOLDER_ID,
+        const customName = `kra_pin_photo_${directorData.borrowerId}`;
+        kraPinPath = await this.fileUploadService.saveFile(
+          file,
+          'directors',
+          customName,
         );
       }
 
-      let passportFileName = '';
+      // Save Passport Photo if provided
       if (files.passportPhoto?.[0]) {
         const file = files.passportPhoto[0];
-        const timestamp = new Date().getTime();
-        passportFileName = `passport_photo_${directorData.borrowerId}_${timestamp}.${file.originalname.split('.').pop()}`;
-        await this.googleDriveService.uploadFile(
-          file.buffer,
-          passportFileName,
-          file.mimetype,
-          this.USERS_IMAGES_FOLDER_ID,
+        const customName = `passport_photo_${directorData.borrowerId}`;
+        passportPath = await this.fileUploadService.saveFile(
+          file,
+          'directors',
+          customName,
         );
       }
 
-      // Add director with file URLs
-      const director = await this.usersService.addDirector({
-        //  ...directorData,
-        ID: `D-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-        'Borrower ID': directorData.borrowerId,
-        Name: directorData['Name'],
-        'National ID Number': directorData['National ID Number'],
-        'KRA Pin Number': directorData['KRA Pin Number'],
-        'Phone Number': directorData['Phone'],
-        Email: directorData['Email'],
-        Gender: directorData['Gender'],
-        'Role in School': 'Director',
-        Status: directorData['Status'],
-        'Date of Birth': directorData['Date Of Birth']
+      // Prepare director data for Postgres
+      const directorDataForDb = {
+        sheetId: `D-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`, // Generate temporary sheetId
+        borrowerId: directorData.borrowerId,
+        name: directorData['Name'],
+        nationalIdNumber: directorData['National ID Number'],
+        kraPinNumber: directorData['KRA Pin Number'],
+        phoneNumber: directorData['Phone Number'],
+        email: directorData['Email'],
+        gender: directorData['Gender'],
+        roleInSchool: 'Director',
+        status: directorData['Status'],
+        dateOfBirth: directorData['Date Of Birth']
           ? new Date(directorData['Date Of Birth']).toLocaleDateString(
               'en-US',
               {
@@ -184,23 +383,93 @@ export class DirectorsController {
               },
             )
           : '',
-
-        'Education Level': directorData['Education Level'],
-        'Insured for Credit Life?':
+        educationLevel: directorData['Education Level'],
+        insuredForCreditLife:
           directorData['Insured For Credit Life'] == 'Yes' ? 'TRUE' : 'FALSE',
-        Address: directorData['Address'],
-        'Postal Address': directorData['Postal Address'],
-        'National ID Front': `${this.USERS_IMAGES_FOLDER_NAME}/${nationalIdFrontFileName}`,
-        'National ID Back': `${this.USERS_IMAGES_FOLDER_NAME}/${nationalIdBackFileName}`,
-        'KRA Pin Photo': `${this.USERS_IMAGES_FOLDER_NAME}/${kraPinFileName}`,
-        'Passport Photo': `${this.USERS_IMAGES_FOLDER_NAME}/${passportFileName}`,
-        'Created At': new Date().toISOString(),
+        address: directorData['Address'],
+        postalAddress: directorData['Postal Address'],
+        nationalIdFront: nationalIdFrontPath || '',
+        nationalIdBack: nationalIdBackPath || '',
+        kraPinPhoto: kraPinPath || '',
+        passportPhoto: passportPath || '',
+        synced: false,
+      };
+
+      // Debug logging
+      this.logger.log('Director data for database:', {
+        phoneNumber: directorDataForDb.phoneNumber,
+        phoneNumberFromDto: directorData['Phone Number'],
+        allData: directorDataForDb,
       });
+
+      const result = await this.directorsDbService.create(directorDataForDb);
+
+      this.logger.log(`Director added successfully via Postgres`);
+
+      // Queue file uploads to Google Drive with director ID for database updates
+      if (files.nationalIdFront?.[0]) {
+        const file = files.nationalIdFront[0];
+        const customName = `national_id_front_${directorData.borrowerId}`;
+        this.backgroundUploadService.queueFileUpload(
+          nationalIdFrontPath,
+          `${customName}_${Date.now()}.${file.originalname.split('.').pop()}`,
+          this.USERS_IMAGES_FOLDER_ID,
+          file.mimetype,
+          result.id,
+          'nationalIdFront',
+        );
+      }
+
+      if (files.nationalIdBack?.[0]) {
+        const file = files.nationalIdBack[0];
+        const customName = `national_id_back_${directorData.borrowerId}`;
+        this.backgroundUploadService.queueFileUpload(
+          nationalIdBackPath,
+          `${customName}_${Date.now()}.${file.originalname.split('.').pop()}`,
+          this.USERS_IMAGES_FOLDER_ID,
+          file.mimetype,
+          result.id,
+          'nationalIdBack',
+        );
+      }
+
+      if (files.kraPinPhoto?.[0]) {
+        const file = files.kraPinPhoto[0];
+        const customName = `kra_pin_photo_${directorData.borrowerId}`;
+        this.backgroundUploadService.queueFileUpload(
+          kraPinPath,
+          `${customName}_${Date.now()}.${file.originalname.split('.').pop()}`,
+          this.USERS_IMAGES_FOLDER_ID,
+          file.mimetype,
+          result.id,
+          'kraPinPhoto',
+        );
+      }
+
+      if (files.passportPhoto?.[0]) {
+        const file = files.passportPhoto[0];
+        const customName = `passport_photo_${directorData.borrowerId}`;
+        this.backgroundUploadService.queueFileUpload(
+          passportPath,
+          `${customName}_${Date.now()}.${file.originalname.split('.').pop()}`,
+          this.USERS_IMAGES_FOLDER_ID,
+          file.mimetype,
+          result.id,
+          'passportPhoto',
+        );
+      }
+
+      // Trigger automatic sync to Google Sheets (non-blocking)
+      this.triggerBackgroundSync(result.id, result.borrowerId, 'create');
 
       return {
         success: true,
-        data: director,
+        data: result,
         message: 'Director added successfully',
+        sync: {
+          triggered: true,
+          status: 'background',
+        },
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -213,6 +482,7 @@ export class DirectorsController {
   }
 
   @Put(':userId')
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
   @UseInterceptors(
     FileFieldsInterceptor([
       { name: 'nationalIdFront', maxCount: 1 },
@@ -233,13 +503,13 @@ export class DirectorsController {
     },
   ) {
     try {
-      this.logger.log(`Updating director: ${userId}`);
+      this.logger.log(`Updating director ${userId} via Postgres`);
 
       // First verify the director exists
-      const directors = await this.usersService.getDirectorsByBorrowerId(
+      const directors = await this.directorsDbService.findByBorrowerId(
         updateData.borrowerId,
       );
-      const director = directors.find((d) => d.ID === userId);
+      const director = directors.find((d) => d.sheetId === userId);
 
       if (!director) {
         return {
@@ -248,98 +518,126 @@ export class DirectorsController {
         };
       }
 
-      // Handle file uploads if provided
-      let nationalIdFrontFileName = '';
+      // Handle file uploads if provided - save locally first
       if (files.nationalIdFront?.[0]) {
         const file = files.nationalIdFront[0];
-        const timestamp = new Date().getTime();
-        nationalIdFrontFileName = `national_id_front_${updateData.borrowerId}_${timestamp}.${file.originalname.split('.').pop()}`;
-
-        await this.googleDriveService.uploadFile(
-          file.buffer,
-          nationalIdFrontFileName,
-          file.mimetype,
-          this.USERS_IMAGES_FOLDER_ID,
+        const customName = `national_id_front_${updateData.borrowerId}`;
+        const filePath = await this.fileUploadService.saveFile(
+          file,
+          'directors',
+          customName,
         );
-        updateData['National ID Front'] =
-          `${this.USERS_IMAGES_FOLDER_NAME}/${nationalIdFrontFileName}`;
+
+        // Queue for Google Drive upload
+        this.backgroundUploadService.queueFileUpload(
+          filePath,
+          `${customName}_${Date.now()}.${file.originalname.split('.').pop()}`,
+          this.USERS_IMAGES_FOLDER_ID,
+          file.mimetype,
+          director.id,
+          'nationalIdFront',
+        );
+        updateData['National ID Front'] = filePath;
       }
 
-      let nationalIdBackFileName = '';
       if (files.nationalIdBack?.[0]) {
         const file = files.nationalIdBack[0];
-        const timestamp = new Date().getTime();
-        nationalIdBackFileName = `national_id_back_${updateData.borrowerId}_${timestamp}.${file.originalname.split('.').pop()}`;
-
-        await this.googleDriveService.uploadFile(
-          file.buffer,
-          nationalIdBackFileName,
-          file.mimetype,
-          this.USERS_IMAGES_FOLDER_ID,
+        const customName = `national_id_back_${updateData.borrowerId}`;
+        const filePath = await this.fileUploadService.saveFile(
+          file,
+          'directors',
+          customName,
         );
-        updateData['National ID Back'] =
-          `${this.USERS_IMAGES_FOLDER_NAME}/${nationalIdBackFileName}`;
+
+        // Queue for Google Drive upload
+        this.backgroundUploadService.queueFileUpload(
+          filePath,
+          `${customName}_${Date.now()}.${file.originalname.split('.').pop()}`,
+          this.USERS_IMAGES_FOLDER_ID,
+          file.mimetype,
+          director.id,
+          'nationalIdBack',
+        );
+        updateData['National ID Back'] = filePath;
       }
 
-      let kraPinFileName = '';
       if (files.kraPinPhoto?.[0]) {
         const file = files.kraPinPhoto[0];
-        const timestamp = new Date().getTime();
-        kraPinFileName = `kra_pin_photo_${updateData.borrowerId}_${timestamp}.${file.originalname.split('.').pop()}`;
-        await this.googleDriveService.uploadFile(
-          file.buffer,
-          kraPinFileName,
-          file.mimetype,
-          this.USERS_IMAGES_FOLDER_ID,
+        const customName = `kra_pin_photo_${updateData.borrowerId}`;
+        const filePath = await this.fileUploadService.saveFile(
+          file,
+          'directors',
+          customName,
         );
-        updateData['KRA Pin Photo'] =
-          `${this.USERS_IMAGES_FOLDER_NAME}/${kraPinFileName}`;
+
+        // Queue for Google Drive upload
+        this.backgroundUploadService.queueFileUpload(
+          filePath,
+          `${customName}_${Date.now()}.${file.originalname.split('.').pop()}`,
+          this.USERS_IMAGES_FOLDER_ID,
+          file.mimetype,
+          director.id,
+          'kraPinPhoto',
+        );
+        updateData['KRA Pin Photo'] = filePath;
       }
 
-      let passportFileName = '';
       if (files.passportPhoto?.[0]) {
         const file = files.passportPhoto[0];
-        const timestamp = new Date().getTime();
-        passportFileName = `passport_photo_${updateData.borrowerId}_${timestamp}.${file.originalname.split('.').pop()}`;
-        await this.googleDriveService.uploadFile(
-          file.buffer,
-          passportFileName,
-          file.mimetype,
-          this.USERS_IMAGES_FOLDER_ID,
+        const customName = `passport_photo_${updateData.borrowerId}`;
+        const filePath = await this.fileUploadService.saveFile(
+          file,
+          'directors',
+          customName,
         );
-        updateData['Passport Photo'] =
-          `${this.USERS_IMAGES_FOLDER_NAME}/${passportFileName}`;
+
+        // Queue for Google Drive upload
+        this.backgroundUploadService.queueFileUpload(
+          filePath,
+          `${customName}_${Date.now()}.${file.originalname.split('.').pop()}`,
+          this.USERS_IMAGES_FOLDER_ID,
+          file.mimetype,
+          director.id,
+          'passportPhoto',
+        );
+        updateData['Passport Photo'] = filePath;
       }
 
-      // Map update data to sheet columns
+      // Map update data to database format
       const mappedUpdateData = {
-        ID: userId,
-        'Borrower ID': updateData.borrowerId,
-        Name: updateData['Name'],
-        'National ID Number': updateData['National ID Number'],
-        'KRA Pin Number': updateData['KRA Pin Number'],
-        'Phone Number': updateData['Phone'],
-        Email: updateData['Email'],
-        Gender: updateData['Gender'],
-        'Role in School': 'Director',
-        Status: updateData['Status'],
-        'Date of Birth': updateData['Date Of Birth']
+        name: updateData['Name'],
+        nationalIdNumber: updateData['National ID Number'],
+        kraPinNumber: updateData['KRA Pin Number'],
+        phoneNumber: updateData['Phone Number'],
+        email: updateData['Email'],
+        gender: updateData['Gender'],
+        roleInSchool: 'Director',
+        status: updateData['Status'],
+        dateOfBirth: updateData['Date Of Birth']
           ? new Date(updateData['Date Of Birth']).toLocaleDateString('en-US', {
               day: 'numeric',
               month: 'numeric',
               year: 'numeric',
             })
           : undefined,
-        'Education Level': updateData['Education Level'],
-        'Insured for Credit Life?':
+        educationLevel: updateData['Education Level'],
+        insuredForCreditLife:
           updateData['Insured For Credit Life'] == 'Yes' ? 'TRUE' : undefined,
-        Address: updateData['Address'],
-        'Postal Address': updateData['Postal Address'],
-        'National ID Front': updateData['National ID Front'],
-        'National ID Back': updateData['National ID Back'],
-        'KRA Pin Photo': updateData['KRA Pin Photo'],
-        'Passport Photo': updateData['Passport Photo'],
+        address: updateData['Address'],
+        postalAddress: updateData['Postal Address'],
+        nationalIdFront: updateData['National ID Front'],
+        nationalIdBack: updateData['National ID Back'],
+        kraPinPhoto: updateData['KRA Pin Photo'],
+        passportPhoto: updateData['Passport Photo'],
+        synced: false,
       };
+
+      // Debug logging for update
+      this.logger.log('Update director data:', {
+        phoneNumber: mappedUpdateData.phoneNumber,
+        phoneNumberFromDto: updateData['Phone Number'],
+        allUpdateData: mappedUpdateData,
+      });
 
       // Remove undefined values to prevent updating those fields
       Object.keys(mappedUpdateData).forEach((key) => {
@@ -348,15 +646,33 @@ export class DirectorsController {
         }
       });
 
-      const updatedDirector = await this.usersService.updateDirector(
-        userId,
+      const updatedDirector = await this.directorsDbService.update(
+        director.id.toString(),
         mappedUpdateData,
+      );
+
+      this.logger.log(`Director updated successfully via Postgres`);
+
+      // Convert to sheet format for frontend compatibility
+      const directorInSheetFormat =
+        this.directorsDbService.convertDbArrayToSheet([updatedDirector])[0];
+
+      // Trigger automatic sync to Google Sheets (non-blocking)
+      this.triggerBackgroundSync(
+        updatedDirector.id,
+        updatedDirector.borrowerId,
+        'update',
       );
 
       return {
         success: true,
-        data: updatedDirector,
+        data: directorInSheetFormat,
         message: 'Director updated successfully',
+        source: 'postgres',
+        sync: {
+          triggered: true,
+          status: 'background',
+        },
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -365,6 +681,26 @@ export class DirectorsController {
         success: false,
         error: apiError.message || 'An unknown error occurred',
       };
+    }
+  }
+
+  private async triggerBackgroundSync(
+    id: number,
+    borrowerId: string,
+    action: 'create' | 'update',
+  ) {
+    try {
+      this.logger.log(
+        `Triggering background sync for ID: ${id}, Borrower ID: ${borrowerId}, Action: ${action}`,
+      );
+      const syncResult = await this.directorsSyncService.syncDirectorById(id);
+      this.logger.log(
+        `Background sync completed for ID: ${id}, Borrower ID: ${borrowerId}, Action: ${action}: ${syncResult.synced} directors synced, ${syncResult.errors} errors`,
+      );
+    } catch (syncError) {
+      this.logger.error(
+        `Background sync failed for ID: ${id}, Borrower ID: ${borrowerId}, Action: ${action}: ${syncError}`,
+      );
     }
   }
 }

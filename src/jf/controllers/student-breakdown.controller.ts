@@ -6,7 +6,12 @@ import {
   Param,
   Body,
   Logger,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
+import { CreateStudentBreakdownDto } from '../dto/create-student-breakdown.dto';
+import { StudentBreakdownDbService } from '../services/student-breakdown-db.service';
+import { StudentBreakdownSyncService } from '../services/student-breakdown-sync.service';
 import { SheetsService } from '../services/sheets.service';
 
 interface ApiError {
@@ -18,66 +23,101 @@ interface ApiError {
 @Controller('jf/student-breakdown')
 export class StudentBreakdownController {
   private readonly logger = new Logger(StudentBreakdownController.name);
-  private readonly SHEET_NAME = 'Student Breakdown';
 
-  constructor(private readonly sheetsService: SheetsService) {}
+  constructor(
+    private readonly studentBreakdownDbService: StudentBreakdownDbService,
+    private readonly studentBreakdownSyncService: StudentBreakdownSyncService,
+    private readonly sheetsService: SheetsService,
+  ) {}
 
   @Post()
-  async createStudentBreakdown(
-    @Body()
-    createDto: {
-      creditApplicationId: string;
-      feeType: string; // e.g. "School Fee"
-      term: string; // e.g. "Kenyan School Term: Term 1, 21-22"
-      grade: string; // e.g. "1"
-      numberOfStudents: number;
-      fee: number;
-    },
-  ) {
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
+  async createStudentBreakdown(@Body() createDto: CreateStudentBreakdownDto) {
     try {
-      // Generate unique ID for the breakdown
-      const id = `SB-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+      this.logger.log(
+        `Creating new student breakdown for application: ${createDto.creditApplicationId}`,
+      );
 
-      // Format current date as DD/MM/YYYY HH:mm:ss
-      const now = new Date();
-      const createdAt = now.toLocaleString('en-GB', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-      });
+      if (!createDto.creditApplicationId) {
+        return {
+          success: false,
+          error: 'Credit Application ID is required',
+        };
+      }
 
-      // Calculate total amount
-      const totalAmount = createDto.numberOfStudents * createDto.fee;
+      // Calculate total revenue
+      const totalRevenue = createDto.numberOfStudents * createDto.fee;
 
-      const rowData = {
-        ID: id,
-        'Credit Application': createDto.creditApplicationId,
-        'Fee Type': createDto.feeType,
-        'Term ID': createDto.term,
-        Grade: createDto.grade,
-        'Number of Students': createDto.numberOfStudents,
-        Fee: createDto.fee,
-        'Total Revenue': createDto.fee * createDto.numberOfStudents,
-        'Created At': createdAt,
+      // Prepare student breakdown data for Postgres
+      const studentBreakdownDataForDb = {
+        sheetId: `SB-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`, // Generate temporary sheetId
+        creditApplicationId: createDto.creditApplicationId,
+        feeType: createDto.feeType,
+        term: createDto.term,
+        grade: createDto.grade,
+        numberOfStudents: createDto.numberOfStudents,
+        fee: createDto.fee,
+        totalRevenue: totalRevenue,
+        synced: false,
+        createdAt: new Date().toISOString(),
       };
 
-      await this.sheetsService.appendRow(this.SHEET_NAME, rowData);
+      const result = await this.studentBreakdownDbService.create(
+        studentBreakdownDataForDb,
+      );
+      this.logger.log(`Student breakdown added successfully via Postgres`);
+
+      // Trigger automatic sync to Google Sheets (non-blocking)
+      this.triggerBackgroundSync(
+        result.id,
+        result.creditApplicationId,
+        'create',
+      );
 
       return {
         success: true,
-        message: 'Student breakdown record created successfully',
-        data: rowData,
+        data: result,
+        message: 'Student breakdown added successfully',
+        sync: {
+          triggered: true,
+          status: 'immediate',
+        },
       };
     } catch (error: unknown) {
-      const apiError = error as ApiError;
+      const apiError = error as any;
       this.logger.error(
-        `Error creating student breakdown record: ${apiError.message}`,
+        `========Failed to add student breakdown: ${apiError.message}`,
       );
-      throw error;
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
+  /**
+   * Trigger background sync for student breakdown
+   */
+  private async triggerBackgroundSync(
+    dbId: number,
+    creditApplicationId: string,
+    operation: 'create' | 'update',
+  ) {
+    try {
+      this.logger.log(
+        `Triggering background sync for student breakdown ${dbId} (${operation})`,
+      );
+      await this.studentBreakdownSyncService.syncStudentBreakdownById(
+        dbId,
+        operation,
+      );
+      this.logger.log(
+        `Background sync triggered successfully for student breakdown ${dbId}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to trigger background sync for student breakdown ${dbId}: ${error}`,
+      );
     }
   }
 
@@ -90,38 +130,38 @@ export class StudentBreakdownController {
         `Fetching student breakdowns for application ID: ${creditApplicationId}`,
       );
 
-      const breakdowns = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      const studentBreakdowns =
+        await this.studentBreakdownDbService.findByCreditApplicationId(
+          creditApplicationId,
+        );
 
-      if (!breakdowns || breakdowns.length === 0) {
-        return { success: true, count: 0, data: [] };
-      }
+      // Convert database records to original sheet format for frontend compatibility
+      const studentBreakdownsWithOriginalKeys = studentBreakdowns.map(
+        (breakdown) => {
+          const convertedBreakdown = {
+            ID: breakdown.sheetId || '',
+            'Credit Application': breakdown.creditApplicationId || '',
+            'Fee Type': breakdown.feeType || '',
+            'Term ID': breakdown.term || '',
+            Grade: breakdown.grade || '',
+            'Number of Students': breakdown.numberOfStudents?.toString() || '',
+            Fee: breakdown.fee?.toString() || '',
+            'Total Revenue': breakdown.totalRevenue?.toString() || '',
+            'Created At': breakdown.createdAt?.toISOString() || '',
+            Synced: breakdown.synced || false,
+          };
+          return convertedBreakdown;
+        },
+      );
 
-      const headers = breakdowns[0];
-      const applicationIdIndex = headers.indexOf('Credit Application');
-
-      if (applicationIdIndex === -1) {
-        return {
-          success: false,
-          message: 'Credit Application column not found',
-          data: [],
-        };
-      }
-
-      const filteredData = breakdowns
-        .slice(1)
-        .filter((row) => row[applicationIdIndex] === creditApplicationId)
-        .map((row) => {
-          const breakdown = {};
-          headers.forEach((header, index) => {
-            breakdown[header] = row[index];
-          });
-          return breakdown;
-        });
+      this.logger.debug(
+        `Found ${studentBreakdownsWithOriginalKeys.length} matching student breakdowns`,
+      );
 
       return {
         success: true,
-        count: filteredData.length,
-        data: filteredData,
+        count: studentBreakdownsWithOriginalKeys.length,
+        data: studentBreakdownsWithOriginalKeys,
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -135,25 +175,30 @@ export class StudentBreakdownController {
   @Get(':id')
   async getBreakdownById(@Param('id') id: string) {
     try {
-      const breakdowns = await this.sheetsService.getSheetData(this.SHEET_NAME);
-      if (!breakdowns || breakdowns.length === 0) {
-        return { success: false, message: 'No student breakdowns found' };
-      }
+      this.logger.log(`Fetching student breakdown with ID: ${id}`);
+      const studentBreakdown =
+        await this.studentBreakdownDbService.findById(id);
 
-      const headers = breakdowns[0];
-      const idIndex = headers.indexOf('ID');
-      const breakdownRow = breakdowns.find((row) => row[idIndex] === id);
-
-      if (!breakdownRow) {
+      if (!studentBreakdown) {
         return { success: false, message: 'Student breakdown not found' };
       }
 
-      const breakdown = {};
-      headers.forEach((header, index) => {
-        breakdown[header] = breakdownRow[index];
-      });
+      // Convert database record to original sheet format for frontend compatibility
+      const studentBreakdownWithOriginalKeys = {
+        ID: studentBreakdown.sheetId || '',
+        'Credit Application': studentBreakdown.creditApplicationId || '',
+        'Fee Type': studentBreakdown.feeType || '',
+        'Term ID': studentBreakdown.term || '',
+        Grade: studentBreakdown.grade || '',
+        'Number of Students':
+          studentBreakdown.numberOfStudents?.toString() || '',
+        Fee: studentBreakdown.fee?.toString() || '',
+        'Total Revenue': studentBreakdown.totalRevenue?.toString() || '',
+        'Created At': studentBreakdown.createdAt?.toISOString() || '',
+        Synced: studentBreakdown.synced || false,
+      };
 
-      return { success: true, data: breakdown };
+      return { success: true, data: studentBreakdownWithOriginalKeys };
     } catch (error: unknown) {
       const apiError = error as ApiError;
       this.logger.error(
@@ -166,25 +211,33 @@ export class StudentBreakdownController {
   @Get()
   async getAllBreakdowns() {
     try {
-      const breakdowns = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      this.logger.debug('Fetching all student breakdowns');
 
-      if (!breakdowns || breakdowns.length === 0) {
-        return { success: true, count: 0, data: [] };
-      }
+      const studentBreakdowns = await this.studentBreakdownDbService.findAll();
 
-      const headers = breakdowns[0];
-      const data = breakdowns.slice(1).map((row) => {
-        const breakdown = {};
-        headers.forEach((header, index) => {
-          breakdown[header] = row[index];
-        });
-        return breakdown;
-      });
+      // Convert database records to original sheet format for frontend compatibility
+      const studentBreakdownsWithOriginalKeys = studentBreakdowns.map(
+        (breakdown) => {
+          const convertedBreakdown = {
+            ID: breakdown.sheetId || '',
+            'Credit Application': breakdown.creditApplicationId || '',
+            'Fee Type': breakdown.feeType || '',
+            'Term ID': breakdown.term || '',
+            Grade: breakdown.grade || '',
+            'Number of Students': breakdown.numberOfStudents?.toString() || '',
+            Fee: breakdown.fee?.toString() || '',
+            'Total Revenue': breakdown.totalRevenue?.toString() || '',
+            'Created At': breakdown.createdAt?.toISOString() || '',
+            Synced: breakdown.synced || false,
+          };
+          return convertedBreakdown;
+        },
+      );
 
       return {
         success: true,
-        count: data.length,
-        data,
+        count: studentBreakdownsWithOriginalKeys.length,
+        data: studentBreakdownsWithOriginalKeys,
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -196,96 +249,158 @@ export class StudentBreakdownController {
   }
 
   @Put(':id')
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
   async updateStudentBreakdown(
     @Param('id') id: string,
-    @Body()
-    updateDto: {
-      creditApplicationId?: string;
-      feeType?: string;
-      term?: string;
-      grade?: string;
-      numberOfStudents?: number;
-      fee?: number;
-    },
+    @Body() updateDto: Partial<CreateStudentBreakdownDto>,
   ) {
     try {
       this.logger.log(`Updating student breakdown with ID: ${id}`);
 
-      // First verify the breakdown exists
-      const breakdowns = await this.sheetsService.getSheetData(this.SHEET_NAME);
-      if (!breakdowns || breakdowns.length === 0) {
-        return { success: false, message: 'No student breakdowns found' };
+      // Find the existing student breakdown by sheetId (since the id parameter is the sheetId)
+      const existingStudentBreakdown =
+        await this.studentBreakdownDbService.findBySheetId(id);
+      if (!existingStudentBreakdown) {
+        return { success: false, error: 'Student breakdown not found' };
       }
 
-      const headers = breakdowns[0];
-      const idIndex = headers.indexOf('ID');
-      const breakdownRow = breakdowns.find((row) => row[idIndex] === id);
+      this.logger.log(
+        `Updating student breakdown with sheetId: ${id}, database ID: ${existingStudentBreakdown.id}`,
+      );
 
-      if (!breakdownRow) {
-        return { success: false, message: 'Student breakdown not found' };
-      }
-
-      // Create updated row data, only updating fields that are provided
-      const updatedRowData = headers.map((header, index) => {
-        if (header === 'Credit Application' && updateDto.creditApplicationId) {
-          return updateDto.creditApplicationId;
-        }
-        if (header === 'Fee Type' && updateDto.feeType) {
-          return updateDto.feeType;
-        }
-        if (header === 'Term ID' && updateDto.term) {
-          return updateDto.term;
-        }
-        if (header === 'Grade' && updateDto.grade) {
-          return updateDto.grade;
-        }
-        if (
-          header === 'Number of Students' &&
+      // Calculate total revenue if numberOfStudents or fee is being updated
+      let totalRevenue = existingStudentBreakdown.totalRevenue;
+      if (
+        updateDto.numberOfStudents !== undefined ||
+        updateDto.fee !== undefined
+      ) {
+        const students =
           updateDto.numberOfStudents !== undefined
-        ) {
-          return updateDto.numberOfStudents;
-        }
-        if (header === 'Fee' && updateDto.fee !== undefined) {
-          return updateDto.fee;
-        }
-        if (
-          header === 'Total Revenue' &&
-          (updateDto.numberOfStudents !== undefined ||
-            updateDto.fee !== undefined)
-        ) {
-          const students =
-            updateDto.numberOfStudents !== undefined
-              ? updateDto.numberOfStudents
-              : breakdownRow[headers.indexOf('Number of Students')];
-          const fee =
-            updateDto.fee !== undefined
-              ? updateDto.fee
-              : breakdownRow[headers.indexOf('Fee')];
-          return students * fee;
-        }
-        return breakdownRow[index] || '';
-      });
+            ? updateDto.numberOfStudents
+            : existingStudentBreakdown.numberOfStudents;
+        const fee =
+          updateDto.fee !== undefined
+            ? updateDto.fee
+            : existingStudentBreakdown.fee;
+        totalRevenue = students * fee;
+      }
 
-      // Update the row
-      await this.sheetsService.updateRow(this.SHEET_NAME, id, updatedRowData);
+      // Prepare update data
+      const updateDataForDb = {
+        creditApplicationId:
+          updateDto.creditApplicationId ||
+          existingStudentBreakdown.creditApplicationId,
+        feeType: updateDto.feeType || existingStudentBreakdown.feeType,
+        term: updateDto.term || existingStudentBreakdown.term,
+        grade: updateDto.grade || existingStudentBreakdown.grade,
+        numberOfStudents:
+          updateDto.numberOfStudents !== undefined
+            ? updateDto.numberOfStudents
+            : existingStudentBreakdown.numberOfStudents,
+        fee:
+          updateDto.fee !== undefined
+            ? updateDto.fee
+            : existingStudentBreakdown.fee,
+        totalRevenue: totalRevenue,
+        synced: false, // Mark as unsynced to trigger sync
+      };
 
-      // Get the updated breakdown record
-      const updatedBreakdown = {};
-      headers.forEach((header, index) => {
-        updatedBreakdown[header] = updatedRowData[index];
-      });
+      const result = await this.studentBreakdownDbService.update(
+        id,
+        updateDataForDb,
+      );
+      this.logger.log(`Student breakdown updated successfully via Postgres`);
+
+      // Trigger background sync
+      this.triggerBackgroundSync(
+        result.id,
+        result.creditApplicationId,
+        'update',
+      );
 
       return {
         success: true,
+        data: result,
         message: 'Student breakdown updated successfully',
-        data: updatedBreakdown,
+        sync: {
+          triggered: true,
+          status: 'immediate',
+        },
       };
     } catch (error: unknown) {
-      const apiError = error as ApiError;
+      const apiError = error as any;
       this.logger.error(
-        `Error updating student breakdown: ${apiError.message}`,
+        `Failed to update student breakdown: ${apiError.message}`,
       );
-      throw error;
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
+  // Sync endpoints
+  @Post('sync/:id')
+  async syncStudentBreakdownById(@Param('id') id: string) {
+    try {
+      this.logger.log(`Manual sync requested for student breakdown: ${id}`);
+      const result =
+        await this.studentBreakdownSyncService.syncStudentBreakdownById(
+          parseInt(id),
+        );
+      return result;
+    } catch (error: unknown) {
+      const apiError = error as any;
+      this.logger.error(
+        `Failed to sync student breakdown ${id}: ${apiError.message}`,
+      );
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
+  @Post('sync-all')
+  async syncAllStudentBreakdowns() {
+    try {
+      this.logger.log('Manual sync requested for all student breakdowns');
+      const result = await this.studentBreakdownSyncService.syncAllToSheets();
+      return result;
+    } catch (error: unknown) {
+      const apiError = error as any;
+      this.logger.error(
+        `Failed to sync all student breakdowns: ${apiError.message}`,
+      );
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
+  @Post('sync-by-application/:creditApplicationId')
+  async syncStudentBreakdownsByApplication(
+    @Param('creditApplicationId') creditApplicationId: string,
+  ) {
+    try {
+      this.logger.log(
+        `Manual sync requested for student breakdowns by credit application: ${creditApplicationId}`,
+      );
+      const result =
+        await this.studentBreakdownSyncService.syncByCreditApplicationId(
+          creditApplicationId,
+        );
+      return result;
+    } catch (error: unknown) {
+      const apiError = error as any;
+      this.logger.error(
+        `Failed to sync student breakdowns for credit application ${creditApplicationId}: ${apiError.message}`,
+      );
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
     }
   }
 }

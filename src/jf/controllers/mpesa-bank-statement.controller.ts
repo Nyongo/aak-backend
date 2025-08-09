@@ -8,8 +8,15 @@ import {
   Body,
   Logger,
   Put,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { CreateMpesaBankStatementDto } from '../dto/create-mpesa-bank-statement.dto';
+import { MpesaBankStatementDbService } from '../services/mpesa-bank-statement-db.service';
+import { MpesaBankStatementSyncService } from '../services/mpesa-bank-statement-sync.service';
+import { FileUploadService } from '../services/file-upload.service';
+import { BackgroundUploadService } from '../services/background-upload.service';
 import { SheetsService } from '../services/sheets.service';
 import { GoogleDriveService } from '../services/google-drive.service';
 
@@ -22,19 +29,22 @@ interface ApiError {
 @Controller('jf/bank-statements')
 export class MpesaBankStatementController {
   private readonly logger = new Logger(MpesaBankStatementController.name);
-  private readonly SHEET_NAME = 'Bank Statements';
-  private readonly financialRecordsFilesFolder = 'Financial Records_Files_';
-  private readonly financialRecordsImagesFolder = 'Financial Records_Images';
   private readonly GOOGLE_DRIVE_FINANCIAL_RECORDS_IMAGES_FOLDER_ID =
     process.env.GOOGLE_DRIVE_FINANCIAL_RECORDS_IMAGES_FOLDER_ID;
   private readonly GOOGLE_DRIVE_FINANCIAL_RECORDS_FILES_FOLDER_ID =
     process.env.GOOGLE_DRIVE_FINANCIAL_RECORDS_FILES_FOLDER_ID;
+
   constructor(
+    private readonly mpesaBankStatementDbService: MpesaBankStatementDbService,
+    private readonly mpesaBankStatementSyncService: MpesaBankStatementSyncService,
+    private readonly fileUploadService: FileUploadService,
+    private readonly backgroundUploadService: BackgroundUploadService,
     private readonly sheetsService: SheetsService,
     private readonly googleDriveService: GoogleDriveService,
   ) {}
 
   @Post()
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
   @UseInterceptors(
     FileFieldsInterceptor([
       { name: 'statement', maxCount: 1 },
@@ -43,16 +53,7 @@ export class MpesaBankStatementController {
   )
   async createStatement(
     @Body()
-    createDto: {
-      creditApplicationId: string;
-      personalOrBusinessAccount: string;
-      type: string;
-      accountDetails: string;
-      description: string;
-      statementStartDate: string;
-      statementEndDate: string;
-      totalRevenue: number;
-    },
+    createDto: CreateMpesaBankStatementDto,
     @UploadedFiles()
     files: {
       statement?: Express.Multer.File[];
@@ -60,10 +61,20 @@ export class MpesaBankStatementController {
     },
   ) {
     try {
-      // Generate unique ID for the statement
-      const id = `STMT-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+      this.logger.log(
+        `Creating mpesa bank statement for application: ${createDto.creditApplicationId}`,
+      );
 
-      // Format current date as DD/MM/YYYY HH:mm:ss
+      if (!createDto.creditApplicationId) {
+        return {
+          success: false,
+          error: 'Credit Application ID is required',
+        };
+      }
+
+      // Save files locally first for faster response
+      let statementPath = '';
+      let convertedExcelPath = '';
       const now = new Date();
       const createdAt = now.toLocaleString('en-GB', {
         day: '2-digit',
@@ -75,65 +86,156 @@ export class MpesaBankStatementController {
         hour12: false,
       });
 
-      // Upload files to Google Drive if provided
-      let statementFileName = '';
       if (files.statement?.[0]) {
-        const statement = files.statement[0];
-        const timestamp = new Date().getTime();
-        statementFileName = `stmt_${createDto.creditApplicationId}_${timestamp}.${statement.originalname.split('.').pop()}`;
-
-        await this.googleDriveService.uploadFile(
-          statement.buffer,
-          statementFileName,
-          statement.mimetype,
-          this.GOOGLE_DRIVE_FINANCIAL_RECORDS_FILES_FOLDER_ID,
+        const customName = `stmt_${createDto.creditApplicationId}`;
+        statementPath = await this.fileUploadService.saveFile(
+          files.statement[0],
+          'mpesa-bank-statements',
+          customName,
         );
       }
 
-      let convertedExcelFileName = '';
       if (files.convertedExcelFile?.[0]) {
-        const excelFile = files.convertedExcelFile[0];
-        const timestamp = new Date().getTime();
-        convertedExcelFileName = `stmt_converted_${createDto.creditApplicationId}_${timestamp}.${excelFile.originalname.split('.').pop()}`;
-
-        await this.googleDriveService.uploadFile(
-          excelFile.buffer,
-          convertedExcelFileName,
-          excelFile.mimetype,
-          this.GOOGLE_DRIVE_FINANCIAL_RECORDS_FILES_FOLDER_ID,
+        const customName = `stmt_converted_${createDto.creditApplicationId}`;
+        convertedExcelPath = await this.fileUploadService.saveFile(
+          files.convertedExcelFile[0],
+          'mpesa-bank-statements',
+          customName,
         );
       }
 
-      const rowData = {
-        ID: id,
-        'Credit Application': createDto.creditApplicationId,
-        'Personal Or Business Account': createDto.personalOrBusinessAccount,
-        Type: createDto.type,
-        'Account Details': createDto.accountDetails,
-        Description: createDto.description,
-        Statement: statementFileName
-          ? `${this.financialRecordsFilesFolder}/${statementFileName}`
-          : '',
-        'Statement Start Date': createDto.statementStartDate,
-        'Statement End Date': createDto.statementEndDate,
-        'Total Revenue': createDto.totalRevenue,
-        'Converted Excel File': convertedExcelFileName
-          ? `${this.financialRecordsFilesFolder}/${convertedExcelFileName}`
-          : '',
-        'Created At': createdAt,
+      // Prepare mpesa bank statement data for Postgres
+      const mpesaBankStatementDataForDb = {
+        sheetId: `STMT-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`, // Generate temporary sheetId
+        creditApplicationId: createDto.creditApplicationId,
+        personalOrBusinessAccount: createDto.personalOrBusinessAccount,
+        type: createDto.type,
+        accountDetails: createDto.accountDetails,
+        description: createDto.description,
+        statement: statementPath || '',
+        statementStartDate: createDto.statementStartDate,
+        statementEndDate: createDto.statementEndDate,
+        totalRevenue: Number(createDto.totalRevenue),
+        convertedExcelFile: convertedExcelPath || '',
+        synced: false,
+        createdAt: new Date(createdAt),
       };
 
-      await this.sheetsService.appendRow(this.SHEET_NAME, rowData, true);
+      const result = await this.mpesaBankStatementDbService.create(
+        mpesaBankStatementDataForDb,
+      );
+      this.logger.log(`Mpesa bank statement created successfully via Postgres`);
+
+      // Queue file uploads to Google Drive with mpesa bank statement ID for database updates
+      if (files.statement?.[0]) {
+        const customName = `stmt_${createDto.creditApplicationId}`;
+        this.backgroundUploadService.queueFileUpload(
+          statementPath,
+          `${customName}_${Date.now()}.${files.statement[0].originalname.split('.').pop()}`,
+          this.GOOGLE_DRIVE_FINANCIAL_RECORDS_FILES_FOLDER_ID,
+          files.statement[0].mimetype,
+          undefined, // directorId (not applicable)
+          undefined, // fieldName (not applicable)
+          undefined, // consentId (not applicable)
+          undefined, // consentFieldName (not applicable)
+          undefined, // referrerId (not applicable)
+          undefined, // referrerFieldName (not applicable)
+          undefined, // creditApplicationId (not applicable)
+          undefined, // creditApplicationFieldName (not applicable)
+          undefined, // activeDebtId (not applicable)
+          undefined, // activeDebtFieldName (not applicable)
+          undefined, // feePlanId (not applicable)
+          undefined, // feePlanFieldName (not applicable)
+          undefined, // enrollmentVerificationId (not applicable)
+          undefined, // enrollmentVerificationFieldName (not applicable)
+          result.id, // Pass mpesa bank statement ID
+          'statement', // Pass field name
+        );
+      }
+
+      if (files.convertedExcelFile?.[0]) {
+        const customName = `stmt_converted_${createDto.creditApplicationId}`;
+        this.backgroundUploadService.queueFileUpload(
+          convertedExcelPath,
+          `${customName}_${Date.now()}.${files.convertedExcelFile[0].originalname.split('.').pop()}`,
+          this.GOOGLE_DRIVE_FINANCIAL_RECORDS_FILES_FOLDER_ID,
+          files.convertedExcelFile[0].mimetype,
+          undefined, // directorId (not applicable)
+          undefined, // fieldName (not applicable)
+          undefined, // consentId (not applicable)
+          undefined, // consentFieldName (not applicable)
+          undefined, // referrerId (not applicable)
+          undefined, // referrerFieldName (not applicable)
+          undefined, // creditApplicationId (not applicable)
+          undefined, // creditApplicationFieldName (not applicable)
+          undefined, // activeDebtId (not applicable)
+          undefined, // activeDebtFieldName (not applicable)
+          undefined, // feePlanId (not applicable)
+          undefined, // feePlanFieldName (not applicable)
+          undefined, // enrollmentVerificationId (not applicable)
+          undefined, // enrollmentVerificationFieldName (not applicable)
+          result.id, // Pass mpesa bank statement ID
+          'convertedExcelFile', // Pass field name
+        );
+      }
+
+      // Trigger sync only if no files were uploaded (to avoid duplicate syncs)
+      // If files were uploaded, sync will be triggered by background upload service
+      if (!files.statement?.[0] && !files.convertedExcelFile?.[0]) {
+        this.triggerBackgroundSync(
+          result.id,
+          result.creditApplicationId,
+          'create',
+        );
+      }
 
       return {
         success: true,
+        data: result,
         message: 'Statement record created successfully',
-        data: rowData,
+        sync: {
+          triggered: !files.statement?.[0] && !files.convertedExcelFile?.[0],
+          status:
+            !files.statement?.[0] && !files.convertedExcelFile?.[0]
+              ? 'immediate'
+              : 'background',
+        },
       };
     } catch (error: unknown) {
-      const apiError = error as ApiError;
-      this.logger.error(`Error creating statement record: ${apiError.message}`);
-      throw error;
+      const apiError = error as any;
+      this.logger.error(
+        `Failed to create mpesa bank statement: ${apiError.message}`,
+      );
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
+  /**
+   * Trigger background sync for mpesa bank statement
+   */
+  private async triggerBackgroundSync(
+    dbId: number,
+    creditApplicationId: string,
+    operation: 'create' | 'update',
+  ) {
+    try {
+      this.logger.log(
+        `Triggering background sync for mpesa bank statement ${dbId} (${operation})`,
+      );
+      await this.mpesaBankStatementSyncService.syncMpesaBankStatementById(
+        dbId,
+        operation,
+      );
+      this.logger.log(
+        `Background sync triggered successfully for mpesa bank statement ${dbId}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to trigger background sync for mpesa bank statement ${dbId}: ${error}`,
+      );
     }
   }
 
@@ -146,80 +248,63 @@ export class MpesaBankStatementController {
         `Fetching statements for application ID: ${creditApplicationId}`,
       );
 
-      const statements = await this.sheetsService.getSheetData(
-        this.SHEET_NAME,
-        true,
+      const mpesaBankStatements =
+        await this.mpesaBankStatementDbService.findByCreditApplicationId(
+          creditApplicationId,
+        );
+
+      // Convert database records to original sheet format for frontend compatibility
+      const mpesaBankStatementsWithOriginalKeys = mpesaBankStatements.map(
+        (mpesaBankStatement) => {
+          const convertedMpesaBankStatement = {
+            ID: mpesaBankStatement.sheetId || '',
+            'Credit Application': mpesaBankStatement.creditApplicationId || '',
+            'Personal Or Business Account':
+              mpesaBankStatement.personalOrBusinessAccount || '',
+            Type: mpesaBankStatement.type || '',
+            'Account Details': mpesaBankStatement.accountDetails || '',
+            Description: mpesaBankStatement.description || '',
+            Statement: mpesaBankStatement.statement || '',
+            'Statement Start Date': mpesaBankStatement.statementStartDate || '',
+            'Statement End Date': mpesaBankStatement.statementEndDate || '',
+            'Total Revenue': mpesaBankStatement.totalRevenue?.toString() || '',
+            'Converted Excel File': mpesaBankStatement.convertedExcelFile || '',
+            'Created At': mpesaBankStatement.createdAt?.toISOString() || '',
+            Synced: mpesaBankStatement.synced || false,
+          };
+          return convertedMpesaBankStatement;
+        },
       );
-      this.logger.debug(`Retrieved ${statements?.length || 0} rows from sheet`);
 
-      if (!statements || statements.length === 0) {
-        this.logger.debug('No statements found in sheet');
-        return { success: true, count: 0, data: [] };
-      }
-
-      const headers = statements[0];
-      this.logger.debug(`Sheet headers: ${headers.join(', ')}`);
-
-      const applicationIdIndex = headers.indexOf('Credit Application');
-      this.logger.debug(
-        `Credit Application column index: ${applicationIdIndex}`,
-      );
-
-      if (applicationIdIndex === -1) {
-        this.logger.warn('Credit Application column not found in sheet');
-        return {
-          success: false,
-          message: 'Credit Application column not found',
-          data: [],
-        };
-      }
-
-      const filteredData = statements
-        .slice(1)
-        .filter((row) => {
-          const matches = row[applicationIdIndex] === creditApplicationId;
-          this.logger.debug(
-            `Row ${row[0]} application ID: ${row[applicationIdIndex]}, matches: ${matches}`,
-          );
-          return matches;
-        })
-        .map((row) => {
-          const statement = {};
-          headers.forEach((header, index) => {
-            statement[header] = row[index];
-          });
-          return statement;
-        });
-
+      // Add Google Drive links for document columns
       const documentColumns = ['Statement', 'Converted Excel File'];
-      const datasWithLinks = await Promise.all(
-        filteredData.map(async (director) => {
-          const dataWithLinks = { ...director };
+      const mpesaBankStatementsWithLinks = await Promise.all(
+        mpesaBankStatementsWithOriginalKeys.map(async (mpesaBankStatement) => {
+          const mpesaBankStatementWithLinks = { ...mpesaBankStatement };
           for (const column of documentColumns) {
-            if (director[column]) {
+            if (mpesaBankStatement[column]) {
               let folderId = '';
-              if (column == 'Statement') {
+              if (column === 'Statement') {
                 folderId = this.GOOGLE_DRIVE_FINANCIAL_RECORDS_FILES_FOLDER_ID;
-              } else if (column == 'Converted Excel File') {
+              } else if (column === 'Converted Excel File') {
                 folderId = this.GOOGLE_DRIVE_FINANCIAL_RECORDS_FILES_FOLDER_ID;
               }
-              const filename = director[column].split('/').pop();
+              const filename = mpesaBankStatement[column].split('/').pop();
               const fileLink = await this.googleDriveService.getFileLink(
                 filename,
                 folderId,
               );
-              dataWithLinks[column] = fileLink;
+              mpesaBankStatementWithLinks[column] = fileLink;
             }
           }
-          return dataWithLinks;
+          return mpesaBankStatementWithLinks;
         }),
       );
-      this.logger.debug(`Found ${filteredData.length} matching statements`);
 
       return {
         success: true,
-        count: filteredData.length,
-        data: datasWithLinks,
+        count: mpesaBankStatementsWithLinks.length,
+        data: mpesaBankStatementsWithLinks,
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -230,65 +315,40 @@ export class MpesaBankStatementController {
     }
   }
 
-  @Get(':id')
-  async getStatementById(@Param('id') id: string) {
-    try {
-      const statements = await this.sheetsService.getSheetData(this.SHEET_NAME);
-      if (!statements || statements.length === 0) {
-        return { success: false, message: 'No statements found' };
-      }
-
-      const headers = statements[0];
-      const idIndex = headers.indexOf('ID');
-      const statementRow = statements.find((row) => row[idIndex] === id);
-
-      if (!statementRow) {
-        return { success: false, message: 'Statement not found' };
-      }
-
-      const statement = {};
-      headers.forEach((header, index) => {
-        statement[header] = statementRow[index];
-      });
-
-      return { success: true, data: statement };
-    } catch (error: unknown) {
-      const apiError = error as ApiError;
-      this.logger.error(`Error fetching statement ${id}: ${apiError.message}`);
-      throw error;
-    }
-  }
-
   @Get()
   async getAllStatements() {
     try {
       this.logger.debug('Fetching all statements');
+      const mpesaBankStatements =
+        await this.mpesaBankStatementDbService.findAll();
 
-      const statements = await this.sheetsService.getSheetData(
-        this.SHEET_NAME,
-        true,
+      // Convert database records to original sheet format for frontend compatibility
+      const mpesaBankStatementsWithOriginalKeys = mpesaBankStatements.map(
+        (mpesaBankStatement) => {
+          const convertedMpesaBankStatement = {
+            ID: mpesaBankStatement.sheetId || '',
+            'Credit Application': mpesaBankStatement.creditApplicationId || '',
+            'Personal Or Business Account':
+              mpesaBankStatement.personalOrBusinessAccount || '',
+            Type: mpesaBankStatement.type || '',
+            'Account Details': mpesaBankStatement.accountDetails || '',
+            Description: mpesaBankStatement.description || '',
+            Statement: mpesaBankStatement.statement || '',
+            'Statement Start Date': mpesaBankStatement.statementStartDate || '',
+            'Statement End Date': mpesaBankStatement.statementEndDate || '',
+            'Total Revenue': mpesaBankStatement.totalRevenue?.toString() || '',
+            'Converted Excel File': mpesaBankStatement.convertedExcelFile || '',
+            'Created At': mpesaBankStatement.createdAt?.toISOString() || '',
+            Synced: mpesaBankStatement.synced || false,
+          };
+          return convertedMpesaBankStatement;
+        },
       );
-      this.logger.debug(`Retrieved ${statements?.length || 0} rows from sheet`);
-
-      if (!statements || statements.length === 0) {
-        return { success: true, count: 0, data: [] };
-      }
-
-      const headers = statements[0];
-      this.logger.debug(`Sheet headers: ${headers.join(', ')}`);
-
-      const data = statements.slice(1).map((row) => {
-        const statement = {};
-        headers.forEach((header, index) => {
-          statement[header] = row[index];
-        });
-        return statement;
-      });
 
       return {
         success: true,
-        count: data.length,
-        data,
+        count: mpesaBankStatementsWithOriginalKeys.length,
+        data: mpesaBankStatementsWithOriginalKeys,
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -297,7 +357,109 @@ export class MpesaBankStatementController {
     }
   }
 
+  @Get(':id')
+  async getStatementById(@Param('id') id: string) {
+    try {
+      this.logger.log(`Fetching mpesa bank statement with ID: ${id}`);
+      const mpesaBankStatement =
+        await this.mpesaBankStatementDbService.findById(id);
+
+      if (!mpesaBankStatement) {
+        return { success: false, message: 'Statement not found' };
+      }
+
+      // Convert database record to original sheet format for frontend compatibility
+      const mpesaBankStatementWithOriginalKeys = {
+        ID: mpesaBankStatement.sheetId || '',
+        'Credit Application': mpesaBankStatement.creditApplicationId || '',
+        'Personal Or Business Account':
+          mpesaBankStatement.personalOrBusinessAccount || '',
+        Type: mpesaBankStatement.type || '',
+        'Account Details': mpesaBankStatement.accountDetails || '',
+        Description: mpesaBankStatement.description || '',
+        Statement: mpesaBankStatement.statement || '',
+        'Statement Start Date': mpesaBankStatement.statementStartDate || '',
+        'Statement End Date': mpesaBankStatement.statementEndDate || '',
+        'Total Revenue': mpesaBankStatement.totalRevenue?.toString() || '',
+        'Converted Excel File': mpesaBankStatement.convertedExcelFile || '',
+        'Created At': mpesaBankStatement.createdAt?.toISOString() || '',
+        Synced: mpesaBankStatement.synced || false,
+      };
+
+      return { success: true, data: mpesaBankStatementWithOriginalKeys };
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      this.logger.error(`Error fetching statement ${id}: ${apiError.message}`);
+      throw error;
+    }
+  }
+
+  @Post('sync/:id')
+  async syncMpesaBankStatementById(@Param('id') id: string) {
+    try {
+      this.logger.log(`Manual sync requested for mpesa bank statement: ${id}`);
+      const result =
+        await this.mpesaBankStatementSyncService.syncMpesaBankStatementById(
+          parseInt(id),
+        );
+      return result;
+    } catch (error: unknown) {
+      const apiError = error as any;
+      this.logger.error(
+        `Failed to sync mpesa bank statement ${id}: ${apiError.message}`,
+      );
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
+  @Post('sync-all')
+  async syncAllMpesaBankStatements() {
+    try {
+      this.logger.log('Manual sync requested for all mpesa bank statements');
+      const result = await this.mpesaBankStatementSyncService.syncAllToSheets();
+      return result;
+    } catch (error: unknown) {
+      const apiError = error as any;
+      this.logger.error(
+        `Failed to sync all mpesa bank statements: ${apiError.message}`,
+      );
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
+  @Post('sync-by-application/:creditApplicationId')
+  async syncMpesaBankStatementsByApplication(
+    @Param('creditApplicationId') creditApplicationId: string,
+  ) {
+    try {
+      this.logger.log(
+        `Manual sync requested for mpesa bank statements by credit application: ${creditApplicationId}`,
+      );
+      const result =
+        await this.mpesaBankStatementSyncService.syncByCreditApplicationId(
+          creditApplicationId,
+        );
+      return result;
+    } catch (error: unknown) {
+      const apiError = error as any;
+      this.logger.error(
+        `Failed to sync mpesa bank statements for credit application ${creditApplicationId}: ${apiError.message}`,
+      );
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
   @Put(':id')
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
   @UseInterceptors(
     FileFieldsInterceptor([
       { name: 'statement', maxCount: 1 },
@@ -307,16 +469,7 @@ export class MpesaBankStatementController {
   async updateStatement(
     @Param('id') id: string,
     @Body()
-    updateDto: {
-      creditApplicationId?: string;
-      personalOrBusinessAccount?: string;
-      type?: string;
-      accountDetails?: string;
-      description?: string;
-      statementStartDate?: string;
-      statementEndDate?: string;
-      totalRevenue?: number;
-    },
+    updateDto: Partial<CreateMpesaBankStatementDto>,
     @UploadedFiles()
     files: {
       statement?: Express.Multer.File[];
@@ -326,122 +479,166 @@ export class MpesaBankStatementController {
     try {
       this.logger.log(`Updating bank statement with ID: ${id}`);
 
-      // First verify the statement exists
-      const statements = await this.sheetsService.getSheetData(
-        this.SHEET_NAME,
-        true,
+      // Find the existing mpesa bank statement by sheetId (the id parameter is the sheetId from frontend)
+      const existingMpesaBankStatement =
+        await this.mpesaBankStatementDbService.findBySheetId(id);
+      if (!existingMpesaBankStatement) {
+        return { success: false, error: 'Bank statement not found' };
+      }
+
+      this.logger.log(
+        `Updating mpesa bank statement with sheetId: ${id}, database ID: ${existingMpesaBankStatement.id}`,
       );
-      if (!statements || statements.length === 0) {
-        return { success: false, message: 'No bank statements found' };
-      }
 
-      const headers = statements[0];
-      const idIndex = headers.indexOf('ID');
-      const statementRow = statements.find((row) => row[idIndex] === id);
+      // Handle file uploads if provided
+      let statementPath = existingMpesaBankStatement.statement || '';
+      let convertedExcelPath =
+        existingMpesaBankStatement.convertedExcelFile || '';
 
-      if (!statementRow) {
-        return { success: false, message: 'Bank statement not found' };
-      }
-
-      // Upload statement file if provided
-
-      let statementFileName = '';
       if (files.statement?.[0]) {
-        const statement = files.statement[0];
-        const timestamp = new Date().getTime();
-        statementFileName = `stmt_${updateDto.creditApplicationId}_${timestamp}.${statement.originalname.split('.').pop()}`;
+        const customName = `stmt_${updateDto.creditApplicationId || existingMpesaBankStatement.creditApplicationId}`;
+        this.logger.log(
+          `Updating mpesa bank statement ${existingMpesaBankStatement.id} with new statement file upload`,
+        );
+        statementPath = await this.fileUploadService.saveFile(
+          files.statement[0],
+          'mpesa-bank-statements',
+          customName,
+        );
 
-        await this.googleDriveService.uploadFile(
-          statement.buffer,
-          statementFileName,
-          statement.mimetype,
+        // Queue statement file upload to Google Drive
+        this.backgroundUploadService.queueFileUpload(
+          statementPath,
+          `${customName}_${Date.now()}.${files.statement[0].originalname.split('.').pop()}`,
           this.GOOGLE_DRIVE_FINANCIAL_RECORDS_FILES_FOLDER_ID,
+          files.statement[0].mimetype,
+          undefined, // directorId (not applicable)
+          undefined, // fieldName (not applicable)
+          undefined, // consentId (not applicable)
+          undefined, // consentFieldName (not applicable)
+          undefined, // referrerId (not applicable)
+          undefined, // referrerFieldName (not applicable)
+          undefined, // creditApplicationId (not applicable)
+          undefined, // creditApplicationFieldName (not applicable)
+          undefined, // activeDebtId (not applicable)
+          undefined, // activeDebtFieldName (not applicable)
+          undefined, // feePlanId (not applicable)
+          undefined, // feePlanFieldName (not applicable)
+          undefined, // enrollmentVerificationId (not applicable)
+          undefined, // enrollmentVerificationFieldName (not applicable)
+          existingMpesaBankStatement.id, // Pass mpesa bank statement ID
+          'statement', // Pass field name
+        );
+        this.logger.log(
+          `Statement file upload queued for mpesa bank statement update ${existingMpesaBankStatement.id}`,
         );
       }
 
-      // Upload converted Excel file if provided
-      let convertedExcelFileName = '';
       if (files.convertedExcelFile?.[0]) {
-        const excelFile = files.convertedExcelFile[0];
-        const timestamp = new Date().getTime();
-        convertedExcelFileName = `stmt_converted_${updateDto.creditApplicationId}_${timestamp}.${excelFile.originalname.split('.').pop()}`;
+        const customName = `stmt_converted_${updateDto.creditApplicationId || existingMpesaBankStatement.creditApplicationId}`;
+        this.logger.log(
+          `Updating mpesa bank statement ${existingMpesaBankStatement.id} with new converted Excel file upload`,
+        );
+        convertedExcelPath = await this.fileUploadService.saveFile(
+          files.convertedExcelFile[0],
+          'mpesa-bank-statements',
+          customName,
+        );
 
-        await this.googleDriveService.uploadFile(
-          excelFile.buffer,
-          convertedExcelFileName,
-          excelFile.mimetype,
+        // Queue converted Excel file upload to Google Drive
+        this.backgroundUploadService.queueFileUpload(
+          convertedExcelPath,
+          `${customName}_${Date.now()}.${files.convertedExcelFile[0].originalname.split('.').pop()}`,
           this.GOOGLE_DRIVE_FINANCIAL_RECORDS_FILES_FOLDER_ID,
+          files.convertedExcelFile[0].mimetype,
+          undefined, // directorId (not applicable)
+          undefined, // fieldName (not applicable)
+          undefined, // consentId (not applicable)
+          undefined, // consentFieldName (not applicable)
+          undefined, // referrerId (not applicable)
+          undefined, // referrerFieldName (not applicable)
+          undefined, // creditApplicationId (not applicable)
+          undefined, // creditApplicationFieldName (not applicable)
+          undefined, // activeDebtId (not applicable)
+          undefined, // activeDebtFieldName (not applicable)
+          undefined, // feePlanId (not applicable)
+          undefined, // feePlanFieldName (not applicable)
+          undefined, // enrollmentVerificationId (not applicable)
+          undefined, // enrollmentVerificationFieldName (not applicable)
+          existingMpesaBankStatement.id, // Pass mpesa bank statement ID
+          'convertedExcelFile', // Pass field name
+        );
+        this.logger.log(
+          `Converted Excel file upload queued for mpesa bank statement update ${existingMpesaBankStatement.id}`,
         );
       }
 
-      // Create updated row data, only updating fields that are provided
-      const updatedRowData = headers.map((header, index) => {
-        if (header === 'Statement' && statementFileName) {
-          return statementFileName
-            ? `${this.financialRecordsFilesFolder}/${statementFileName}`
-            : '';
-        }
-        if (header === 'Converted Excel File' && convertedExcelFileName) {
-          return convertedExcelFileName
-            ? `${this.financialRecordsFilesFolder}/${convertedExcelFileName}`
-            : '';
-        }
-        if (header === 'Credit Application' && updateDto.creditApplicationId) {
-          return updateDto.creditApplicationId;
-        }
-        if (
-          header === 'Personal Or Business Account' &&
-          updateDto.personalOrBusinessAccount
-        ) {
-          return updateDto.personalOrBusinessAccount;
-        }
-        if (header === 'Type' && updateDto.type) {
-          return updateDto.type;
-        }
-        if (header === 'Account Details' && updateDto.accountDetails) {
-          return updateDto.accountDetails;
-        }
-        if (header === 'Description' && updateDto.description) {
-          return updateDto.description;
-        }
-        if (header === 'Statement Start Date' && updateDto.statementStartDate) {
-          return updateDto.statementStartDate;
-        }
-        if (header === 'Statement End Date' && updateDto.statementEndDate) {
-          return updateDto.statementEndDate;
-        }
-        if (
-          header === 'Total Revenue' &&
+      // Prepare update data
+      const updateDataForDb = {
+        creditApplicationId:
+          updateDto.creditApplicationId ||
+          existingMpesaBankStatement.creditApplicationId,
+        personalOrBusinessAccount:
+          updateDto.personalOrBusinessAccount ||
+          existingMpesaBankStatement.personalOrBusinessAccount,
+        type: updateDto.type || existingMpesaBankStatement.type,
+        accountDetails:
+          updateDto.accountDetails || existingMpesaBankStatement.accountDetails,
+        description:
+          updateDto.description || existingMpesaBankStatement.description,
+        statement: statementPath,
+        statementStartDate:
+          updateDto.statementStartDate ||
+          existingMpesaBankStatement.statementStartDate,
+        statementEndDate:
+          updateDto.statementEndDate ||
+          existingMpesaBankStatement.statementEndDate,
+        totalRevenue:
           updateDto.totalRevenue !== undefined
-        ) {
-          return updateDto.totalRevenue;
-        }
-        return statementRow[index] || '';
-      });
+            ? Number(updateDto.totalRevenue)
+            : existingMpesaBankStatement.totalRevenue,
+        convertedExcelFile: convertedExcelPath,
+        synced: false, // Mark as unsynced to trigger sync
+      };
 
-      // Update the row
-      await this.sheetsService.updateRow(
-        this.SHEET_NAME,
-        id,
-        updatedRowData,
-        true,
+      // Use the database ID for the update to avoid sheetId conflicts
+      const result = await this.mpesaBankStatementDbService.updateById(
+        existingMpesaBankStatement.id,
+        updateDataForDb,
       );
+      this.logger.log(`Mpesa bank statement updated successfully via Postgres`);
 
-      // Get the updated statement record
-      const updatedStatement = {};
-      headers.forEach((header, index) => {
-        updatedStatement[header] = updatedRowData[index];
-      });
+      // Trigger sync only if no files were uploaded (to avoid duplicate syncs)
+      // If files were uploaded, sync will be triggered by background upload service
+      if (!files.statement?.[0] && !files.convertedExcelFile?.[0]) {
+        this.triggerBackgroundSync(
+          result.id,
+          result.creditApplicationId,
+          'update',
+        );
+      }
 
       return {
         success: true,
+        data: result,
         message: 'Bank statement updated successfully',
-        data: updatedStatement,
+        sync: {
+          triggered: !files.statement?.[0] && !files.convertedExcelFile?.[0],
+          status:
+            !files.statement?.[0] && !files.convertedExcelFile?.[0]
+              ? 'immediate'
+              : 'background',
+        },
       };
     } catch (error: unknown) {
-      const apiError = error as ApiError;
-      this.logger.error(`Error updating bank statement: ${apiError.message}`);
-      throw error;
+      const apiError = error as any;
+      this.logger.error(
+        `Failed to update mpesa bank statement: ${apiError.message}`,
+      );
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
     }
   }
 }

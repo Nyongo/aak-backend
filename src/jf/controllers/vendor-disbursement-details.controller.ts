@@ -9,10 +9,16 @@ import {
   UseInterceptors,
   UploadedFile,
   Logger,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { SheetsService } from '../services/sheets.service';
 import { GoogleDriveService } from '../services/google-drive.service';
+import { VendorDisbursementDetailsDbService } from '../services/vendor-disbursement-details-db.service';
+import { VendorDisbursementDetailsSyncService } from '../services/vendor-disbursement-details-sync.service';
+import { BackgroundUploadService } from '../services/background-upload.service';
+import { CreateVendorDisbursementDetailDto } from '../dto/create-vendor-disbursement-detail.dto';
 
 interface ApiError {
   message: string;
@@ -38,82 +44,129 @@ export class VendorDisbursementDetailsController {
   constructor(
     private readonly sheetsService: SheetsService,
     private readonly googleDriveService: GoogleDriveService,
+    private readonly vendorDisbursementDetailsDbService: VendorDisbursementDetailsDbService,
+    private readonly vendorDisbursementDetailsSyncService: VendorDisbursementDetailsSyncService,
+    private readonly backgroundUploadService: BackgroundUploadService,
   ) {}
 
   @Post()
   @UseInterceptors(FileInterceptor('documentVerifyingPaymentAccount'))
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  )
   async createDisbursementDetail(
-    @Body()
-    createDto: {
-      creditApplicationId: string;
-      vendorPaymentMethod: string;
-      phoneNumberForMPesaPayment?: string;
-      managerVerification: 'Y' | 'N';
-      bankName?: string;
-      accountName?: string;
-      accountNumber?: string;
-      phoneNumberForBankAccount?: string;
-      paybillNumberAndAccount?: string;
-      buyGoodsTill?: string;
-    },
+    @Body() createDto: CreateVendorDisbursementDetailDto,
     @UploadedFile() documentVerifyingPaymentAccount: Express.Multer.File,
   ) {
     try {
+      this.logger.log('Creating vendor disbursement detail');
+
       // Generate unique ID for the disbursement detail
       const id = `VD-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
 
-      // Format current date as DD/MM/YYYY HH:mm:ss
-      const now = new Date();
-      const createdAt = now.toLocaleString('en-GB', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-      });
-
-      // Upload document if provided
+      // Save file locally if provided
       let fileName = '';
       if (documentVerifyingPaymentAccount) {
         const file = documentVerifyingPaymentAccount;
         const timestamp = new Date().getTime();
         fileName = `paymentverifdoc_${createDto.creditApplicationId}_${timestamp}.${file.originalname.split('.').pop()}`;
 
-        await this.googleDriveService.uploadFile(
-          documentVerifyingPaymentAccount.buffer,
+        // Save file locally first
+        const fs = require('fs');
+        const path = require('path');
+        const uploadDir = path.join(
+          process.cwd(),
+          'uploads',
+          'jf',
+          'vendor-disbursement-details',
+        );
+
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+
+        const filePath = path.join(uploadDir, fileName);
+        fs.writeFileSync(filePath, file.buffer);
+
+        this.logger.log(`File saved locally: ${filePath}`);
+      }
+
+      // Create record in database
+      const dbData = {
+        sheetId: id,
+        creditApplicationId: createDto.creditApplicationId,
+        vendorPaymentMethod: createDto.vendorPaymentMethod,
+        phoneNumberForMPesaPayment: createDto.phoneNumberForMPesaPayment || '',
+        managerVerification: createDto.managerVerification,
+        documentVerifyingPaymentAccount: fileName
+          ? `${this.imagesFolder}/${fileName}`
+          : '',
+        bankName: createDto.bankName || '',
+        accountName: createDto.accountName || '',
+        accountNumber: createDto.accountNumber || '',
+        phoneNumberForBankAccount: createDto.phoneNumberForBankAccount || '',
+        paybillNumberAndAccount: createDto.paybillNumberAndAccount || '',
+        buyGoodsTill: createDto.buyGoodsTill || '',
+      };
+
+      const createdRecord =
+        await this.vendorDisbursementDetailsDbService.create(dbData);
+      this.logger.log(
+        `Created record in database with ID: ${createdRecord.id}`,
+      );
+
+      // Queue file upload to Google Drive if file was provided
+      if (documentVerifyingPaymentAccount && fileName) {
+        await this.backgroundUploadService.queueFileUpload(
+          `/uploads/jf/vendor-disbursement-details/${fileName}`,
           fileName,
-          documentVerifyingPaymentAccount.mimetype,
           this.GOOGLE_DRIVE_VENDOR_DIS_DOCS_PHOTOS_FOLDER_ID,
+          documentVerifyingPaymentAccount.mimetype,
+          undefined, // directorId
+          undefined, // fieldName
+          undefined, // consentId
+          undefined, // consentFieldName
+          undefined, // referrerId
+          undefined, // referrerFieldName
+          undefined, // creditApplicationId
+          undefined, // creditApplicationFieldName
+          undefined, // activeDebtId
+          undefined, // activeDebtFieldName
+          undefined, // feePlanId
+          undefined, // feePlanFieldName
+          undefined, // enrollmentVerificationId
+          undefined, // enrollmentVerificationFieldName
+          undefined, // mpesaBankStatementId
+          undefined, // mpesaBankStatementFieldName
+          undefined, // auditedFinancialId
+          undefined, // auditedFinancialFieldName
+          undefined, // otherSupportingDocId
+          undefined, // otherSupportingDocFieldName
+          Number(createdRecord.id), // vendorDisbursementDetailId
+          'documentVerifyingPaymentAccount', // vendorDisbursementDetailFieldName
+          'create', // operation
         );
       }
 
-      const rowData = {
-        ID: id,
-        'Credit Application ID': createDto.creditApplicationId,
-        'Vendor Payment Method': createDto.vendorPaymentMethod,
-        'Phone Number for M Pesa Payment':
-          createDto.phoneNumberForMPesaPayment || '',
-        'Manager Verification of Payment Account':
-          createDto.managerVerification,
-        'Document Verifying Payment Account': `${this.imagesFolder}/${fileName}`,
-        'Bank Name': createDto.bankName || '',
-        'Account Name': createDto.accountName || '',
-        'Account Number': createDto.accountNumber || '',
-        'Phone Number for Bank Account':
-          createDto.phoneNumberForBankAccount || '',
-        'Paybill Number and Account': createDto.paybillNumberAndAccount || '',
-        'Buy Goods Till ': createDto.buyGoodsTill || '',
-        'Created At': createdAt,
-      };
-
-      await this.sheetsService.appendRow(this.SHEET_NAME, rowData, true);
+      // Trigger background sync
+      await this.triggerBackgroundSync(
+        createdRecord.id,
+        createDto.creditApplicationId,
+        'create',
+      );
 
       return {
         success: true,
         message: 'Vendor disbursement detail created successfully',
-        data: rowData,
+        data: {
+          id: createdRecord.id,
+          sheetId: createdRecord.sheetId,
+          ...dbData,
+        },
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -121,6 +174,41 @@ export class VendorDisbursementDetailsController {
         `Error creating vendor disbursement detail: ${apiError.message}`,
       );
       throw error;
+    }
+  }
+
+  private async triggerBackgroundSync(
+    dbId: number,
+    creditApplicationId: string,
+    operation: 'create' | 'update',
+  ) {
+    try {
+      this.logger.log(
+        `Triggering background sync for vendor disbursement detail ${dbId} (${operation})`,
+      );
+
+      // Trigger sync in the background
+      setTimeout(async () => {
+        try {
+          await this.vendorDisbursementDetailsSyncService.syncVendorDisbursementDetailById(
+            dbId,
+            operation,
+          );
+          this.logger.log(
+            `Background sync completed for vendor disbursement detail ${dbId}`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `Background sync failed for vendor disbursement detail ${dbId}:`,
+            error,
+          );
+        }
+      }, 1000);
+    } catch (error) {
+      this.logger.error(
+        `Error triggering background sync for vendor disbursement detail ${dbId}:`,
+        error,
+      );
     }
   }
 
@@ -133,61 +221,31 @@ export class VendorDisbursementDetailsController {
         `Fetching disbursement details for application: ${creditApplicationId}`,
       );
 
-      const details = await this.sheetsService.getSheetData(
-        this.SHEET_NAME,
-        true,
-      );
+      const records =
+        await this.vendorDisbursementDetailsDbService.findByCreditApplicationId(
+          creditApplicationId,
+        );
 
-      if (!details || details.length === 0) {
+      if (!records || records.length === 0) {
         return { success: true, count: 0, data: [] };
       }
 
-      const headers = details[0];
-      const applicationIdIndex = headers.indexOf('Credit Application ID');
+      // Convert database records to original sheet format for frontend compatibility
+      const recordsWithOriginalKeys = records.map((record) => {
+        const convertedRecord =
+          this.vendorDisbursementDetailsDbService.convertDbDataToSheet(record);
 
-      if (applicationIdIndex === -1) {
-        return {
-          success: false,
-          message: 'Credit Application ID column not found',
-          data: [],
-        };
-      }
+        // Add additional fields that might not be in the mapping
+        convertedRecord['Created At'] = record.createdAt?.toISOString() || '';
+        convertedRecord['Synced'] = record.synced || false;
 
-      const filteredData = details
-        .slice(1)
-        .filter((row) => row[applicationIdIndex] === creditApplicationId)
-        .map((row) => {
-          const detail = {};
-          headers.forEach((header, index) => {
-            detail[header] = row[index];
-          });
-          return detail;
-        });
-      const documentColumns = ['Document Verifying Payment Account'];
-      const datasWithLinks = await Promise.all(
-        filteredData.map(async (director) => {
-          const dataWithLinks = { ...director };
-          for (const column of documentColumns) {
-            if (director[column]) {
-              let folderId = '';
-              if (column == 'Document Verifying Payment Account') {
-                folderId = this.GOOGLE_DRIVE_VENDOR_DIS_DOCS_PHOTOS_FOLDER_ID;
-              }
-              const filename = director[column].split('/').pop();
-              const fileLink = await this.googleDriveService.getFileLink(
-                filename,
-                folderId,
-              );
-              dataWithLinks[column] = fileLink;
-            }
-          }
-          return dataWithLinks;
-        }),
-      );
+        return convertedRecord;
+      });
+
       return {
         success: true,
-        count: filteredData.length,
-        data: datasWithLinks,
+        count: records.length,
+        data: recordsWithOriginalKeys,
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -201,28 +259,23 @@ export class VendorDisbursementDetailsController {
   @Get(':id')
   async getDetailById(@Param('id') id: string) {
     try {
-      const details = await this.sheetsService.getSheetData(
-        this.SHEET_NAME,
-        true,
-      );
-      if (!details || details.length === 0) {
-        return { success: false, message: 'No disbursement details found' };
-      }
+      this.logger.debug(`Fetching disbursement detail with ID: ${id}`);
 
-      const headers = details[0];
-      const idIndex = headers.indexOf('ID');
-      const detailRow = details.find((row) => row[idIndex] === id);
+      const record = await this.vendorDisbursementDetailsDbService.findById(id);
 
-      if (!detailRow) {
+      if (!record) {
         return { success: false, message: 'Disbursement detail not found' };
       }
 
-      const detail = {};
-      headers.forEach((header, index) => {
-        detail[header] = detailRow[index];
-      });
+      // Convert database record to original sheet format for frontend compatibility
+      const convertedRecord =
+        this.vendorDisbursementDetailsDbService.convertDbDataToSheet(record);
 
-      return { success: true, data: detail };
+      // Add additional fields that might not be in the mapping
+      convertedRecord['Created At'] = record.createdAt?.toISOString() || '';
+      convertedRecord['Synced'] = record.synced || false;
+
+      return { success: true, data: convertedRecord };
     } catch (error: unknown) {
       const apiError = error as ApiError;
       this.logger.error(
@@ -235,25 +288,30 @@ export class VendorDisbursementDetailsController {
   @Get()
   async getAllDetails() {
     try {
-      const details = await this.sheetsService.getSheetData(this.SHEET_NAME);
+      this.logger.debug('Fetching all disbursement details');
 
-      if (!details || details.length === 0) {
+      const records = await this.vendorDisbursementDetailsDbService.findAll();
+
+      if (!records || records.length === 0) {
         return { success: true, count: 0, data: [] };
       }
 
-      const headers = details[0];
-      const data = details.slice(1).map((row) => {
-        const detail = {};
-        headers.forEach((header, index) => {
-          detail[header] = row[index];
-        });
-        return detail;
+      // Convert database records to original sheet format for frontend compatibility
+      const recordsWithOriginalKeys = records.map((record) => {
+        const convertedRecord =
+          this.vendorDisbursementDetailsDbService.convertDbDataToSheet(record);
+
+        // Add additional fields that might not be in the mapping
+        convertedRecord['Created At'] = record.createdAt?.toISOString() || '';
+        convertedRecord['Synced'] = record.synced || false;
+
+        return convertedRecord;
       });
 
       return {
         success: true,
-        count: data.length,
-        data,
+        count: records.length,
+        data: recordsWithOriginalKeys,
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -268,135 +326,142 @@ export class VendorDisbursementDetailsController {
   @UseInterceptors(FileInterceptor('documentVerifyingPaymentAccount'))
   async updateDisbursementDetail(
     @Param('id') id: string,
-    @Body()
-    updateDto: {
-      creditApplicationId?: string;
-      vendorPaymentMethod?: string;
-      phoneNumberForMPesaPayment?: string;
-      managerVerification?: 'Y' | 'N';
-      bankName?: string;
-      accountName?: string;
-      accountNumber?: string;
-      phoneNumberForBankAccount?: string;
-      paybillNumberAndAccount?: string;
-      buyGoodsTill?: string;
-    },
+    @Body() updateDto: Partial<CreateVendorDisbursementDetailDto>,
     @UploadedFile() documentVerifyingPaymentAccount: Express.Multer.File,
   ) {
     try {
       this.logger.log(`Updating vendor disbursement detail with ID: ${id}`);
 
-      // First verify the detail exists
-      const details = await this.sheetsService.getSheetData(
-        this.SHEET_NAME,
-        true,
-      );
-      if (!details || details.length === 0) {
-        return { success: false, message: 'No disbursement details found' };
-      }
-
-      const headers = details[0];
-      const idIndex = headers.indexOf('ID');
-      const detailRow = details.find((row) => row[idIndex] === id);
-
-      if (!detailRow) {
+      // Find the existing record by sheetId
+      const existingRecord =
+        await this.vendorDisbursementDetailsDbService.findBySheetId(id);
+      if (!existingRecord) {
         return { success: false, message: 'Disbursement detail not found' };
       }
 
-      // Upload document if provided
+      // Save new file locally if provided
       let fileName = '';
       if (documentVerifyingPaymentAccount) {
         const file = documentVerifyingPaymentAccount;
         const timestamp = new Date().getTime();
-        fileName = `paymentverifdoc_${updateDto.creditApplicationId}_${timestamp}.${file.originalname.split('.').pop()}`;
+        fileName = `paymentverifdoc_${existingRecord.creditApplicationId}_${timestamp}.${file.originalname.split('.').pop()}`;
 
-        await this.googleDriveService.uploadFile(
-          documentVerifyingPaymentAccount.buffer,
+        // Save file locally first
+        const fs = require('fs');
+        const path = require('path');
+        const uploadDir = path.join(
+          process.cwd(),
+          'uploads',
+          'jf',
+          'vendor-disbursement-details',
+        );
+
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+
+        const filePath = path.join(uploadDir, fileName);
+        fs.writeFileSync(filePath, file.buffer);
+
+        this.logger.log(`New file saved locally: ${filePath}`);
+      }
+
+      // Prepare update data
+      const updateData: any = {};
+
+      if (updateDto.creditApplicationId !== undefined) {
+        updateData.creditApplicationId = updateDto.creditApplicationId;
+      }
+      if (updateDto.vendorPaymentMethod !== undefined) {
+        updateData.vendorPaymentMethod = updateDto.vendorPaymentMethod;
+      }
+      if (updateDto.phoneNumberForMPesaPayment !== undefined) {
+        updateData.phoneNumberForMPesaPayment =
+          updateDto.phoneNumberForMPesaPayment;
+      }
+      if (updateDto.managerVerification !== undefined) {
+        updateData.managerVerification = updateDto.managerVerification;
+      }
+      if (updateDto.bankName !== undefined) {
+        updateData.bankName = updateDto.bankName;
+      }
+      if (updateDto.accountName !== undefined) {
+        updateData.accountName = updateDto.accountName;
+      }
+      if (updateDto.accountNumber !== undefined) {
+        updateData.accountNumber = updateDto.accountNumber;
+      }
+      if (updateDto.phoneNumberForBankAccount !== undefined) {
+        updateData.phoneNumberForBankAccount =
+          updateDto.phoneNumberForBankAccount;
+      }
+      if (updateDto.paybillNumberAndAccount !== undefined) {
+        updateData.paybillNumberAndAccount = updateDto.paybillNumberAndAccount;
+      }
+      if (updateDto.buyGoodsTill !== undefined) {
+        updateData.buyGoodsTill = updateDto.buyGoodsTill;
+      }
+
+      // Update document path if new file was uploaded
+      if (fileName) {
+        updateData.documentVerifyingPaymentAccount = `${this.imagesFolder}/${fileName}`;
+      }
+
+      // Update record in database
+      const updatedRecord =
+        await this.vendorDisbursementDetailsDbService.updateById(
+          existingRecord.id,
+          updateData,
+        );
+
+      // Queue file upload to Google Drive if new file was provided
+      if (documentVerifyingPaymentAccount && fileName) {
+        await this.backgroundUploadService.queueFileUpload(
+          `/uploads/jf/vendor-disbursement-details/${fileName}`,
           fileName,
-          documentVerifyingPaymentAccount.mimetype,
           this.GOOGLE_DRIVE_VENDOR_DIS_DOCS_PHOTOS_FOLDER_ID,
+          documentVerifyingPaymentAccount.mimetype,
+          undefined, // directorId
+          undefined, // fieldName
+          undefined, // consentId
+          undefined, // consentFieldName
+          undefined, // referrerId
+          undefined, // referrerFieldName
+          undefined, // creditApplicationId
+          undefined, // creditApplicationFieldName
+          undefined, // activeDebtId
+          undefined, // activeDebtFieldName
+          undefined, // feePlanId
+          undefined, // feePlanFieldName
+          undefined, // enrollmentVerificationId
+          undefined, // enrollmentVerificationFieldName
+          undefined, // mpesaBankStatementId
+          undefined, // mpesaBankStatementFieldName
+          undefined, // auditedFinancialId
+          undefined, // auditedFinancialFieldName
+          undefined, // otherSupportingDocId
+          undefined, // otherSupportingDocFieldName
+          Number(existingRecord.id), // vendorDisbursementDetailId
+          'documentVerifyingPaymentAccount', // vendorDisbursementDetailFieldName
+          'update', // operation
         );
       }
 
-      // Create updated row data, only updating fields that are provided
-      const updatedRowData = headers.map((header, index) => {
-        if (
-          header === 'Credit Application ID' &&
-          updateDto.creditApplicationId
-        ) {
-          return updateDto.creditApplicationId;
-        }
-        if (
-          header === 'Vendor Payment Method' &&
-          updateDto.vendorPaymentMethod
-        ) {
-          return updateDto.vendorPaymentMethod;
-        }
-        if (
-          header === 'Phone Number for M Pesa Payment' &&
-          updateDto.phoneNumberForMPesaPayment
-        ) {
-          return updateDto.phoneNumberForMPesaPayment;
-        }
-        if (
-          header === 'Manager Verification of Payment Account' &&
-          updateDto.managerVerification
-        ) {
-          return updateDto.managerVerification;
-        }
-        if (
-          header === 'Document Verifying Payment Account' &&
-          documentVerifyingPaymentAccount
-        ) {
-          return documentVerifyingPaymentAccount
-            ? `${this.imagesFolder}/${fileName}`
-            : '';
-        }
-        if (header === 'Bank Name' && updateDto.bankName) {
-          return updateDto.bankName;
-        }
-        if (header === 'Account Name' && updateDto.accountName) {
-          return updateDto.accountName;
-        }
-        if (header === 'Account Number' && updateDto.accountNumber) {
-          return updateDto.accountNumber;
-        }
-        if (
-          header === 'Phone Number for Bank Account' &&
-          updateDto.phoneNumberForBankAccount
-        ) {
-          return updateDto.phoneNumberForBankAccount;
-        }
-        if (
-          header === 'Paybill Number and Account' &&
-          updateDto.paybillNumberAndAccount
-        ) {
-          return updateDto.paybillNumberAndAccount;
-        }
-        if (header === 'Buy Goods Till ' && updateDto.buyGoodsTill) {
-          return updateDto.buyGoodsTill;
-        }
-        return detailRow[index] || '';
-      });
-
-      // Update the row
-      await this.sheetsService.updateRow(
-        this.SHEET_NAME,
-        id,
-        updatedRowData,
-        true,
+      // Trigger background sync
+      await this.triggerBackgroundSync(
+        existingRecord.id,
+        existingRecord.creditApplicationId,
+        'update',
       );
-
-      // Get the updated detail record
-      const updatedDetail = {};
-      headers.forEach((header, index) => {
-        updatedDetail[header] = updatedRowData[index];
-      });
 
       return {
         success: true,
         message: 'Vendor disbursement detail updated successfully',
-        data: updatedDetail,
+        data: {
+          id: updatedRecord.id,
+          sheetId: updatedRecord.sheetId,
+          ...updateData,
+        },
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -412,29 +477,47 @@ export class VendorDisbursementDetailsController {
     try {
       this.logger.log(`Deleting vendor disbursement detail with ID: ${id}`);
 
-      // First verify the detail exists
-      const details = await this.sheetsService.getSheetData(
-        this.SHEET_NAME,
-        true,
-      );
-      if (!details || details.length === 0) {
-        return { success: false, message: 'No disbursement details found' };
-      }
-
-      const headers = details[0];
-      const idIndex = headers.indexOf('ID');
-      const detailRow = details.find((row) => row[idIndex] === id);
-
-      if (!detailRow) {
+      // Find the existing record by sheetId
+      const existingRecord =
+        await this.vendorDisbursementDetailsDbService.findBySheetId(id);
+      if (!existingRecord) {
         return { success: false, message: 'Disbursement detail not found' };
       }
 
-      // Delete the row
-      await this.sheetsService.deleteRow(this.SHEET_NAME, id, true);
+      // Delete from Google Sheets if the record has a real sheetId (not temporary)
+      if (existingRecord.sheetId && !existingRecord.sheetId.startsWith('VD-')) {
+        try {
+          this.logger.log(
+            `Deleting record from Google Sheets with sheetId: ${existingRecord.sheetId}`,
+          );
+          await this.sheetsService.deleteRow(
+            'Vendor Disbursement Details',
+            existingRecord.sheetId,
+            true,
+          );
+          this.logger.log(`Successfully deleted record from Google Sheets`);
+        } catch (sheetsError: unknown) {
+          const error = sheetsError as any;
+          this.logger.error(
+            `Failed to delete from Google Sheets: ${error.message}`,
+          );
+          // Continue with database deletion even if sheets deletion fails
+        }
+      } else {
+        this.logger.log(
+          `Skipping Google Sheets deletion for temporary sheetId: ${existingRecord.sheetId}`,
+        );
+      }
+
+      // Delete from database
+      await this.vendorDisbursementDetailsDbService.delete(
+        existingRecord.id.toString(),
+      );
 
       return {
         success: true,
-        message: 'Vendor disbursement detail deleted successfully',
+        message:
+          'Vendor disbursement detail deleted successfully from both database and Google Sheets',
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -442,6 +525,76 @@ export class VendorDisbursementDetailsController {
         `Error deleting vendor disbursement detail: ${apiError.message}`,
       );
       throw error;
+    }
+  }
+
+  // Sync endpoints
+  @Post('sync/:id')
+  async syncVendorDisbursementDetailById(@Param('id') id: string) {
+    try {
+      this.logger.log(
+        `Manual sync requested for vendor disbursement detail: ${id}`,
+      );
+      const result =
+        await this.vendorDisbursementDetailsSyncService.syncVendorDisbursementDetailById(
+          parseInt(id),
+        );
+      return result;
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      this.logger.error(
+        `Failed to sync vendor disbursement detail ${id}: ${apiError.message}`,
+      );
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
+  @Post('sync-all')
+  async syncAllVendorDisbursementDetails() {
+    try {
+      this.logger.log(
+        'Manual sync requested for all vendor disbursement details',
+      );
+      const result =
+        await this.vendorDisbursementDetailsSyncService.syncAllToSheets();
+      return result;
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      this.logger.error(
+        `Failed to sync all vendor disbursement details: ${apiError.message}`,
+      );
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
+  @Post('sync-by-application/:creditApplicationId')
+  async syncVendorDisbursementDetailsByApplication(
+    @Param('creditApplicationId') creditApplicationId: string,
+  ) {
+    try {
+      this.logger.log(
+        `Manual sync requested for vendor disbursement details by credit application: ${creditApplicationId}`,
+      );
+      const result =
+        await this.vendorDisbursementDetailsSyncService.syncByCreditApplicationId(
+          creditApplicationId,
+        );
+      return result;
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      this.logger.error(
+        `Failed to sync vendor disbursement details for credit application ${creditApplicationId}: ${apiError.message}`,
+      );
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
     }
   }
 }

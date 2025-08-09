@@ -9,6 +9,7 @@ import { ConfigModule } from '@nestjs/config';
 import { SspModule } from './ssp/ssp.module';
 import { JfModule } from './jf/jf.module';
 import { SslTrackerModule } from './ssl-tracker/ssl-tracker.module';
+import { FleetModule } from './fleet/fleet.module';
 import { GoogleDriveModule } from 'nestjs-google-drive';
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { GoogleDriveModule } from 'nestjs-google-drive';
     SspModule,
     JfModule,
     SslTrackerModule,
+    FleetModule,
     GoogleDriveModule.register({
       clientId: 'your_google_client_id',
       clientSecret: 'your_google_client_secret',

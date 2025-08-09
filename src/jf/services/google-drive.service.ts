@@ -34,19 +34,108 @@ export class GoogleDriveService {
       parents: [folderId || this.GOOGLE_DRIVE_ROOT_FOLDER_ID],
     };
 
-    try {
-      const response = await this.drive.files.create({
-        requestBody: fileMetadata,
-        media: media,
-        fields: 'id,webViewLink',
-        supportsAllDrives: true,
-      });
+    const maxRetries = 3;
+    let lastError: any;
 
-      return response.data.webViewLink || response.data.id;
-    } catch (error) {
-      console.error('Error uploading file to Google Drive:', error);
-      throw new Error('Failed to upload file to Google Drive');
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        this.logger.debug(
+          `Uploading file ${filename} to Google Drive (attempt ${attempt}/${maxRetries})`,
+        );
+
+        const response = await this.drive.files.create({
+          requestBody: fileMetadata,
+          media: media,
+          fields: 'id,webViewLink',
+          supportsAllDrives: true,
+        });
+
+        this.logger.debug(
+          `Successfully uploaded file ${filename} to Google Drive`,
+        );
+        return response.data.webViewLink || response.data.id;
+      } catch (error: any) {
+        lastError = error;
+
+        // Log detailed error information
+        this.logger.error(
+          `Google Drive upload error (attempt ${attempt}/${maxRetries}):`,
+          {
+            filename,
+            folderId: folderId || this.GOOGLE_DRIVE_ROOT_FOLDER_ID,
+            status: error.status,
+            code: error.code,
+            message: error.message,
+            errors: error.errors,
+          },
+        );
+
+        // Check if this is a retryable error
+        const isRetryable = this.isRetryableError(error);
+
+        if (attempt === maxRetries || !isRetryable) {
+          // Final attempt or non-retryable error
+          const errorMessage = this.formatErrorMessage(error, filename);
+          throw new Error(errorMessage);
+        }
+
+        // Wait before retrying (exponential backoff)
+        const delay = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s
+        this.logger.debug(`Retrying upload in ${delay}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
     }
+
+    // This should never be reached, but just in case
+    throw new Error(
+      `Failed to upload file ${filename} after ${maxRetries} attempts`,
+    );
+  }
+
+  private isRetryableError(error: any): boolean {
+    // Retry on 5xx errors (server errors) and rate limiting
+    const retryableStatuses = [408, 429, 500, 502, 503, 504];
+    const retryableReasons = [
+      'internalError',
+      'quotaExceeded',
+      'rateLimitExceeded',
+      'userRateLimitExceeded',
+    ];
+
+    return (
+      retryableStatuses.includes(error.status) ||
+      retryableReasons.some((reason) =>
+        error.errors?.some((e: any) => e.reason === reason),
+      )
+    );
+  }
+
+  private formatErrorMessage(error: any, filename: string): string {
+    const status = error.status;
+    const code = error.code;
+    const message = error.message;
+
+    let errorDetails = `Failed to upload file ${filename}`;
+
+    if (status) {
+      errorDetails += ` (HTTP ${status})`;
+    }
+
+    if (code) {
+      errorDetails += ` - Code: ${code}`;
+    }
+
+    if (message && message !== 'Internal Error') {
+      errorDetails += ` - ${message}`;
+    }
+
+    // Add specific error details if available
+    if (error.errors && error.errors.length > 0) {
+      const errorReasons = error.errors.map((e: any) => e.reason).join(', ');
+      errorDetails += ` - Reasons: ${errorReasons}`;
+    }
+
+    return errorDetails;
   }
 
   async downloadFile(fileId: string): Promise<any> {

@@ -8,10 +8,17 @@ import {
   UploadedFile,
   UseInterceptors,
   Logger,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { SheetsService } from '../services/sheets.service';
 import { GoogleDriveService } from '../services/google-drive.service';
+import { ReferrersDbService } from '../services/referrers-db.service';
+import { ReferrersSyncService } from '../services/referrers-sync.service';
+import { FileUploadService } from '../services/file-upload.service';
+import { BackgroundUploadService } from '../services/background-upload.service';
+import { CreateReferrerDto } from '../dto/create-referrer.dto';
 
 @Controller('jf/referrers')
 export class ReferrersController {
@@ -23,96 +30,222 @@ export class ReferrersController {
   constructor(
     private readonly sheetsService: SheetsService,
     private readonly googleDriveService: GoogleDriveService,
+    private readonly referrersDbService: ReferrersDbService,
+    private readonly referrersSyncService: ReferrersSyncService,
+    private readonly fileUploadService: FileUploadService,
+    private readonly backgroundUploadService: BackgroundUploadService,
   ) {}
 
   @Post()
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
   @UseInterceptors(FileInterceptor('proofOfPayment'))
   async addReferrer(
-    @Body() body: any,
-    @UploadedFile() proofOfPayment: Express.Multer.File,
+    @Body() referrerData: CreateReferrerDto,
+    @UploadedFile() proofOfPayment?: Express.Multer.File,
   ) {
     try {
-      let proofUrl = '';
-      if (proofOfPayment) {
-        const timestamp = new Date().getTime();
-        const filename = `proof_${body['School ID']}_${timestamp}.${proofOfPayment.originalname.split('.').pop()}`;
-        await this.googleDriveService.uploadFile(
-          proofOfPayment.buffer,
-          filename,
-          proofOfPayment.mimetype,
-          this.PROOF_FOLDER_ID,
-        );
-        proofUrl = `${this.PROOF_FOLDER_NAME}/${filename}`;
+      this.logger.log('Adding new referrer via Postgres');
+
+      if (!referrerData['School ID']) {
+        return {
+          success: false,
+          error: 'School ID is required',
+        };
       }
-      const id = `REF-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-      const now = new Date().toISOString();
-      const rowData = {
-        ID: id,
-        'School ID': body['School ID'],
-        'Referrer Name': body['Referrer Name'],
-        'M Pesa Number': body['M Pesa Number'],
-        'Referral Reward Paid?': body['Referral Reward Paid?'],
-        'Date Paid': body['Date Paid'],
-        'Amount Paid': body['Amount Paid'],
-        'Proof of Payment': proofUrl,
-        'Created At': now,
+
+      // Save file locally first for faster response
+      let proofOfPaymentPath = '';
+
+      if (proofOfPayment) {
+        const customName = `proof_of_payment_${referrerData['School ID']}`;
+        proofOfPaymentPath = await this.fileUploadService.saveFile(
+          proofOfPayment,
+          'referrers',
+          customName,
+        );
+      }
+
+      // Prepare referrer data for Postgres
+      const referrerDataForDb = {
+        sheetId: `REF-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`, // Generate temporary sheetId
+        schoolId: referrerData['School ID'],
+        referrerName: referrerData['Referrer Name'],
+        mpesaNumber: referrerData['M Pesa Number'] || '',
+        referralRewardPaid: referrerData['Referral Reward Paid?'] || '',
+        datePaid: referrerData['Date Paid'] || '',
+        amountPaid: referrerData['Amount Paid'] || '',
+        proofOfPayment: proofOfPaymentPath || '',
+        synced: false,
       };
-      await this.sheetsService.appendRow(this.SHEET_NAME, rowData);
+
+      const result = await this.referrersDbService.create(referrerDataForDb);
+      this.logger.log(`Referrer added successfully via Postgres`);
+
+      // Queue file upload to Google Drive with referrer ID for database updates
+      if (proofOfPayment) {
+        const customName = `proof_of_payment_${referrerData['School ID']}`;
+        this.backgroundUploadService.queueFileUpload(
+          proofOfPaymentPath,
+          `${customName}_${Date.now()}.${proofOfPayment.originalname.split('.').pop()}`,
+          this.PROOF_FOLDER_ID,
+          proofOfPayment.mimetype,
+          undefined, // directorId (not applicable)
+          undefined, // fieldName (not applicable)
+          undefined, // consentId (not applicable)
+          undefined, // consentFieldName (not applicable)
+          result.id, // Pass referrer ID
+          'proofOfPayment', // Pass field name
+        );
+      }
+
+      // Trigger automatic sync to Google Sheets (non-blocking)
+      this.triggerBackgroundSync(result.id, result.schoolId, 'create');
+
       return {
         success: true,
+        data: result,
         message: 'Referrer added successfully',
-        data: rowData,
+        sync: {
+          triggered: true,
+          status: 'background',
+        },
+      };
+    } catch (error: unknown) {
+      const apiError = error as any;
+      this.logger.error(`Failed to add referrer: ${apiError.message}`);
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
+  /**
+   * Trigger background sync for a referrer
+   */
+  private async triggerBackgroundSync(
+    referrerId: number,
+    schoolId: string,
+    action: 'create' | 'update',
+  ): Promise<void> {
+    try {
+      this.logger.log(
+        `Triggering background sync for referrer ${referrerId} (${action})`,
+      );
+      await this.referrersSyncService.syncReferrerById(referrerId);
+      this.logger.log(
+        `Successfully synced referrer ${referrerId} to Google Sheets`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to sync referrer ${referrerId} to Google Sheets:`,
+        error,
+      );
+    }
+  }
+
+  @Get()
+  async getAllReferrers() {
+    try {
+      this.logger.log('Fetching all referrers');
+
+      const referrers = await this.referrersDbService.findAll();
+      this.logger.log(`Found ${referrers.length} referrers`);
+
+      // Convert to sheet format to maintain API compatibility
+      const referrersInSheetFormat =
+        this.referrersDbService.convertDbArrayToSheet(referrers);
+
+      // Convert local file paths to Google Drive URLs
+      const dataWithLinks = await Promise.all(
+        referrersInSheetFormat.map(async (referrer) => {
+          const referrerWithLinks = { ...referrer };
+
+          // Convert proof of payment file path to Google Drive URL
+          if (
+            referrer['Proof of Payment'] &&
+            referrer['Proof of Payment'].startsWith('/uploads/')
+          ) {
+            const filename = referrer['Proof of Payment'].split('/').pop();
+            try {
+              const fileLink = await this.googleDriveService.getFileLink(
+                filename,
+                this.PROOF_FOLDER_ID,
+              );
+              referrerWithLinks['Proof of Payment'] = fileLink;
+            } catch (error) {
+              this.logger.warn(
+                `Failed to get Google Drive link for file: ${filename}`,
+              );
+              // Keep the local path if Google Drive link fails
+            }
+          }
+
+          return referrerWithLinks;
+        }),
+      );
+
+      return {
+        success: true,
+        count: referrers.length,
+        data: dataWithLinks,
       };
     } catch (error) {
       const errMsg =
         error instanceof Error && error.message
           ? error.message
           : 'Unknown error';
-      this.logger.error('Error adding referrer:', error);
+      this.logger.error('Error fetching all referrers:', error);
       return { success: false, error: errMsg };
     }
   }
 
-  @Get('by-borrower/:borrowerId')
-  async getReferrersByBorrower(@Param('borrowerId') borrowerId: string) {
+  @Get('by-borrower/:schoolId')
+  async getReferrersBySchool(@Param('schoolId') schoolId: string) {
     try {
-      const rows = await this.sheetsService.getSheetData(this.SHEET_NAME);
-      if (!rows || rows.length === 0) {
-        return { success: true, count: 0, data: [] };
-      }
-      const headers = rows[0];
-      const schoolIdIndex = headers.indexOf('School ID');
-      const data = rows
-        .slice(1)
-        .filter((row) => row[schoolIdIndex] === borrowerId)
-        .map((row) => {
-          const obj = {};
-          headers.forEach((header, idx) => {
-            obj[header] = row[idx];
-          });
-          return obj;
-        });
+      this.logger.log(`Fetching referrers for school ID: ${schoolId}`);
 
-      const documentColumns = ['Proof of Payment'];
+      const referrers = await this.referrersDbService.findBySchoolId(schoolId);
+      this.logger.log(
+        `Found ${referrers.length} referrers for school ${schoolId}`,
+      );
+
+      // Convert to sheet format to maintain API compatibility
+      const referrersInSheetFormat =
+        this.referrersDbService.convertDbArrayToSheet(referrers);
+
+      // Convert local file paths to Google Drive URLs
       const dataWithLinks = await Promise.all(
-        data.map(async (director) => {
-          const singelDataWithLinks = { ...director };
-          for (const column of documentColumns) {
-            if (director[column]) {
-              const filename = director[column].split('/').pop();
+        referrersInSheetFormat.map(async (referrer) => {
+          const referrerWithLinks = { ...referrer };
+
+          // Convert proof of payment file path to Google Drive URL
+          if (
+            referrer['Proof of Payment'] &&
+            referrer['Proof of Payment'].startsWith('/uploads/')
+          ) {
+            const filename = referrer['Proof of Payment'].split('/').pop();
+            try {
               const fileLink = await this.googleDriveService.getFileLink(
                 filename,
                 this.PROOF_FOLDER_ID,
               );
-              singelDataWithLinks[column] = fileLink;
+              referrerWithLinks['Proof of Payment'] = fileLink;
+            } catch (error) {
+              this.logger.warn(
+                `Failed to get Google Drive link for file: ${filename}`,
+              );
+              // Keep the local path if Google Drive link fails
             }
           }
-          return singelDataWithLinks;
+
+          return referrerWithLinks;
         }),
       );
+
       return {
         success: true,
-        count: data.length,
+        count: referrers.length,
         data: dataWithLinks,
       };
     } catch (error) {
@@ -126,62 +259,136 @@ export class ReferrersController {
   }
 
   @Put(':id')
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
   @UseInterceptors(FileInterceptor('proofOfPayment'))
   async updateReferrer(
     @Param('id') id: string,
-    @Body() body: any,
-    @UploadedFile() proofOfPayment: Express.Multer.File,
+    @Body() referrerData: CreateReferrerDto,
+    @UploadedFile() proofOfPayment?: Express.Multer.File,
   ) {
     try {
-      const rows = await this.sheetsService.getSheetData(this.SHEET_NAME);
-      if (!rows || rows.length === 0) {
-        return { success: false, message: 'No referrers found' };
+      this.logger.log(`Updating referrer with ID: ${id}`);
+
+      // Find the existing referrer by sheetId (since the id parameter is the sheetId)
+      const existingReferrer = await this.referrersDbService.findBySheetId(id);
+      if (!existingReferrer) {
+        return { success: false, error: 'Referrer not found' };
       }
-      const headers = rows[0];
-      const idIndex = headers.indexOf('ID');
-      const rowIdx = rows.findIndex((row) => row[idIndex] === id);
-      if (rowIdx === -1) {
-        return { success: false, message: 'Referrer not found' };
-      }
-      let proofUrl = '';
+
+      // Handle file upload if provided
+      let proofOfPaymentPath = existingReferrer.proofOfPayment || '';
+
       if (proofOfPayment) {
-        const timestamp = new Date().getTime();
-        const filename = `proof_${body['School ID'] || rows[rowIdx][headers.indexOf('School ID')]}_${timestamp}.${proofOfPayment.originalname.split('.').pop()}`;
-        await this.googleDriveService.uploadFile(
-          proofOfPayment.buffer,
-          filename,
-          proofOfPayment.mimetype,
-          this.PROOF_FOLDER_ID,
+        const customName = `proof_of_payment_${referrerData['School ID'] || existingReferrer.schoolId}`;
+        proofOfPaymentPath = await this.fileUploadService.saveFile(
+          proofOfPayment,
+          'referrers',
+          customName,
         );
-        proofUrl = `${this.PROOF_FOLDER_NAME}/${filename}`;
+
+        // Queue file upload to Google Drive
+        this.backgroundUploadService.queueFileUpload(
+          proofOfPaymentPath,
+          `${customName}_${Date.now()}.${proofOfPayment.originalname.split('.').pop()}`,
+          this.PROOF_FOLDER_ID,
+          proofOfPayment.mimetype,
+          undefined, // directorId (not applicable)
+          undefined, // fieldName (not applicable)
+          undefined, // consentId (not applicable)
+          undefined, // consentFieldName (not applicable)
+          existingReferrer.id, // Pass referrer ID
+          'proofOfPayment', // Pass field name
+        );
       }
-      // Only update provided fields
-      const updatedRowData = headers.map((header, idx) => {
-        if (header === 'Proof of Payment' && proofUrl) {
-          return proofUrl;
-        }
-        if (body[header] !== undefined) {
-          return body[header];
-        }
-        return rows[rowIdx][idx] || '';
-      });
-      await this.sheetsService.updateRow(this.SHEET_NAME, id, updatedRowData);
-      const updatedObj = {};
-      headers.forEach((header, idx) => {
-        updatedObj[header] = updatedRowData[idx];
-      });
+
+      // Prepare update data
+      const updateData = {
+        schoolId: referrerData['School ID'] || existingReferrer.schoolId,
+        referrerName:
+          referrerData['Referrer Name'] || existingReferrer.referrerName,
+        mpesaNumber:
+          referrerData['M Pesa Number'] || existingReferrer.mpesaNumber,
+        referralRewardPaid:
+          referrerData['Referral Reward Paid?'] ||
+          existingReferrer.referralRewardPaid,
+        datePaid: referrerData['Date Paid'] || existingReferrer.datePaid,
+        amountPaid: referrerData['Amount Paid'] || existingReferrer.amountPaid,
+        proofOfPayment: proofOfPaymentPath,
+        synced: false, // Mark as unsynced to trigger sync
+      };
+
+      const result = await this.referrersDbService.update(id, updateData);
+      this.logger.log(`Referrer updated successfully via Postgres`);
+
+      // Trigger background sync
+      this.triggerBackgroundSync(result.id, result.schoolId, 'update');
+
       return {
         success: true,
+        data: result,
         message: 'Referrer updated successfully',
-        data: updatedObj,
+        sync: {
+          triggered: true,
+          status: 'background',
+        },
       };
-    } catch (error) {
-      const errMsg =
-        error instanceof Error && error.message
-          ? error.message
-          : 'Unknown error';
-      this.logger.error('Error updating referrer:', error);
-      return { success: false, error: errMsg };
+    } catch (error: unknown) {
+      const apiError = error as any;
+      this.logger.error(`Failed to update referrer: ${apiError.message}`);
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
+  @Post('sync/:id')
+  async syncReferrerById(@Param('id') id: string) {
+    try {
+      this.logger.log(`Manually syncing referrer with ID: ${id}`);
+
+      const numericId = parseInt(id);
+      if (isNaN(numericId)) {
+        return { success: false, error: 'Invalid referrer ID' };
+      }
+
+      const result =
+        await this.referrersSyncService.syncReferrerById(numericId);
+
+      return {
+        success: true,
+        message: 'Referrer sync completed',
+        data: result,
+      };
+    } catch (error: unknown) {
+      const apiError = error as any;
+      this.logger.error(`Failed to sync referrer: ${apiError.message}`);
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
+  @Post('sync-all')
+  async syncAllReferrers() {
+    try {
+      this.logger.log('Manually syncing all referrers');
+
+      const result = await this.referrersSyncService.syncAllToSheets();
+
+      return {
+        success: true,
+        message: 'All referrers sync completed',
+        data: result,
+      };
+    } catch (error: unknown) {
+      const apiError = error as any;
+      this.logger.error(`Failed to sync all referrers: ${apiError.message}`);
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
     }
   }
 }

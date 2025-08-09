@@ -10,14 +10,14 @@ export class CreateCreditApplicationDto {
   @IsString()
   'Borrower ID': string;
 
-  @IsDate()
-  'Application Start Date': Date;
+  @IsString()
+  'Application Start Date': string;
 
   @IsString()
   'Credit Type': string;
 
-  @IsNumber()
-  'Total Amount Requested': number;
+  @IsString()
+  'Total Amount Requested': string;
 
   @IsString()
   @IsOptional()
@@ -33,6 +33,10 @@ export class CreateCreditApplicationDto {
 
   @IsString()
   @IsOptional()
+  'SSL ID': string;
+
+  @IsString()
+  @IsOptional()
   'SSL Feedback on Action': string;
 
   @IsBoolean()
@@ -43,19 +47,23 @@ export class CreateCreditApplicationDto {
   @IsOptional()
   'Referred By': string;
 
-  @IsNumber()
+  @IsString()
   @IsOptional()
-  'Current Cost of Capital': number;
+  'Current Cost of Capital': string;
 
-  @IsNumber()
+  @IsString()
   @IsOptional()
-  'Checks Collected': number;
+  'Checks Collected': string;
 
-  @IsNumber()
+  @IsString()
   @IsOptional()
-  'Checks Needed for Loan': number;
+  'Checks Needed for Loan': string;
 
   @IsString()
   @IsOptional()
   'Comments on Checks': string;
+
+  @IsString()
+  @IsOptional()
+  'Status': string;
 }

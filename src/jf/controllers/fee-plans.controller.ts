@@ -8,9 +8,15 @@ import {
   UploadedFiles,
   Logger,
   Put,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { CreateFeePlanDto } from '../dto/create-fee-plan.dto';
+import { FeePlansDbService } from '../services/fee-plans-db.service';
+import { FeePlansSyncService } from '../services/fee-plans-sync.service';
+import { FileUploadService } from '../services/file-upload.service';
+import { BackgroundUploadService } from '../services/background-upload.service';
 import { SheetsService } from '../services/sheets.service';
 import { GoogleDriveService } from '../services/google-drive.service';
 
@@ -23,15 +29,20 @@ interface ApiError {
 @Controller('jf/fee-plans')
 export class FeePlansController {
   private readonly logger = new Logger(FeePlansController.name);
-  private readonly SHEET_NAME = 'Fee Plan Documents';
-  private readonly FeePLanDocFolder = 'Fee Plan Documents_Files_';
-  private readonly FeePLanImageFolder = 'Fee Plan Documents_Images';
   private readonly FEE_PLAN_IMAGES_FOLDER_ID =
     process.env.GOOGLE_DRIVE_FEE_PLANS_IMAGES_FOLDER_ID;
   private readonly FEE_PLAN_FILES_FOLDER_ID =
     process.env.GOOGLE_DRIVE_FEE_PLANS_FILES_FOLDER_ID;
+  private readonly FEE_PLAN_IMAGES_FOLDER_NAME =
+    process.env.GOOGLE_DRIVE_FEE_PLANS_IMAGES_FOLDER_NAME;
+  private readonly FEE_PLAN_FILES_FOLDER_NAME =
+    process.env.GOOGLE_DRIVE_FEE_PLANS_FILES_FOLDER_NAME;
 
   constructor(
+    private readonly feePlansDbService: FeePlansDbService,
+    private readonly feePlansSyncService: FeePlansSyncService,
+    private readonly fileUploadService: FileUploadService,
+    private readonly backgroundUploadService: BackgroundUploadService,
     private readonly sheetsService: SheetsService,
     private readonly googleDriveService: GoogleDriveService,
   ) {}
@@ -44,61 +55,54 @@ export class FeePlansController {
       this.logger.log(
         `Fetching fee plans for credit application: ${creditApplicationId}`,
       );
-      const feePlans = await this.sheetsService.getSheetData(
-        this.SHEET_NAME,
-        true,
-      );
+      const feePlans =
+        await this.feePlansDbService.findByCreditApplicationId(
+          creditApplicationId,
+        );
 
-      if (!feePlans || feePlans.length === 0) {
-        return { success: true, count: 0, data: [] };
-      }
+      // Convert database records to original sheet format for frontend compatibility
+      const feePlansWithOriginalKeys = feePlans.map((feePlan) => {
+        const convertedFeePlan = {
+          ID: feePlan.sheetId || '',
+          'Credit Application ID': feePlan.creditApplicationId || '',
+          'School Year': feePlan.schoolYear || '',
+          Photo: feePlan.photo || '',
+          File: feePlan.file || '',
+          'Created At': feePlan.createdAt?.toISOString() || '',
+          Synced: feePlan.synced || false,
+        };
+        return convertedFeePlan;
+      });
 
-      const headers = feePlans[0];
-      const applicationIdIndex = headers.indexOf('Credit Application ID');
-
-      if (applicationIdIndex === -1) {
-        throw new Error('Credit Application ID column not found in sheet');
-      }
-
-      const filteredData = feePlans
-        .slice(1)
-        .filter((row) => row[applicationIdIndex] === creditApplicationId)
-        .map((row) => {
-          const feePlan = {};
-          headers.forEach((header, index) => {
-            feePlan[header] = row[index];
-          });
-          return feePlan;
-        });
-
+      // Add Google Drive links for document columns
       const documentColumns = ['Photo', 'File'];
-      const datasWithLinks = await Promise.all(
-        filteredData.map(async (director) => {
-          const dataWithLinks = { ...director };
+      const feePlansWithLinks = await Promise.all(
+        feePlansWithOriginalKeys.map(async (feePlan) => {
+          const feePlanWithLinks = { ...feePlan };
           for (const column of documentColumns) {
-            if (director[column]) {
+            if (feePlan[column]) {
               let folderId = '';
-              if (column == 'Photo') {
+              if (column === 'Photo') {
                 folderId = this.FEE_PLAN_IMAGES_FOLDER_ID;
-              } else if (column == 'File') {
+              } else if (column === 'File') {
                 folderId = this.FEE_PLAN_FILES_FOLDER_ID;
               }
-              const filename = director[column].split('/').pop();
+              const filename = feePlan[column].split('/').pop();
               const fileLink = await this.googleDriveService.getFileLink(
                 filename,
                 folderId,
               );
-              dataWithLinks[column] = fileLink;
+              feePlanWithLinks[column] = fileLink;
             }
           }
-          return dataWithLinks;
+          return feePlanWithLinks;
         }),
       );
 
       return {
         success: true,
-        count: filteredData.length,
-        data: datasWithLinks,
+        count: feePlansWithLinks.length,
+        data: feePlansWithLinks,
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -110,6 +114,7 @@ export class FeePlansController {
   }
 
   @Post()
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
   @UseInterceptors(
     FileFieldsInterceptor([
       { name: 'photo', maxCount: 1 },
@@ -129,63 +134,311 @@ export class FeePlansController {
         `Adding new fee plan for application: ${createDto['Credit Application ID']}`,
       );
 
-      // Handle photo upload
-      let photoName = '';
-      if (files.photo?.[0]) {
-        const photo = files.photo[0];
-        const timestamp = new Date().getTime();
-        photoName = `fee_plan_photo_${createDto['Credit Application ID']}_${timestamp}.${photo.originalname.split('.').pop()}`;
-
-        await this.googleDriveService.uploadFile(
-          photo.buffer,
-          photoName,
-          photo.mimetype,
-          this.FEE_PLAN_IMAGES_FOLDER_ID,
-        );
+      if (!createDto['Credit Application ID']) {
+        return {
+          success: false,
+          error: 'Credit Application ID is required',
+        };
       }
 
-      // Handle file upload
-      let filename = '';
-      if (files.file?.[0]) {
-        const file = files.file[0];
-        const timestamp = new Date().getTime();
-        filename = `fee_plan_file_${createDto['Credit Application ID']}_${timestamp}.${file.originalname.split('.').pop()}`;
-
-        await this.googleDriveService.uploadFile(
-          file.buffer,
-          filename,
-          file.mimetype,
-          this.FEE_PLAN_FILES_FOLDER_ID,
-        );
-      }
-
-      const id = `FP-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+      // Save files locally first for faster response
+      let photoPath = '';
+      let filePath = '';
       const now = new Date().toISOString();
 
-      const rowData = {
-        ID: id,
-        'Credit Application ID': createDto['Credit Application ID'],
-        'School Year': createDto['School Year'],
-        Photo: photoName ? `${this.FeePLanImageFolder}/${photoName}` : '',
-        File: filename ? `${this.FeePLanDocFolder}/${filename}` : '',
-        'Created At': now,
+      if (files.photo?.[0]) {
+        const customName = `fee_plan_photo_${createDto['Credit Application ID']}`;
+        photoPath = await this.fileUploadService.saveFile(
+          files.photo[0],
+          'fee-plans',
+          customName,
+        );
+      }
+
+      if (files.file?.[0]) {
+        const customName = `fee_plan_file_${createDto['Credit Application ID']}`;
+        filePath = await this.fileUploadService.saveFile(
+          files.file[0],
+          'fee-plans',
+          customName,
+        );
+      }
+
+      // Prepare fee plan data for Postgres
+      const feePlanDataForDb = {
+        sheetId: `FP-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`, // Generate temporary sheetId
+        creditApplicationId: createDto['Credit Application ID'],
+        schoolYear: createDto['School Year'],
+        photo: photoPath || '',
+        file: filePath || '',
+        synced: false,
+        createdAt: now,
       };
 
-      await this.sheetsService.appendRow(this.SHEET_NAME, rowData, true);
+      const result = await this.feePlansDbService.create(feePlanDataForDb);
+      this.logger.log(`Fee plan added successfully via Postgres`);
+
+      // Queue file uploads to Google Drive with fee plan ID for database updates
+      if (files.photo?.[0]) {
+        const customName = `fee_plan_photo_${createDto['Credit Application ID']}`;
+        this.backgroundUploadService.queueFileUpload(
+          photoPath,
+          `${customName}_${Date.now()}.${files.photo[0].originalname.split('.').pop()}`,
+          this.FEE_PLAN_IMAGES_FOLDER_ID,
+          files.photo[0].mimetype,
+          undefined, // directorId (not applicable)
+          undefined, // fieldName (not applicable)
+          undefined, // consentId (not applicable)
+          undefined, // consentFieldName (not applicable)
+          undefined, // referrerId (not applicable)
+          undefined, // referrerFieldName (not applicable)
+          undefined, // creditApplicationId (not applicable)
+          undefined, // creditApplicationFieldName (not applicable)
+          undefined, // activeDebtId (not applicable)
+          undefined, // activeDebtFieldName (not applicable)
+          result.id, // Pass fee plan ID
+          'photo', // Pass field name
+        );
+      }
+
+      if (files.file?.[0]) {
+        const customName = `fee_plan_file_${createDto['Credit Application ID']}`;
+        this.backgroundUploadService.queueFileUpload(
+          filePath,
+          `${customName}_${Date.now()}.${files.file[0].originalname.split('.').pop()}`,
+          this.FEE_PLAN_FILES_FOLDER_ID,
+          files.file[0].mimetype,
+          undefined, // directorId (not applicable)
+          undefined, // fieldName (not applicable)
+          undefined, // consentId (not applicable)
+          undefined, // consentFieldName (not applicable)
+          undefined, // referrerId (not applicable)
+          undefined, // referrerFieldName (not applicable)
+          undefined, // creditApplicationId (not applicable)
+          undefined, // creditApplicationFieldName (not applicable)
+          undefined, // activeDebtId (not applicable)
+          undefined, // activeDebtFieldName (not applicable)
+          result.id, // Pass fee plan ID
+          'file', // Pass field name
+        );
+      }
+
+      // Trigger automatic sync to Google Sheets (non-blocking)
+      this.triggerBackgroundSync(
+        result.id,
+        result.creditApplicationId,
+        'create',
+      );
 
       return {
         success: true,
+        data: result,
         message: 'Fee plan added successfully',
-        data: rowData,
+        sync: {
+          triggered: true,
+          status: 'background',
+        },
+      };
+    } catch (error: unknown) {
+      const apiError = error as any;
+      this.logger.error(`Failed to add fee plan: ${apiError.message}`);
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
+  /**
+   * Trigger background sync for fee plan
+   */
+  private async triggerBackgroundSync(
+    dbId: number,
+    creditApplicationId: string,
+    operation: 'create' | 'update',
+  ) {
+    try {
+      this.logger.log(
+        `Triggering background sync for fee plan ${dbId} (${operation})`,
+      );
+      await this.feePlansSyncService.syncFeePlanById(dbId);
+      this.logger.log(
+        `Background sync triggered successfully for fee plan ${dbId}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to trigger background sync for fee plan ${dbId}: ${error}`,
+      );
+    }
+  }
+
+  @Get()
+  async getAllFeePlans() {
+    try {
+      this.logger.log('Fetching all fee plans');
+      const feePlans = await this.feePlansDbService.findAll();
+
+      // Convert database records to original sheet format for frontend compatibility
+      const feePlansWithOriginalKeys = feePlans.map((feePlan) => {
+        const convertedFeePlan = {
+          ID: feePlan.sheetId || '',
+          'Credit Application ID': feePlan.creditApplicationId || '',
+          'School Year': feePlan.schoolYear || '',
+          Photo: feePlan.photo || '',
+          File: feePlan.file || '',
+          'Created At': feePlan.createdAt?.toISOString() || '',
+          Synced: feePlan.synced || false,
+        };
+        return convertedFeePlan;
+      });
+
+      // Add Google Drive links for document columns
+      const documentColumns = ['Photo', 'File'];
+      const feePlansWithLinks = await Promise.all(
+        feePlansWithOriginalKeys.map(async (feePlan) => {
+          const feePlanWithLinks = { ...feePlan };
+          for (const column of documentColumns) {
+            if (feePlan[column]) {
+              let folderId = '';
+              if (column === 'Photo') {
+                folderId = this.FEE_PLAN_IMAGES_FOLDER_ID;
+              } else if (column === 'File') {
+                folderId = this.FEE_PLAN_FILES_FOLDER_ID;
+              }
+              const filename = feePlan[column].split('/').pop();
+              const fileLink = await this.googleDriveService.getFileLink(
+                filename,
+                folderId,
+              );
+              feePlanWithLinks[column] = fileLink;
+            }
+          }
+          return feePlanWithLinks;
+        }),
+      );
+
+      return {
+        success: true,
+        count: feePlansWithLinks.length,
+        data: feePlansWithLinks,
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
-      this.logger.error(`Error adding fee plan: ${apiError.message}`);
+      this.logger.error(`Error fetching all fee plans: ${apiError.message}`);
       throw error;
     }
   }
 
+  @Get(':id')
+  async getFeePlanById(@Param('id') id: string) {
+    try {
+      this.logger.log(`Fetching fee plan with ID: ${id}`);
+      const feePlan = await this.feePlansDbService.findById(id);
+
+      if (!feePlan) {
+        return { success: false, message: 'Fee plan not found' };
+      }
+
+      // Convert database record to original sheet format for frontend compatibility
+      const feePlanWithOriginalKeys = {
+        ID: feePlan.sheetId || '',
+        'Credit Application ID': feePlan.creditApplicationId || '',
+        'School Year': feePlan.schoolYear || '',
+        Photo: feePlan.photo || '',
+        File: feePlan.file || '',
+        'Created At': feePlan.createdAt?.toISOString() || '',
+        Synced: feePlan.synced || false,
+      };
+
+      // Add Google Drive links for document columns
+      const documentColumns = ['Photo', 'File'];
+      const feePlanWithLinks = { ...feePlanWithOriginalKeys };
+      for (const column of documentColumns) {
+        if (feePlanWithLinks[column]) {
+          let folderId = '';
+          if (column === 'Photo') {
+            folderId = this.FEE_PLAN_IMAGES_FOLDER_ID;
+          } else if (column === 'File') {
+            folderId = this.FEE_PLAN_FILES_FOLDER_ID;
+          }
+          const filename = feePlanWithLinks[column].split('/').pop();
+          const fileLink = await this.googleDriveService.getFileLink(
+            filename,
+            folderId,
+          );
+          feePlanWithLinks[column] = fileLink;
+        }
+      }
+
+      return { success: true, data: feePlanWithLinks };
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      this.logger.error(`Error fetching fee plan ${id}: ${apiError.message}`);
+      throw error;
+    }
+  }
+
+  @Post('sync/:id')
+  async syncFeePlanById(@Param('id') id: string) {
+    try {
+      this.logger.log(`Manual sync requested for fee plan: ${id}`);
+      const result = await this.feePlansSyncService.syncFeePlanById(
+        parseInt(id),
+      );
+      return result;
+    } catch (error: unknown) {
+      const apiError = error as any;
+      this.logger.error(`Failed to sync fee plan ${id}: ${apiError.message}`);
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
+  @Post('sync-all')
+  async syncAllFeePlans() {
+    try {
+      this.logger.log('Manual sync requested for all fee plans');
+      const result = await this.feePlansSyncService.syncAllToSheets();
+      return result;
+    } catch (error: unknown) {
+      const apiError = error as any;
+      this.logger.error(`Failed to sync all fee plans: ${apiError.message}`);
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
+  @Post('sync-by-application/:creditApplicationId')
+  async syncFeePlansByApplication(
+    @Param('creditApplicationId') creditApplicationId: string,
+  ) {
+    try {
+      this.logger.log(
+        `Manual sync requested for fee plans by credit application: ${creditApplicationId}`,
+      );
+      const result =
+        await this.feePlansSyncService.syncByCreditApplicationId(
+          creditApplicationId,
+        );
+      return result;
+    } catch (error: unknown) {
+      const apiError = error as any;
+      this.logger.error(
+        `Failed to sync fee plans for credit application ${creditApplicationId}: ${apiError.message}`,
+      );
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
   @Put(':id')
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
   @UseInterceptors(
     FileFieldsInterceptor([
       { name: 'photo', maxCount: 1 },
@@ -204,90 +457,127 @@ export class FeePlansController {
     try {
       this.logger.log(`Updating fee plan with ID: ${id}`);
 
-      // First verify the fee plan exists
-      const feePlans = await this.sheetsService.getSheetData(
-        this.SHEET_NAME,
-        true,
+      // Find the existing fee plan by sheetId (since the id parameter is the sheetId)
+      const existingFeePlan = await this.feePlansDbService.findBySheetId(id);
+      if (!existingFeePlan) {
+        return { success: false, error: 'Fee plan not found' };
+      }
+
+      this.logger.log(
+        `Updating fee plan with sheetId: ${id}, database ID: ${existingFeePlan.id}, current photo: ${existingFeePlan.photo}, current file: ${existingFeePlan.file}`,
       );
-      if (!feePlans || feePlans.length === 0) {
-        return { success: false, message: 'No fee plans found' };
-      }
 
-      const headers = feePlans[0];
-      const idIndex = headers.indexOf('ID');
-      const feePlanRow = feePlans.find((row) => row[idIndex] === id);
+      // Handle file uploads if provided
+      let photoPath = existingFeePlan.photo || '';
+      let filePath = existingFeePlan.file || '';
 
-      if (!feePlanRow) {
-        return { success: false, message: 'Fee plan not found' };
-      }
-
-      // Handle photo upload if provided
-      let photoname = '';
       if (files.photo?.[0]) {
-        const photo = files.photo[0];
-        const timestamp = new Date().getTime();
-        photoname = `fee_plan_photo_${updateData['Credit Application ID'] || feePlanRow[headers.indexOf('Credit Application ID')]}_${timestamp}.${photo.originalname.split('.').pop()}`;
+        const customName = `fee_plan_photo_${updateData['Credit Application ID'] || existingFeePlan.creditApplicationId}`;
+        this.logger.log(
+          `Updating fee plan ${existingFeePlan.id} with new photo upload`,
+        );
+        photoPath = await this.fileUploadService.saveFile(
+          files.photo[0],
+          'fee-plans',
+          customName,
+        );
 
-        await this.googleDriveService.uploadFile(
-          photo.buffer,
-          photoname,
-          photo.mimetype,
+        // Queue photo upload to Google Drive
+        this.backgroundUploadService.queueFileUpload(
+          photoPath,
+          `${customName}_${Date.now()}.${files.photo[0].originalname.split('.').pop()}`,
           this.FEE_PLAN_IMAGES_FOLDER_ID,
+          files.photo[0].mimetype,
+          undefined, // directorId (not applicable)
+          undefined, // fieldName (not applicable)
+          undefined, // consentId (not applicable)
+          undefined, // consentFieldName (not applicable)
+          undefined, // referrerId (not applicable)
+          undefined, // referrerFieldName (not applicable)
+          undefined, // creditApplicationId (not applicable)
+          undefined, // creditApplicationFieldName (not applicable)
+          undefined, // activeDebtId (not applicable)
+          undefined, // activeDebtFieldName (not applicable)
+          existingFeePlan.id, // Pass fee plan ID
+          'photo', // Pass field name
+        );
+        this.logger.log(
+          `Photo upload queued for fee plan update ${existingFeePlan.id}`,
         );
       }
 
-      // Handle file upload if provided
-      let filename = '';
       if (files.file?.[0]) {
-        const file = files.file[0];
-        const timestamp = new Date().getTime();
-        filename = `fee_plan_file_${updateData['Credit Application ID'] || feePlanRow[headers.indexOf('Credit Application ID')]}_${timestamp}.${file.originalname.split('.').pop()}`;
+        const customName = `fee_plan_file_${updateData['Credit Application ID'] || existingFeePlan.creditApplicationId}`;
+        this.logger.log(
+          `Updating fee plan ${existingFeePlan.id} with new file upload`,
+        );
+        filePath = await this.fileUploadService.saveFile(
+          files.file[0],
+          'fee-plans',
+          customName,
+        );
 
-        await this.googleDriveService.uploadFile(
-          file.buffer,
-          filename,
-          file.mimetype,
+        // Queue file upload to Google Drive
+        this.backgroundUploadService.queueFileUpload(
+          filePath,
+          `${customName}_${Date.now()}.${files.file[0].originalname.split('.').pop()}`,
           this.FEE_PLAN_FILES_FOLDER_ID,
+          files.file[0].mimetype,
+          undefined, // directorId (not applicable)
+          undefined, // fieldName (not applicable)
+          undefined, // consentId (not applicable)
+          undefined, // consentFieldName (not applicable)
+          undefined, // referrerId (not applicable)
+          undefined, // referrerFieldName (not applicable)
+          undefined, // creditApplicationId (not applicable)
+          undefined, // creditApplicationFieldName (not applicable)
+          undefined, // activeDebtId (not applicable)
+          undefined, // activeDebtFieldName (not applicable)
+          existingFeePlan.id, // Pass fee plan ID
+          'file', // Pass field name
+        );
+        this.logger.log(
+          `File upload queued for fee plan update ${existingFeePlan.id}`,
         );
       }
 
-      // Create updated row data, only updating fields that are provided
-      const updatedRowData = headers.map((header, index) => {
-        if (header === 'Photo' && photoname) {
-          return `${this.FeePLanImageFolder}/${photoname}`;
-        }
-        if (header === 'File' && filename) {
-          return `${this.FeePLanDocFolder}/${filename}`;
-        }
-        if (updateData[header] !== undefined) {
-          return updateData[header];
-        }
-        return feePlanRow[index] || '';
-      });
+      // Prepare update data
+      const updateDataForDb = {
+        creditApplicationId:
+          updateData['Credit Application ID'] ||
+          existingFeePlan.creditApplicationId,
+        schoolYear: updateData['School Year'] || existingFeePlan.schoolYear,
+        photo: photoPath,
+        file: filePath,
+        synced: false, // Mark as unsynced to trigger sync
+      };
 
-      // Update the row
-      await this.sheetsService.updateRow(
-        this.SHEET_NAME,
-        id,
-        updatedRowData,
-        true,
+      const result = await this.feePlansDbService.update(id, updateDataForDb);
+      this.logger.log(`Fee plan updated successfully via Postgres`);
+
+      // Trigger background sync
+      this.triggerBackgroundSync(
+        result.id,
+        result.creditApplicationId,
+        'update',
       );
-
-      // Get the updated fee plan
-      const updatedFeePlan = {};
-      headers.forEach((header, index) => {
-        updatedFeePlan[header] = updatedRowData[index];
-      });
 
       return {
         success: true,
+        data: result,
         message: 'Fee plan updated successfully',
-        data: updatedFeePlan,
+        sync: {
+          triggered: true,
+          status: 'background',
+        },
       };
     } catch (error: unknown) {
-      const apiError = error as ApiError;
-      this.logger.error(`Error updating fee plan: ${apiError.message}`);
-      throw error;
+      const apiError = error as any;
+      this.logger.error(`Failed to update fee plan: ${apiError.message}`);
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
     }
   }
 }

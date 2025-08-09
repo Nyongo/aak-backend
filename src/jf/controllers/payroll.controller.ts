@@ -6,8 +6,12 @@ import {
   Param,
   Logger,
   Put,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { CreatePayrollDto } from '../dto/create-payroll.dto';
+import { PayrollDbService } from '../services/payroll-db.service';
+import { PayrollSyncService } from '../services/payroll-sync.service';
 import { SheetsService } from '../services/sheets.service';
 import * as moment from 'moment';
 
@@ -20,9 +24,12 @@ interface ApiError {
 @Controller('jf/payroll')
 export class PayrollController {
   private readonly logger = new Logger(PayrollController.name);
-  private readonly SHEET_NAME = 'Payroll';
 
-  constructor(private readonly sheetsService: SheetsService) {}
+  constructor(
+    private readonly payrollDbService: PayrollDbService,
+    private readonly payrollSyncService: PayrollSyncService,
+    private readonly sheetsService: SheetsService,
+  ) {}
 
   @Get('by-application/:creditApplicationId')
   async getPayrollByApplication(
@@ -32,36 +39,34 @@ export class PayrollController {
       this.logger.log(
         `Fetching payroll records for credit application: ${creditApplicationId}`,
       );
-      const payrollRecords = await this.sheetsService.getSheetData(
-        this.SHEET_NAME,
-      );
+      const payrollRecords =
+        await this.payrollDbService.findByCreditApplicationId(
+          creditApplicationId,
+        );
 
-      if (!payrollRecords || payrollRecords.length === 0) {
-        return { success: true, count: 0, data: [] };
-      }
-
-      const headers = payrollRecords[0];
-      const applicationIdIndex = headers.indexOf('Credit Application ID');
-
-      if (applicationIdIndex === -1) {
-        throw new Error('Credit Application ID column not found in sheet');
-      }
-
-      const filteredData = payrollRecords
-        .slice(1)
-        .filter((row) => row[applicationIdIndex] === creditApplicationId)
-        .map((row) => {
-          const payroll = {};
-          headers.forEach((header, index) => {
-            payroll[header] = row[index];
-          });
-          return payroll;
-        });
+      // Convert database records to original sheet format for frontend compatibility
+      const payrollRecordsWithOriginalKeys = payrollRecords.map((payroll) => {
+        const convertedPayroll = {
+          ID: payroll.sheetId || '',
+          'Credit Application ID': payroll.creditApplicationId || '',
+          Role: payroll.role || '',
+          'Number of Employees in Role':
+            payroll.numberOfEmployeesInRole?.toString() || '',
+          'Monthly Salary': payroll.monthlySalary?.toString() || '',
+          'Months per Year the Role is Paid':
+            payroll.monthsPerYearTheRoleIsPaid?.toString() || '',
+          Notes: payroll.notes || '',
+          'Total Annual Cost': payroll.totalAnnualCost?.toString() || '',
+          'Created At': payroll.createdAt?.toISOString() || '',
+          Synced: payroll.synced || false,
+        };
+        return convertedPayroll;
+      });
 
       return {
         success: true,
-        count: filteredData.length,
-        data: filteredData,
+        count: payrollRecordsWithOriginalKeys.length,
+        data: payrollRecordsWithOriginalKeys,
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -73,42 +78,92 @@ export class PayrollController {
   }
 
   @Post()
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
   async addPayrollRecord(@Body() createDto: CreatePayrollDto) {
     try {
       this.logger.log(
         `Adding new payroll record for application: ${createDto['Credit Application ID']}`,
       );
 
-      const id = `PR-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+      if (!createDto['Credit Application ID']) {
+        return {
+          success: false,
+          error: 'Credit Application ID is required',
+        };
+      }
+
       const now = moment.utc().format('DD/MM/YYYY HH:mm:ss');
 
-      const rowData = {
-        ID: id,
-        'Credit Application ID': createDto['Credit Application ID'],
-        Role: createDto['Role'],
-        'Number of Employees in Role': createDto['Number of Employees in Role'],
-        'Monthly Salary': createDto['Monthly Salary'],
-        'Months per Year the Role is Paid':
+      // Calculate total annual cost
+      const totalAnnualCost =
+        createDto['Number of Employees in Role'] *
+        createDto['Monthly Salary'] *
+        createDto['Months per Year the Role is Paid'];
+
+      // Prepare payroll data for Postgres
+      const payrollDataForDb = {
+        sheetId: `PR-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`, // Generate temporary sheetId
+        creditApplicationId: createDto['Credit Application ID'],
+        role: createDto['Role'],
+        numberOfEmployeesInRole: createDto['Number of Employees in Role'],
+        monthlySalary: createDto['Monthly Salary'],
+        monthsPerYearTheRoleIsPaid:
           createDto['Months per Year the Role is Paid'],
-        Notes: createDto['Notes'] || '',
-        'Created At': now,
-        'Total Annual Cost':
-          createDto['Number of Employees in Role'] *
-          createDto['Monthly Salary'] *
-          createDto['Months per Year the Role is Paid'],
+        notes: createDto['Notes'] || '',
+        totalAnnualCost: totalAnnualCost,
+        synced: false,
+        createdAt: new Date(now),
       };
 
-      await this.sheetsService.appendRow(this.SHEET_NAME, rowData);
+      const result = await this.payrollDbService.create(payrollDataForDb);
+      this.logger.log(`Payroll record added successfully via Postgres`);
+
+      // Trigger automatic sync to Google Sheets (non-blocking)
+      this.triggerBackgroundSync(
+        result.id,
+        result.creditApplicationId,
+        'create',
+      );
 
       return {
         success: true,
+        data: result,
         message: 'Payroll record added successfully',
-        data: rowData,
+        sync: {
+          triggered: true,
+          status: 'background',
+        },
       };
     } catch (error: unknown) {
-      const apiError = error as ApiError;
-      this.logger.error(`Error adding payroll record: ${apiError.message}`);
-      throw error;
+      const apiError = error as any;
+      this.logger.error(`Failed to add payroll record: ${apiError.message}`);
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
+  /**
+   * Trigger background sync for payroll record
+   */
+  private async triggerBackgroundSync(
+    dbId: number,
+    creditApplicationId: string,
+    operation: 'create' | 'update',
+  ) {
+    try {
+      this.logger.log(
+        `Triggering background sync for payroll record ${dbId} (${operation})`,
+      );
+      await this.payrollSyncService.syncPayrollById(dbId);
+      this.logger.log(
+        `Background sync triggered successfully for payroll record ${dbId}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to trigger background sync for payroll record ${dbId}: ${error}`,
+      );
     }
   }
 
@@ -120,65 +175,17 @@ export class PayrollController {
       this.logger.log(
         `Calculating total monthly cost for credit application: ${creditApplicationId}`,
       );
-      const payrollRecords = await this.sheetsService.getSheetData(
-        this.SHEET_NAME,
-      );
 
-      if (!payrollRecords || payrollRecords.length === 0) {
-        return {
-          success: true,
-          totalMonthlyCost: 0,
-          annualCost: 0,
-        };
-      }
-
-      const headers = payrollRecords[0];
-      const applicationIdIndex = headers.indexOf('Credit Application ID');
-      const employeesIndex = headers.indexOf('Number of Employees in Role');
-      const salaryIndex = headers.indexOf('Monthly Salary');
-      const monthsIndex = headers.indexOf('Months per Year the Role is Paid');
-
-      if (
-        applicationIdIndex === -1 ||
-        employeesIndex === -1 ||
-        salaryIndex === -1 ||
-        monthsIndex === -1
-      ) {
-        throw new Error('Required columns not found in sheet');
-      }
-
-      const records = payrollRecords
-        .slice(1)
-        .filter((row) => row[applicationIdIndex] === creditApplicationId);
-
-      const totalMonthlyCost = records.reduce((total, row) => {
-        const employees = Number(row[employeesIndex]) || 0;
-        const salary = Number(row[salaryIndex]) || 0;
-        return total + employees * salary;
-      }, 0);
-
-      const annualCost = records.reduce((total, row) => {
-        const employees = Number(row[employeesIndex]) || 0;
-        const salary = Number(row[salaryIndex]) || 0;
-        const months = Number(row[monthsIndex]) || 12;
-        return total + employees * salary * months;
-      }, 0);
+      const result =
+        await this.payrollDbService.calculateTotalMonthlyCost(
+          creditApplicationId,
+        );
 
       return {
         success: true,
-        totalMonthlyCost,
-        annualCost,
-        data: records.map((row) => ({
-          role: row[headers.indexOf('Role')],
-          employees: row[employeesIndex],
-          monthlySalary: row[salaryIndex],
-          monthsPerYear: row[monthsIndex],
-          monthlyCost: Number(row[employeesIndex]) * Number(row[salaryIndex]),
-          annualCost:
-            Number(row[employeesIndex]) *
-            Number(row[salaryIndex]) *
-            Number(row[monthsIndex]),
-        })),
+        totalMonthlyCost: result.totalMonthlyCost,
+        annualCost: result.annualCost,
+        data: result.data,
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -189,7 +196,146 @@ export class PayrollController {
     }
   }
 
+  @Get()
+  async getAllPayrollRecords() {
+    try {
+      this.logger.log('Fetching all payroll records');
+      const payrollRecords = await this.payrollDbService.findAll();
+
+      // Convert database records to original sheet format for frontend compatibility
+      const payrollRecordsWithOriginalKeys = payrollRecords.map((payroll) => {
+        const convertedPayroll = {
+          ID: payroll.sheetId || '',
+          'Credit Application ID': payroll.creditApplicationId || '',
+          Role: payroll.role || '',
+          'Number of Employees in Role':
+            payroll.numberOfEmployeesInRole?.toString() || '',
+          'Monthly Salary': payroll.monthlySalary?.toString() || '',
+          'Months per Year the Role is Paid':
+            payroll.monthsPerYearTheRoleIsPaid?.toString() || '',
+          Notes: payroll.notes || '',
+          'Total Annual Cost': payroll.totalAnnualCost?.toString() || '',
+          'Created At': payroll.createdAt?.toISOString() || '',
+          Synced: payroll.synced || false,
+        };
+        return convertedPayroll;
+      });
+
+      return {
+        success: true,
+        count: payrollRecordsWithOriginalKeys.length,
+        data: payrollRecordsWithOriginalKeys,
+      };
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      this.logger.error(
+        `Error fetching all payroll records: ${apiError.message}`,
+      );
+      throw error;
+    }
+  }
+
+  @Get(':id')
+  async getPayrollRecordById(@Param('id') id: string) {
+    try {
+      this.logger.log(`Fetching payroll record with ID: ${id}`);
+      const payroll = await this.payrollDbService.findById(id);
+
+      if (!payroll) {
+        return { success: false, message: 'Payroll record not found' };
+      }
+
+      // Convert database record to original sheet format for frontend compatibility
+      const payrollWithOriginalKeys = {
+        ID: payroll.sheetId || '',
+        'Credit Application ID': payroll.creditApplicationId || '',
+        Role: payroll.role || '',
+        'Number of Employees in Role':
+          payroll.numberOfEmployeesInRole?.toString() || '',
+        'Monthly Salary': payroll.monthlySalary?.toString() || '',
+        'Months per Year the Role is Paid':
+          payroll.monthsPerYearTheRoleIsPaid?.toString() || '',
+        Notes: payroll.notes || '',
+        'Total Annual Cost': payroll.totalAnnualCost?.toString() || '',
+        'Created At': payroll.createdAt?.toISOString() || '',
+        Synced: payroll.synced || false,
+      };
+
+      return { success: true, data: payrollWithOriginalKeys };
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      this.logger.error(
+        `Error fetching payroll record ${id}: ${apiError.message}`,
+      );
+      throw error;
+    }
+  }
+
+  @Post('sync/:id')
+  async syncPayrollRecordById(@Param('id') id: string) {
+    try {
+      this.logger.log(`Manual sync requested for payroll record: ${id}`);
+      const result = await this.payrollSyncService.syncPayrollById(
+        parseInt(id),
+      );
+      return result;
+    } catch (error: unknown) {
+      const apiError = error as any;
+      this.logger.error(
+        `Failed to sync payroll record ${id}: ${apiError.message}`,
+      );
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
+  @Post('sync-all')
+  async syncAllPayrollRecords() {
+    try {
+      this.logger.log('Manual sync requested for all payroll records');
+      const result = await this.payrollSyncService.syncAllToSheets();
+      return result;
+    } catch (error: unknown) {
+      const apiError = error as any;
+      this.logger.error(
+        `Failed to sync all payroll records: ${apiError.message}`,
+      );
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
+  @Post('sync-by-application/:creditApplicationId')
+  async syncPayrollRecordsByApplication(
+    @Param('creditApplicationId') creditApplicationId: string,
+  ) {
+    try {
+      this.logger.log(
+        `Manual sync requested for payroll records by credit application: ${creditApplicationId}`,
+      );
+      const result =
+        await this.payrollSyncService.syncByCreditApplicationId(
+          creditApplicationId,
+        );
+      return result;
+    } catch (error: unknown) {
+      const apiError = error as any;
+      this.logger.error(
+        `Failed to sync payroll records for credit application ${creditApplicationId}: ${apiError.message}`,
+      );
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
   @Put(':id')
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
   async updatePayrollRecord(
     @Param('id') id: string,
     @Body() updateData: Partial<CreatePayrollDto>,
@@ -197,36 +343,18 @@ export class PayrollController {
     try {
       this.logger.log(`Updating payroll record with ID: ${id}`);
 
-      // First verify the payroll record exists
-      const payrollRecords = await this.sheetsService.getSheetData(
-        this.SHEET_NAME,
+      // Find the existing payroll record by sheetId (since the id parameter is the sheetId)
+      const existingPayroll = await this.payrollDbService.findBySheetId(id);
+      if (!existingPayroll) {
+        return { success: false, error: 'Payroll record not found' };
+      }
+
+      this.logger.log(
+        `Updating payroll record with sheetId: ${id}, database ID: ${existingPayroll.id}`,
       );
-      if (!payrollRecords || payrollRecords.length === 0) {
-        return { success: false, message: 'No payroll records found' };
-      }
 
-      const headers = payrollRecords[0];
-      const idIndex = headers.indexOf('ID');
-      const payrollRow = payrollRecords.find((row) => row[idIndex] === id);
-
-      if (!payrollRow) {
-        return { success: false, message: 'Payroll record not found' };
-      }
-
-      // Create updated row data, only updating fields that are provided
-      const updatedRowData = headers.map((header, index) => {
-        if (updateData[header] !== undefined) {
-          return updateData[header];
-        }
-        return payrollRow[index] || '';
-      });
-
-      // Recalculate total annual cost if any of the relevant fields are updated
-      const employeesIndex = headers.indexOf('Number of Employees in Role');
-      const salaryIndex = headers.indexOf('Monthly Salary');
-      const monthsIndex = headers.indexOf('Months per Year the Role is Paid');
-      const totalCostIndex = headers.indexOf('Total Annual Cost');
-
+      // Calculate total annual cost if any of the relevant fields are updated
+      let totalAnnualCost = existingPayroll.totalAnnualCost;
       if (
         updateData['Number of Employees in Role'] !== undefined ||
         updateData['Monthly Salary'] !== undefined ||
@@ -235,36 +363,65 @@ export class PayrollController {
         const employees =
           Number(
             updateData['Number of Employees in Role'] ||
-              payrollRow[employeesIndex],
+              existingPayroll.numberOfEmployeesInRole,
           ) || 0;
         const salary =
-          Number(updateData['Monthly Salary'] || payrollRow[salaryIndex]) || 0;
+          Number(
+            updateData['Monthly Salary'] || existingPayroll.monthlySalary,
+          ) || 0;
         const months =
           Number(
             updateData['Months per Year the Role is Paid'] ||
-              payrollRow[monthsIndex],
+              existingPayroll.monthsPerYearTheRoleIsPaid,
           ) || 12;
-        updatedRowData[totalCostIndex] = employees * salary * months;
+        totalAnnualCost = employees * salary * months;
       }
 
-      // Update the row
-      await this.sheetsService.updateRow(this.SHEET_NAME, id, updatedRowData);
+      // Prepare update data
+      const updateDataForDb = {
+        creditApplicationId:
+          updateData['Credit Application ID'] ||
+          existingPayroll.creditApplicationId,
+        role: updateData['Role'] || existingPayroll.role,
+        numberOfEmployeesInRole:
+          updateData['Number of Employees in Role'] ||
+          existingPayroll.numberOfEmployeesInRole,
+        monthlySalary:
+          updateData['Monthly Salary'] || existingPayroll.monthlySalary,
+        monthsPerYearTheRoleIsPaid:
+          updateData['Months per Year the Role is Paid'] ||
+          existingPayroll.monthsPerYearTheRoleIsPaid,
+        notes: updateData['Notes'] || existingPayroll.notes,
+        totalAnnualCost: totalAnnualCost,
+        synced: false, // Mark as unsynced to trigger sync
+      };
 
-      // Get the updated payroll record
-      const updatedPayroll = {};
-      headers.forEach((header, index) => {
-        updatedPayroll[header] = updatedRowData[index];
-      });
+      const result = await this.payrollDbService.update(id, updateDataForDb);
+      this.logger.log(`Payroll record updated successfully via Postgres`);
+
+      // Trigger background sync
+      this.triggerBackgroundSync(
+        result.id,
+        result.creditApplicationId,
+        'update',
+      );
 
       return {
         success: true,
+        data: result,
         message: 'Payroll record updated successfully',
-        data: updatedPayroll,
+        sync: {
+          triggered: true,
+          status: 'background',
+        },
       };
     } catch (error: unknown) {
-      const apiError = error as ApiError;
-      this.logger.error(`Error updating payroll record: ${apiError.message}`);
-      throw error;
+      const apiError = error as any;
+      this.logger.error(`Failed to update payroll record: ${apiError.message}`);
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
     }
   }
 }

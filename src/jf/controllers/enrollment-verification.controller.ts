@@ -8,8 +8,15 @@ import {
   Body,
   Logger,
   Put,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { CreateEnrollmentVerificationDto } from '../dto/create-enrollment-verification.dto';
+import { EnrollmentVerificationDbService } from '../services/enrollment-verification-db.service';
+import { EnrollmentVerificationSyncService } from '../services/enrollment-verification-sync.service';
+import { FileUploadService } from '../services/file-upload.service';
+import { BackgroundUploadService } from '../services/background-upload.service';
 import { SheetsService } from '../services/sheets.service';
 import { GoogleDriveService } from '../services/google-drive.service';
 
@@ -22,20 +29,22 @@ interface ApiError {
 @Controller('jf/enrollment-verification')
 export class EnrollmentVerificationController {
   private readonly logger = new Logger(EnrollmentVerificationController.name);
-  private readonly SHEET_NAME = 'Enrollment Reports';
-  private readonly enrollmentReportDocFolder = 'Enrollment Reports_Files_';
-  private readonly enrollmentReportImageFolder = 'Enrollment Reports_Images';
   private readonly GOOGLE_DRIVE_ENROLLMENT_REPORTS_IMAGES_FOLDER_ID =
     process.env.GOOGLE_DRIVE_ENROLLMENT_REPORTS_IMAGES_FOLDER_ID;
   private readonly GOOGLE_DRIVE_ENROLLMENT_REPORTS_FILES_FOLDER_ID =
     process.env.GOOGLE_DRIVE_ENROLLMENT_REPORTS_FILES_FOLDER_ID;
 
   constructor(
+    private readonly enrollmentVerificationDbService: EnrollmentVerificationDbService,
+    private readonly enrollmentVerificationSyncService: EnrollmentVerificationSyncService,
+    private readonly fileUploadService: FileUploadService,
+    private readonly backgroundUploadService: BackgroundUploadService,
     private readonly sheetsService: SheetsService,
     private readonly googleDriveService: GoogleDriveService,
   ) {}
 
   @Post()
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
   @UseInterceptors(
     FileFieldsInterceptor([
       { name: 'enrollmentVerification', maxCount: 1 },
@@ -44,12 +53,7 @@ export class EnrollmentVerificationController {
   )
   async createEnrollmentVerification(
     @Body()
-    createDto: {
-      creditApplicationId: string;
-      numberOfStudentsThisYear: number;
-      numberOfStudentsLastYear: number;
-      numberOfStudentsTwoYearsAgo: number;
-    },
+    createDto: CreateEnrollmentVerificationDto,
     @UploadedFiles()
     files: {
       enrollmentVerification?: Express.Multer.File[];
@@ -57,10 +61,20 @@ export class EnrollmentVerificationController {
     },
   ) {
     try {
-      // Generate unique ID for the verification
-      const id = `ENR-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+      this.logger.log(
+        `Creating enrollment verification for application: ${createDto.creditApplicationId}`,
+      );
 
-      // Format current date as DD/MM/YYYY HH:mm:ss
+      if (!createDto.creditApplicationId) {
+        return {
+          success: false,
+          error: 'Credit Application ID is required',
+        };
+      }
+
+      // Save files locally first for faster response
+      let verificationPath = '';
+      let reportPath = '';
       const now = new Date();
       const createdAt = now.toLocaleString('en-GB', {
         day: '2-digit',
@@ -72,71 +86,145 @@ export class EnrollmentVerificationController {
         hour12: false,
       });
 
-      // Upload enrollment verification file if provided
-      let verificationFileName = '';
-      if (files.enrollmentVerification && files.enrollmentVerification[0]) {
-        const file = files.enrollmentVerification[0];
-        const timestamp = new Date().getTime();
-        verificationFileName = `verification_file_${createDto.creditApplicationId}_${timestamp}.${file.originalname.split('.').pop()}`;
-
-        await this.googleDriveService.uploadFile(
-          file.buffer,
-          verificationFileName,
-          file.mimetype,
-          this.GOOGLE_DRIVE_ENROLLMENT_REPORTS_IMAGES_FOLDER_ID,
+      if (files.enrollmentVerification?.[0]) {
+        const customName = `verification_file_${createDto.creditApplicationId}`;
+        verificationPath = await this.fileUploadService.saveFile(
+          files.enrollmentVerification[0],
+          'enrollment-verifications',
+          customName,
         );
       }
 
-      // Upload enrollment report file if provided
-      let reportFileName = '';
-      if (files.enrollmentReport && files.enrollmentReport[0]) {
-        const file = files.enrollmentReport[0];
-        const timestamp = new Date().getTime();
-        reportFileName = `enr_report_file_${createDto.creditApplicationId}_${timestamp}.${file.originalname.split('.').pop()}`;
-
-        await this.googleDriveService.uploadFile(
-          file.buffer,
-          reportFileName,
-          file.mimetype,
-          this.GOOGLE_DRIVE_ENROLLMENT_REPORTS_FILES_FOLDER_ID,
+      if (files.enrollmentReport?.[0]) {
+        const customName = `enr_report_file_${createDto.creditApplicationId}`;
+        reportPath = await this.fileUploadService.saveFile(
+          files.enrollmentReport[0],
+          'enrollment-verifications',
+          customName,
         );
       }
 
-      const rowData = {
-        ID: id,
-        'Credit Application ID': createDto.creditApplicationId,
-        // 'Enrollment Verification for this Year': verificationFileName
-        //   ? `${this.enrollmentReportImageFolder}/${verificationFileName}`
-        //   : '',
-        'Sub County Enrollment Report': verificationFileName
-          ? `${this.enrollmentReportImageFolder}/${verificationFileName}`
-          : '',
-        'Enrollment Report': reportFileName
-          ? `${this.enrollmentReportDocFolder}/${reportFileName}`
-          : '',
-        'Number of Students This Year': createDto.numberOfStudentsThisYear,
-        // 'Enrollment Report for this Year': reportFileName
-        //   ? `${this.enrollmentReportDocFolder}/${reportFileName}`
-        //   : '',
-        'Number of students last year': createDto.numberOfStudentsLastYear,
-        'Number of students two years ago':
+      // Prepare enrollment verification data for Postgres
+      const enrollmentVerificationDataForDb = {
+        sheetId: `ENR-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`, // Generate temporary sheetId
+        creditApplicationId: createDto.creditApplicationId,
+        subCountyEnrollmentReport: verificationPath || '',
+        enrollmentReport: reportPath || '',
+        numberOfStudentsThisYear: Number(createDto.numberOfStudentsThisYear),
+        numberOfStudentsLastYear: Number(createDto.numberOfStudentsLastYear),
+        numberOfStudentsTwoYearsAgo: Number(
           createDto.numberOfStudentsTwoYearsAgo,
-        'Created At': createdAt,
+        ),
+        synced: false,
+        createdAt: new Date(createdAt),
       };
 
-      await this.sheetsService.appendRow(this.SHEET_NAME, rowData);
+      const result = await this.enrollmentVerificationDbService.create(
+        enrollmentVerificationDataForDb,
+      );
+      this.logger.log(
+        `Enrollment verification created successfully via Postgres`,
+      );
+
+      // Queue file uploads to Google Drive with enrollment verification ID for database updates
+      if (files.enrollmentVerification?.[0]) {
+        const customName = `verification_file_${createDto.creditApplicationId}`;
+        this.backgroundUploadService.queueFileUpload(
+          verificationPath,
+          `${customName}_${Date.now()}.${files.enrollmentVerification[0].originalname.split('.').pop()}`,
+          this.GOOGLE_DRIVE_ENROLLMENT_REPORTS_IMAGES_FOLDER_ID,
+          files.enrollmentVerification[0].mimetype,
+          undefined, // directorId (not applicable)
+          undefined, // fieldName (not applicable)
+          undefined, // consentId (not applicable)
+          undefined, // consentFieldName (not applicable)
+          undefined, // referrerId (not applicable)
+          undefined, // referrerFieldName (not applicable)
+          undefined, // creditApplicationId (not applicable)
+          undefined, // creditApplicationFieldName (not applicable)
+          undefined, // activeDebtId (not applicable)
+          undefined, // activeDebtFieldName (not applicable)
+          undefined, // feePlanId (not applicable)
+          undefined, // feePlanFieldName (not applicable)
+          result.id, // Pass enrollment verification ID
+          'subCountyEnrollmentReport', // Pass field name
+        );
+      }
+
+      if (files.enrollmentReport?.[0]) {
+        const customName = `enr_report_file_${createDto.creditApplicationId}`;
+        this.backgroundUploadService.queueFileUpload(
+          reportPath,
+          `${customName}_${Date.now()}.${files.enrollmentReport[0].originalname.split('.').pop()}`,
+          this.GOOGLE_DRIVE_ENROLLMENT_REPORTS_FILES_FOLDER_ID,
+          files.enrollmentReport[0].mimetype,
+          undefined, // directorId (not applicable)
+          undefined, // fieldName (not applicable)
+          undefined, // consentId (not applicable)
+          undefined, // consentFieldName (not applicable)
+          undefined, // referrerId (not applicable)
+          undefined, // referrerFieldName (not applicable)
+          undefined, // creditApplicationId (not applicable)
+          undefined, // creditApplicationFieldName (not applicable)
+          undefined, // activeDebtId (not applicable)
+          undefined, // activeDebtFieldName (not applicable)
+          undefined, // feePlanId (not applicable)
+          undefined, // feePlanFieldName (not applicable)
+          result.id, // Pass enrollment verification ID
+          'enrollmentReport', // Pass field name
+        );
+      }
+
+      // Trigger automatic sync to Google Sheets (non-blocking)
+      this.triggerBackgroundSync(
+        result.id,
+        result.creditApplicationId,
+        'create',
+      );
 
       return {
         success: true,
+        data: result,
         message: 'Enrollment verification record created successfully',
-        data: rowData,
+        sync: {
+          triggered: true,
+          status: 'background',
+        },
       };
     } catch (error: unknown) {
-      const apiError = error as ApiError;
+      const apiError = error as any;
       this.logger.error(
-        `Error creating enrollment verification record: ${apiError.message}`,
+        `Failed to create enrollment verification: ${apiError.message}`,
       );
-      throw error;
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
+  /**
+   * Trigger background sync for enrollment verification
+   */
+  private async triggerBackgroundSync(
+    dbId: number,
+    creditApplicationId: string,
+    operation: 'create' | 'update',
+  ) {
+    try {
+      this.logger.log(
+        `Triggering background sync for enrollment verification ${dbId} (${operation})`,
+      );
+      await this.enrollmentVerificationSyncService.syncEnrollmentVerificationById(
+        dbId,
+      );
+      this.logger.log(
+        `Background sync triggered successfully for enrollment verification ${dbId}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to trigger background sync for enrollment verification ${dbId}: ${error}`,
+      );
     }
   }
 
@@ -149,68 +237,74 @@ export class EnrollmentVerificationController {
         `Fetching enrollment verifications for application ID: ${creditApplicationId}`,
       );
 
-      const verifications = await this.sheetsService.getSheetData(
-        this.SHEET_NAME,
-      );
+      const enrollmentVerifications =
+        await this.enrollmentVerificationDbService.findByCreditApplicationId(
+          creditApplicationId,
+        );
 
-      if (!verifications || verifications.length === 0) {
-        return { success: true, count: 0, data: [] };
-      }
-
-      const headers = verifications[0];
-      const applicationIdIndex = headers.indexOf('Credit Application ID');
-
-      if (applicationIdIndex === -1) {
-        return {
-          success: false,
-          message: 'Credit Application ID column not found',
-          data: [],
-        };
-      }
-
-      const filteredData = verifications
-        .slice(1)
-        .filter((row) => row[applicationIdIndex] === creditApplicationId)
-        .map((row) => {
-          const verification = {};
-          headers.forEach((header, index) => {
-            verification[header] = row[index];
-          });
-          return verification;
+      // Convert database records to original sheet format for frontend compatibility
+      const enrollmentVerificationsWithOriginalKeys =
+        enrollmentVerifications.map((enrollmentVerification) => {
+          const convertedEnrollmentVerification = {
+            ID: enrollmentVerification.sheetId || '',
+            'Credit Application ID':
+              enrollmentVerification.creditApplicationId || '',
+            'Sub County Enrollment Report':
+              enrollmentVerification.subCountyEnrollmentReport || '',
+            'Enrollment Report': enrollmentVerification.enrollmentReport || '',
+            'Number of Students This Year':
+              enrollmentVerification.numberOfStudentsThisYear?.toString() || '',
+            'Number of students last year':
+              enrollmentVerification.numberOfStudentsLastYear?.toString() || '',
+            'Number of students two years ago':
+              enrollmentVerification.numberOfStudentsTwoYearsAgo?.toString() ||
+              '',
+            'Created At': enrollmentVerification.createdAt?.toISOString() || '',
+            Synced: enrollmentVerification.synced || false,
+          };
+          return convertedEnrollmentVerification;
         });
 
+      // Add Google Drive links for document columns
       const documentColumns = [
         'Enrollment Report',
         'Sub County Enrollment Report',
       ];
-      const datasWithLinks = await Promise.all(
-        filteredData.map(async (director) => {
-          const dataWithLinks = { ...director };
-          for (const column of documentColumns) {
-            if (director[column]) {
-              let folderId = '';
-              if (column == 'Sub County Enrollment Report') {
-                folderId =
-                  this.GOOGLE_DRIVE_ENROLLMENT_REPORTS_IMAGES_FOLDER_ID;
-              } else if (column == 'Enrollment Report') {
-                folderId = this.GOOGLE_DRIVE_ENROLLMENT_REPORTS_FILES_FOLDER_ID;
+      const enrollmentVerificationsWithLinks = await Promise.all(
+        enrollmentVerificationsWithOriginalKeys.map(
+          async (enrollmentVerification) => {
+            const enrollmentVerificationWithLinks = {
+              ...enrollmentVerification,
+            };
+            for (const column of documentColumns) {
+              if (enrollmentVerification[column]) {
+                let folderId = '';
+                if (column === 'Sub County Enrollment Report') {
+                  folderId =
+                    this.GOOGLE_DRIVE_ENROLLMENT_REPORTS_IMAGES_FOLDER_ID;
+                } else if (column === 'Enrollment Report') {
+                  folderId =
+                    this.GOOGLE_DRIVE_ENROLLMENT_REPORTS_FILES_FOLDER_ID;
+                }
+                const filename = enrollmentVerification[column]
+                  .split('/')
+                  .pop();
+                const fileLink = await this.googleDriveService.getFileLink(
+                  filename,
+                  folderId,
+                );
+                enrollmentVerificationWithLinks[column] = fileLink;
               }
-              const filename = director[column].split('/').pop();
-              const fileLink = await this.googleDriveService.getFileLink(
-                filename,
-                folderId,
-              );
-              dataWithLinks[column] = fileLink;
             }
-          }
-          return dataWithLinks;
-        }),
+            return enrollmentVerificationWithLinks;
+          },
+        ),
       );
 
       return {
         success: true,
-        count: filteredData.length,
-        data: datasWithLinks,
+        count: enrollmentVerificationsWithLinks.length,
+        data: enrollmentVerificationsWithLinks,
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -221,63 +315,40 @@ export class EnrollmentVerificationController {
     }
   }
 
-  @Get(':id')
-  async getVerificationById(@Param('id') id: string) {
-    try {
-      const verifications = await this.sheetsService.getSheetData(
-        this.SHEET_NAME,
-      );
-      if (!verifications || verifications.length === 0) {
-        return { success: false, message: 'No enrollment verifications found' };
-      }
-
-      const headers = verifications[0];
-      const idIndex = headers.indexOf('ID');
-      const verificationRow = verifications.find((row) => row[idIndex] === id);
-
-      if (!verificationRow) {
-        return { success: false, message: 'Enrollment verification not found' };
-      }
-
-      const verification = {};
-      headers.forEach((header, index) => {
-        verification[header] = verificationRow[index];
-      });
-
-      return { success: true, data: verification };
-    } catch (error: unknown) {
-      const apiError = error as ApiError;
-      this.logger.error(
-        `Error fetching enrollment verification ${id}: ${apiError.message}`,
-      );
-      throw error;
-    }
-  }
-
   @Get()
   async getAllVerifications() {
     try {
-      const verifications = await this.sheetsService.getSheetData(
-        this.SHEET_NAME,
-      );
+      this.logger.log('Fetching all enrollment verifications');
+      const enrollmentVerifications =
+        await this.enrollmentVerificationDbService.findAll();
 
-      if (!verifications || verifications.length === 0) {
-        return { success: true, count: 0, data: [] };
-      }
-
-      const headers = verifications[0];
-      const data = verifications.slice(1).map((row) => {
-        const verification = {};
-        headers.forEach((header, index) => {
-          verification[header] = row[index];
+      // Convert database records to original sheet format for frontend compatibility
+      const enrollmentVerificationsWithOriginalKeys =
+        enrollmentVerifications.map((enrollmentVerification) => {
+          const convertedEnrollmentVerification = {
+            ID: enrollmentVerification.sheetId || '',
+            'Credit Application ID':
+              enrollmentVerification.creditApplicationId || '',
+            'Sub County Enrollment Report':
+              enrollmentVerification.subCountyEnrollmentReport || '',
+            'Enrollment Report': enrollmentVerification.enrollmentReport || '',
+            'Number of Students This Year':
+              enrollmentVerification.numberOfStudentsThisYear?.toString() || '',
+            'Number of students last year':
+              enrollmentVerification.numberOfStudentsLastYear?.toString() || '',
+            'Number of students two years ago':
+              enrollmentVerification.numberOfStudentsTwoYearsAgo?.toString() ||
+              '',
+            'Created At': enrollmentVerification.createdAt?.toISOString() || '',
+            Synced: enrollmentVerification.synced || false,
+          };
+          return convertedEnrollmentVerification;
         });
-        return verification;
-      });
 
       return {
         success: true,
-        count: data.length,
-        data,
+        count: enrollmentVerificationsWithOriginalKeys.length,
+        data: enrollmentVerificationsWithOriginalKeys,
       };
     } catch (error: unknown) {
       const apiError = error as ApiError;
@@ -288,7 +359,114 @@ export class EnrollmentVerificationController {
     }
   }
 
+  @Get(':id')
+  async getVerificationById(@Param('id') id: string) {
+    try {
+      this.logger.log(`Fetching enrollment verification with ID: ${id}`);
+      const enrollmentVerification =
+        await this.enrollmentVerificationDbService.findById(id);
+
+      if (!enrollmentVerification) {
+        return { success: false, message: 'Enrollment verification not found' };
+      }
+
+      // Convert database record to original sheet format for frontend compatibility
+      const enrollmentVerificationWithOriginalKeys = {
+        ID: enrollmentVerification.sheetId || '',
+        'Credit Application ID':
+          enrollmentVerification.creditApplicationId || '',
+        'Sub County Enrollment Report':
+          enrollmentVerification.subCountyEnrollmentReport || '',
+        'Enrollment Report': enrollmentVerification.enrollmentReport || '',
+        'Number of Students This Year':
+          enrollmentVerification.numberOfStudentsThisYear?.toString() || '',
+        'Number of students last year':
+          enrollmentVerification.numberOfStudentsLastYear?.toString() || '',
+        'Number of students two years ago':
+          enrollmentVerification.numberOfStudentsTwoYearsAgo?.toString() || '',
+        'Created At': enrollmentVerification.createdAt?.toISOString() || '',
+        Synced: enrollmentVerification.synced || false,
+      };
+
+      return { success: true, data: enrollmentVerificationWithOriginalKeys };
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      this.logger.error(
+        `Error fetching enrollment verification ${id}: ${apiError.message}`,
+      );
+      throw error;
+    }
+  }
+
+  @Post('sync/:id')
+  async syncEnrollmentVerificationById(@Param('id') id: string) {
+    try {
+      this.logger.log(
+        `Manual sync requested for enrollment verification: ${id}`,
+      );
+      const result =
+        await this.enrollmentVerificationSyncService.syncEnrollmentVerificationById(
+          parseInt(id),
+        );
+      return result;
+    } catch (error: unknown) {
+      const apiError = error as any;
+      this.logger.error(
+        `Failed to sync enrollment verification ${id}: ${apiError.message}`,
+      );
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
+  @Post('sync-all')
+  async syncAllEnrollmentVerifications() {
+    try {
+      this.logger.log('Manual sync requested for all enrollment verifications');
+      const result =
+        await this.enrollmentVerificationSyncService.syncAllToSheets();
+      return result;
+    } catch (error: unknown) {
+      const apiError = error as any;
+      this.logger.error(
+        `Failed to sync all enrollment verifications: ${apiError.message}`,
+      );
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
+  @Post('sync-by-application/:creditApplicationId')
+  async syncEnrollmentVerificationsByApplication(
+    @Param('creditApplicationId') creditApplicationId: string,
+  ) {
+    try {
+      this.logger.log(
+        `Manual sync requested for enrollment verifications by credit application: ${creditApplicationId}`,
+      );
+      const result =
+        await this.enrollmentVerificationSyncService.syncByCreditApplicationId(
+          creditApplicationId,
+        );
+      return result;
+    } catch (error: unknown) {
+      const apiError = error as any;
+      this.logger.error(
+        `Failed to sync enrollment verifications for credit application ${creditApplicationId}: ${apiError.message}`,
+      );
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
+    }
+  }
+
   @Put(':id')
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
   @UseInterceptors(
     FileFieldsInterceptor([
       { name: 'enrollmentVerification', maxCount: 1 },
@@ -298,12 +476,7 @@ export class EnrollmentVerificationController {
   async updateEnrollmentVerification(
     @Param('id') id: string,
     @Body()
-    updateDto: {
-      creditApplicationId?: string;
-      numberOfStudentsThisYear?: number;
-      numberOfStudentsLastYear?: number;
-      numberOfStudentsTwoYearsAgo?: number;
-    },
+    updateDto: Partial<CreateEnrollmentVerificationDto>,
     @UploadedFiles()
     files: {
       enrollmentVerification?: Express.Multer.File[];
@@ -313,112 +486,151 @@ export class EnrollmentVerificationController {
     try {
       this.logger.log(`Updating enrollment verification with ID: ${id}`);
 
-      // First verify the enrollment verification exists
-      const verifications = await this.sheetsService.getSheetData(
-        this.SHEET_NAME,
+      // Find the existing enrollment verification by sheetId (since the id parameter is the sheetId)
+      const existingEnrollmentVerification =
+        await this.enrollmentVerificationDbService.findBySheetId(id);
+      if (!existingEnrollmentVerification) {
+        return { success: false, error: 'Enrollment verification not found' };
+      }
+
+      this.logger.log(
+        `Updating enrollment verification with sheetId: ${id}, database ID: ${existingEnrollmentVerification.id}`,
       );
-      if (!verifications || verifications.length === 0) {
-        return { success: false, message: 'No enrollment verifications found' };
-      }
 
-      const headers = verifications[0];
-      const idIndex = headers.indexOf('ID');
-      const verificationRow = verifications.find((row) => row[idIndex] === id);
+      // Handle file uploads if provided
+      let verificationPath =
+        existingEnrollmentVerification.subCountyEnrollmentReport || '';
+      let reportPath = existingEnrollmentVerification.enrollmentReport || '';
 
-      if (!verificationRow) {
-        return { success: false, message: 'Enrollment verification not found' };
-      }
+      if (files.enrollmentVerification?.[0]) {
+        const customName = `verification_file_${updateDto.creditApplicationId || existingEnrollmentVerification.creditApplicationId}`;
+        this.logger.log(
+          `Updating enrollment verification ${existingEnrollmentVerification.id} with new verification file upload`,
+        );
+        verificationPath = await this.fileUploadService.saveFile(
+          files.enrollmentVerification[0],
+          'enrollment-verifications',
+          customName,
+        );
 
-      // Upload enrollment verification file if provided
-      let verificationFileName = '';
-      if (files.enrollmentVerification && files.enrollmentVerification[0]) {
-        const file = files.enrollmentVerification[0];
-        const timestamp = new Date().getTime();
-        verificationFileName = `verification_file_${updateDto.creditApplicationId}_${timestamp}.${file.originalname.split('.').pop()}`;
-
-        await this.googleDriveService.uploadFile(
-          file.buffer,
-          verificationFileName,
-          file.mimetype,
+        // Queue verification file upload to Google Drive
+        this.backgroundUploadService.queueFileUpload(
+          verificationPath,
+          `${customName}_${Date.now()}.${files.enrollmentVerification[0].originalname.split('.').pop()}`,
           this.GOOGLE_DRIVE_ENROLLMENT_REPORTS_IMAGES_FOLDER_ID,
+          files.enrollmentVerification[0].mimetype,
+          undefined, // directorId (not applicable)
+          undefined, // fieldName (not applicable)
+          undefined, // consentId (not applicable)
+          undefined, // consentFieldName (not applicable)
+          undefined, // referrerId (not applicable)
+          undefined, // referrerFieldName (not applicable)
+          undefined, // creditApplicationId (not applicable)
+          undefined, // creditApplicationFieldName (not applicable)
+          undefined, // activeDebtId (not applicable)
+          undefined, // activeDebtFieldName (not applicable)
+          undefined, // feePlanId (not applicable)
+          undefined, // feePlanFieldName (not applicable)
+          existingEnrollmentVerification.id, // Pass enrollment verification ID
+          'subCountyEnrollmentReport', // Pass field name
+        );
+        this.logger.log(
+          `Verification file upload queued for enrollment verification update ${existingEnrollmentVerification.id}`,
         );
       }
 
-      // Upload enrollment report file if provided
-      let reportFileName = '';
-      if (files.enrollmentReport && files.enrollmentReport[0]) {
-        const file = files.enrollmentReport[0];
-        const timestamp = new Date().getTime();
-        reportFileName = `enr_report_file_${updateDto.creditApplicationId}_${timestamp}.${file.originalname.split('.').pop()}`;
+      if (files.enrollmentReport?.[0]) {
+        const customName = `enr_report_file_${updateDto.creditApplicationId || existingEnrollmentVerification.creditApplicationId}`;
+        this.logger.log(
+          `Updating enrollment verification ${existingEnrollmentVerification.id} with new report file upload`,
+        );
+        reportPath = await this.fileUploadService.saveFile(
+          files.enrollmentReport[0],
+          'enrollment-verifications',
+          customName,
+        );
 
-        await this.googleDriveService.uploadFile(
-          file.buffer,
-          reportFileName,
-          file.mimetype,
+        // Queue report file upload to Google Drive
+        this.backgroundUploadService.queueFileUpload(
+          reportPath,
+          `${customName}_${Date.now()}.${files.enrollmentReport[0].originalname.split('.').pop()}`,
           this.GOOGLE_DRIVE_ENROLLMENT_REPORTS_FILES_FOLDER_ID,
+          files.enrollmentReport[0].mimetype,
+          undefined, // directorId (not applicable)
+          undefined, // fieldName (not applicable)
+          undefined, // consentId (not applicable)
+          undefined, // consentFieldName (not applicable)
+          undefined, // referrerId (not applicable)
+          undefined, // referrerFieldName (not applicable)
+          undefined, // creditApplicationId (not applicable)
+          undefined, // creditApplicationFieldName (not applicable)
+          undefined, // activeDebtId (not applicable)
+          undefined, // activeDebtFieldName (not applicable)
+          undefined, // feePlanId (not applicable)
+          undefined, // feePlanFieldName (not applicable)
+          existingEnrollmentVerification.id, // Pass enrollment verification ID
+          'enrollmentReport', // Pass field name
+        );
+        this.logger.log(
+          `Report file upload queued for enrollment verification update ${existingEnrollmentVerification.id}`,
         );
       }
 
-      // Create updated row data, only updating fields that are provided
-      const updatedRowData = headers.map((header, index) => {
-        if (header === 'Enrollment Report' && reportFileName) {
-          return reportFileName
-            ? `${this.enrollmentReportDocFolder}/${reportFileName}`
-            : '';
-        }
-        if (header === 'Sub County Enrollment Report' && verificationFileName) {
-          return verificationFileName
-            ? `${this.enrollmentReportImageFolder}/${verificationFileName}`
-            : '';
-        }
-
-        if (
-          header === 'Credit Application ID' &&
-          updateDto.creditApplicationId
-        ) {
-          return updateDto.creditApplicationId;
-        }
-        if (
-          header === 'Number of Students This Year' &&
+      // Prepare update data
+      const updateDataForDb = {
+        creditApplicationId:
+          updateDto.creditApplicationId ||
+          existingEnrollmentVerification.creditApplicationId,
+        subCountyEnrollmentReport: verificationPath,
+        enrollmentReport: reportPath,
+        numberOfStudentsThisYear:
           updateDto.numberOfStudentsThisYear !== undefined
-        ) {
-          return updateDto.numberOfStudentsThisYear;
-        }
-        if (
-          header === 'Number of students last year' &&
+            ? Number(updateDto.numberOfStudentsThisYear)
+            : existingEnrollmentVerification.numberOfStudentsThisYear,
+        numberOfStudentsLastYear:
           updateDto.numberOfStudentsLastYear !== undefined
-        ) {
-          return updateDto.numberOfStudentsLastYear;
-        }
-        if (
-          header === 'Number of students two years ago' &&
+            ? Number(updateDto.numberOfStudentsLastYear)
+            : existingEnrollmentVerification.numberOfStudentsLastYear,
+        numberOfStudentsTwoYearsAgo:
           updateDto.numberOfStudentsTwoYearsAgo !== undefined
-        ) {
-          return updateDto.numberOfStudentsTwoYearsAgo;
-        }
-        return verificationRow[index] || '';
-      });
+            ? Number(updateDto.numberOfStudentsTwoYearsAgo)
+            : existingEnrollmentVerification.numberOfStudentsTwoYearsAgo,
+        synced: false, // Mark as unsynced to trigger sync
+      };
 
-      // Update the row
-      await this.sheetsService.updateRow(this.SHEET_NAME, id, updatedRowData);
+      const result = await this.enrollmentVerificationDbService.update(
+        id,
+        updateDataForDb,
+      );
+      this.logger.log(
+        `Enrollment verification updated successfully via Postgres`,
+      );
 
-      // Get the updated verification record
-      const updatedVerification = {};
-      headers.forEach((header, index) => {
-        updatedVerification[header] = updatedRowData[index];
-      });
+      // Trigger background sync
+      this.triggerBackgroundSync(
+        result.id,
+        result.creditApplicationId,
+        'update',
+      );
 
       return {
         success: true,
+        data: result,
         message: 'Enrollment verification updated successfully',
-        data: updatedVerification,
+        sync: {
+          triggered: true,
+          status: 'background',
+        },
       };
     } catch (error: unknown) {
-      const apiError = error as ApiError;
+      const apiError = error as any;
       this.logger.error(
-        `Error updating enrollment verification: ${apiError.message}`,
+        `Failed to update enrollment verification: ${apiError.message}`,
       );
-      throw error;
+      return {
+        success: false,
+        error: apiError.message || 'An unknown error occurred',
+      };
     }
   }
 }

@@ -1,0 +1,279 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+
+@Injectable()
+export class PayrollDbService {
+  private readonly logger = new Logger(PayrollDbService.name);
+
+  // Key mappings to preserve the same payload structure as Sheets
+  private readonly sheetToDbMapping = {
+    ID: 'sheetId',
+    'Credit Application ID': 'creditApplicationId',
+    Role: 'role',
+    'Number of Employees in Role': 'numberOfEmployeesInRole',
+    'Monthly Salary': 'monthlySalary',
+    'Months per Year the Role is Paid': 'monthsPerYearTheRoleIsPaid',
+    Notes: 'notes',
+    'Total Annual Cost': 'totalAnnualCost',
+    'Created At': 'createdAt',
+  };
+
+  private readonly dbToSheetMapping = Object.fromEntries(
+    Object.entries(this.sheetToDbMapping).map(([sheet, db]) => [db, sheet]),
+  );
+
+  // Add synced field mapping for responses
+  private readonly dbToSheetMappingWithSync = {
+    ...this.dbToSheetMapping,
+    synced: 'Synced',
+  };
+
+  constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Find all payroll records
+   */
+  async findAll() {
+    return this.prisma.payroll.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
+   * Find payroll records by credit application ID
+   */
+  async findByCreditApplicationId(creditApplicationId: string) {
+    return this.prisma.payroll.findMany({
+      where: { creditApplicationId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
+   * Find unsynced payroll records
+   */
+  async findUnsynced() {
+    return this.prisma.payroll.findMany({
+      where: { synced: false },
+    });
+  }
+
+  /**
+   * Find synced payroll records
+   */
+  async findSynced() {
+    return this.prisma.payroll.findMany({
+      where: { synced: true },
+    });
+  }
+
+  /**
+   * Find payroll record by ID
+   */
+  async findById(id: string) {
+    // Check if id is a numeric database ID first
+    const numericId = parseInt(id);
+    if (!isNaN(numericId)) {
+      return this.prisma.payroll.findFirst({
+        where: { id: numericId },
+      });
+    }
+
+    // If not numeric, try to find by sheetId or creditApplicationId
+    return this.prisma.payroll.findFirst({
+      where: {
+        OR: [{ sheetId: id }, { creditApplicationId: id }],
+      },
+    });
+  }
+
+  /**
+   * Find payroll record by sheet ID
+   */
+  async findBySheetId(sheetId: string) {
+    return this.prisma.payroll.findFirst({
+      where: { sheetId },
+    });
+  }
+
+  /**
+   * Create a new payroll record
+   */
+  async create(data: any) {
+    const convertedData = this.convertDataTypes(data);
+    this.logger.log('Creating payroll record with data:', {
+      creditApplicationId: data.creditApplicationId,
+      role: data.role,
+      allConvertedData: convertedData,
+    });
+    return this.prisma.payroll.create({ data: convertedData });
+  }
+
+  /**
+   * Update payroll record by sheetId
+   * Note: We always use sheetId for updates since the controller uses findBySheetId
+   */
+  async update(sheetId: string, data: any) {
+    const convertedData = this.convertDataTypes(data);
+    this.logger.log('Updating payroll record with data:', {
+      sheetId,
+      creditApplicationId: data.creditApplicationId,
+      role: data.role,
+      allConvertedData: convertedData,
+    });
+
+    // Find the record by sheetId to get the numeric database ID
+    const payroll = await this.findBySheetId(sheetId);
+    if (!payroll) {
+      throw new Error(`Payroll record with sheetId ${sheetId} not found`);
+    }
+
+    return this.prisma.payroll.update({
+      where: { id: payroll.id },
+      data: convertedData,
+    });
+  }
+
+  /**
+   * Update sync status
+   */
+  async updateSyncStatus(id: number, synced: boolean) {
+    return this.prisma.payroll.update({
+      where: { id },
+      data: { synced },
+    });
+  }
+
+  /**
+   * Delete payroll record by ID
+   */
+  async delete(id: string) {
+    const numericId = parseInt(id);
+    if (!isNaN(numericId)) {
+      return this.prisma.payroll.delete({
+        where: { id: numericId },
+      });
+    }
+    throw new Error('Invalid ID format');
+  }
+
+  /**
+   * Calculate total monthly cost for a credit application
+   */
+  async calculateTotalMonthlyCost(creditApplicationId: string) {
+    const payrollRecords =
+      await this.findByCreditApplicationId(creditApplicationId);
+
+    const totalMonthlyCost = payrollRecords.reduce((total, record) => {
+      const employees = record.numberOfEmployeesInRole || 0;
+      const salary = record.monthlySalary || 0;
+      return total + employees * salary;
+    }, 0);
+
+    const annualCost = payrollRecords.reduce((total, record) => {
+      const employees = record.numberOfEmployeesInRole || 0;
+      const salary = record.monthlySalary || 0;
+      const months = record.monthsPerYearTheRoleIsPaid || 12;
+      return total + employees * salary * months;
+    }, 0);
+
+    return {
+      totalMonthlyCost,
+      annualCost,
+      data: payrollRecords.map((record) => ({
+        role: record.role,
+        employees: record.numberOfEmployeesInRole,
+        monthlySalary: record.monthlySalary,
+        monthsPerYear: record.monthsPerYearTheRoleIsPaid,
+        monthlyCost:
+          (record.numberOfEmployeesInRole || 0) * (record.monthlySalary || 0),
+        annualCost:
+          (record.numberOfEmployeesInRole || 0) *
+          (record.monthlySalary || 0) *
+          (record.monthsPerYearTheRoleIsPaid || 12),
+      })),
+    };
+  }
+
+  /**
+   * Convert data types for database storage
+   */
+  private convertDataTypes(data: any) {
+    const convertedData = {};
+
+    for (const [key, value] of Object.entries(data)) {
+      if (value === null || value === undefined) {
+        continue;
+      }
+
+      // Map sheet field names to database field names
+      const dbFieldName = this.sheetToDbMapping[key] || key;
+
+      // Handle special cases
+      if (key === 'ID' && typeof value === 'string') {
+        convertedData[dbFieldName] = value;
+      } else if (key === 'Credit Application ID' && typeof value === 'string') {
+        convertedData[dbFieldName] = value;
+      } else if (key === 'Role' && typeof value === 'string') {
+        convertedData[dbFieldName] = value;
+      } else if (
+        key === 'Number of Employees in Role' &&
+        typeof value === 'number'
+      ) {
+        convertedData[dbFieldName] = value;
+      } else if (key === 'Monthly Salary' && typeof value === 'number') {
+        convertedData[dbFieldName] = value;
+      } else if (
+        key === 'Months per Year the Role is Paid' &&
+        typeof value === 'number'
+      ) {
+        convertedData[dbFieldName] = value;
+      } else if (key === 'Notes' && typeof value === 'string') {
+        convertedData[dbFieldName] = value;
+      } else if (key === 'Total Annual Cost' && typeof value === 'number') {
+        convertedData[dbFieldName] = value;
+      } else if (key === 'Created At' && typeof value === 'string') {
+        convertedData[dbFieldName] = new Date(value);
+      } else {
+        convertedData[dbFieldName] = value;
+      }
+    }
+
+    return convertedData;
+  }
+
+  /**
+   * Convert database record to sheet format
+   */
+  convertDbToSheet(dbRecord: any) {
+    const sheetRecord = {};
+
+    for (const [dbField, value] of Object.entries(dbRecord)) {
+      const sheetField = this.dbToSheetMappingWithSync[dbField] || dbField;
+      sheetRecord[sheetField] = value;
+    }
+
+    return sheetRecord;
+  }
+
+  /**
+   * Convert array of database records to sheet format
+   */
+  convertDbArrayToSheet(dbRecords: any[]) {
+    return dbRecords.map((record) => this.convertDbToSheet(record));
+  }
+
+  /**
+   * Convert sheet record to database format
+   */
+  convertSheetToDb(sheetRecord: any) {
+    const dbRecord = {};
+
+    for (const [sheetField, value] of Object.entries(sheetRecord)) {
+      const dbField = this.sheetToDbMapping[sheetField] || sheetField;
+      dbRecord[dbField] = value;
+    }
+
+    return dbRecord;
+  }
+}

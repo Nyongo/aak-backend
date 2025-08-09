@@ -1,7 +1,23 @@
+import { IsString, IsOptional, IsNotEmpty } from 'class-validator';
+
 export class CreateCrbConsentDto {
+  @IsString()
+  @IsNotEmpty()
   'Borrower ID': string;
-  'Agreement': string;
+
+  @IsString()
+  @IsOptional()
+  'Agreement'?: string;
+
+  @IsString()
+  @IsNotEmpty()
   'Signed By Name': string;
-  'Date': string;
-  'Role in Organization': string;
+
+  @IsString()
+  @IsOptional()
+  'Date'?: string;
+
+  @IsString()
+  @IsOptional()
+  'Role in Organization'?: string;
 }

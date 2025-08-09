@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { CacheModule } from '@nestjs/cache-manager';
+import { ScheduleModule } from '@nestjs/schedule';
 import * as cacheStore from 'cache-manager-memory-store';
 import { GoogleAuthService } from './services/google-auth.service';
 import { GoogleDriveService } from './services/google-drive.service';
@@ -12,6 +13,7 @@ import { SheetsService } from './services/sheets.service';
 import { UsersService } from './services/users.service';
 import { AppSheetController } from './controllers/appsheet.controller';
 import { BorrowersController } from './controllers/borrowers.controller';
+import { BorrowersControllerSheets } from './controllers/borrowers.controller.sheets';
 import { DirectorsController } from './controllers/directors.controller';
 import { CrbConsentController } from './controllers/crb-consent.controller';
 import { CreditApplicationsController } from './controllers/credit-applications.controller';
@@ -46,6 +48,72 @@ import { NewsletterSectionsService } from './services/newsletter-sections.servic
 import { MailService } from 'src/common/services/mail.service';
 import { CaseStudiesController } from './controllers/case-studies.controller';
 import { CaseStudiesService } from './services/case-studies.service';
+import { BorrowersDbService } from './services/borrowers-db.service';
+import { BorrowersSyncService } from './services/borrowers-sync.service';
+import { DirectorsDbService } from './services/directors-db.service';
+import { DirectorsSyncService } from './services/directors-sync.service';
+import { CrbConsentDbService } from './services/crb-consent-db.service';
+import { CrbConsentSyncService } from './services/crb-consent-sync.service';
+import { ReferrersDbService } from './services/referrers-db.service';
+import { ReferrersSyncService } from './services/referrers-sync.service';
+import { CreditApplicationsDbService } from './services/credit-applications-db.service';
+import { CreditApplicationsSyncService } from './services/credit-applications-sync.service';
+import { ActiveDebtsDbService } from './services/active-debts-db.service';
+import { ActiveDebtsSyncService } from './services/active-debts-sync.service';
+import { FeePlansDbService } from './services/fee-plans-db.service';
+import { FeePlansSyncService } from './services/fee-plans-sync.service';
+import { PayrollDbService } from './services/payroll-db.service';
+import { PayrollSyncService } from './services/payroll-sync.service';
+import { EnrollmentVerificationDbService } from './services/enrollment-verification-db.service';
+import { EnrollmentVerificationSyncService } from './services/enrollment-verification-sync.service';
+import { MpesaBankStatementDbService } from './services/mpesa-bank-statement-db.service';
+import { MpesaBankStatementSyncService } from './services/mpesa-bank-statement-sync.service';
+import { AuditedFinancialsDbService } from './services/audited-financials-db.service';
+import { AuditedFinancialsSyncService } from './services/audited-financials-sync.service';
+import { StudentBreakdownDbService } from './services/student-breakdown-db.service';
+import { StudentBreakdownSyncService } from './services/student-breakdown-sync.service';
+import { OtherSupportingDocsDbService } from './services/other-supporting-docs-db.service';
+import { OtherSupportingDocsSyncService } from './services/other-supporting-docs-sync.service';
+import { InvestmentCommitteeDbService } from './services/investment-committee-db.service';
+import { InvestmentCommitteeSyncService } from './services/investment-committee-sync.service';
+import { VendorDisbursementDetailsDbService } from './services/vendor-disbursement-details-db.service';
+import { VendorDisbursementDetailsSyncService } from './services/vendor-disbursement-details-sync.service';
+import { HomeVisitDbService } from './services/home-visit-db.service';
+import { HomeVisitSyncService } from './services/home-visit-sync.service';
+import { AssetTitleDbService } from './services/asset-title-db.service';
+import { AssetTitleSyncService } from './services/asset-title-sync.service';
+import { ContractDetailsDbService } from './services/contract-details-db.service';
+import { ContractDetailsSyncService } from './services/contract-details-sync.service';
+import { CreditApplicationCommentsDbService } from './services/credit-application-comments-db.service';
+import { CreditApplicationCommentsSyncService } from './services/credit-application-comments-sync.service';
+import { FinancialSurveysDbService } from './services/financial-surveys-db.service';
+import { FinancialSurveysSyncService } from './services/financial-surveys-sync.service';
+import { SyncSchedulerService } from './sync-scheduler.service';
+import { BorrowersMigrationController } from './controllers/borrowers-migration.controller';
+import { DirectorsMigrationController } from './controllers/directors-migration.controller';
+import { CrbConsentsMigrationController } from './controllers/crb-consents-migration.controller';
+import { ReferrersMigrationController } from './controllers/referrers-migration.controller';
+import { CreditApplicationsMigrationController } from './controllers/credit-applications-migration.controller';
+import { ActiveDebtsMigrationController } from './controllers/active-debts-migration.controller';
+import { FeePlansMigrationController } from './controllers/fee-plans-migration.controller';
+import { PayrollMigrationController } from './controllers/payroll-migration.controller';
+import { EnrollmentVerificationMigrationController } from './controllers/enrollment-verification-migration.controller';
+import { MpesaBankStatementMigrationController } from './controllers/mpesa-bank-statement-migration.controller';
+import { AuditedFinancialsMigrationController } from './controllers/audited-financials-migration.controller';
+import { StudentBreakdownMigrationController } from './controllers/student-breakdown-migration.controller';
+import { OtherSupportingDocsMigrationController } from './controllers/other-supporting-docs-migration.controller';
+import { InvestmentCommitteeMigrationController } from './controllers/investment-committee-migration.controller';
+import { VendorDisbursementDetailsMigrationController } from './controllers/vendor-disbursement-details-migration.controller';
+import { FinancialSurveysMigrationController } from './controllers/financial-surveys-migration.controller';
+import { HomeVisitsMigrationController } from './controllers/home-visits-migration.controller';
+import { AssetTitlesMigrationController } from './controllers/asset-titles-migration.controller';
+import { ContractDetailsMigrationController } from './controllers/contract-details-migration.controller';
+import { CreditApplicationCommentsMigrationController } from './controllers/credit-application-comments-migration.controller';
+import { BorrowersSyncController } from './controllers/borrowers-sync.controller';
+import { DirectorsControllerSheets } from './controllers/directors.controller.sheets';
+import { CommonModule } from '../common/common.module';
+import { FileUploadService } from './services/file-upload.service';
+import { BackgroundUploadService } from './services/background-upload.service';
 
 @Module({
   imports: [
@@ -54,7 +122,9 @@ import { CaseStudiesService } from './services/case-studies.service';
       store: cacheStore.memoryStore,
       ttl: 600, // Cache TTL in seconds (e.g., 600 = 10 minutes)
       // max: 100, // Optional: Max number of items in cache
-    })
+    }),
+    ScheduleModule.forRoot(),
+    CommonModule,
   ],
   providers: [
     GoogleAuthService,
@@ -68,7 +138,50 @@ import { CaseStudiesService } from './services/case-studies.service';
     CaseStudySectionsService,
     NewslettersService,
     NewsletterSectionsService,
-    PrismaService
+    PrismaService,
+    BorrowersDbService,
+    BorrowersSyncService,
+    DirectorsDbService,
+    DirectorsSyncService,
+    CrbConsentDbService,
+    CrbConsentSyncService,
+    ReferrersDbService,
+    ReferrersSyncService,
+    CreditApplicationsDbService,
+    CreditApplicationsSyncService,
+    ActiveDebtsDbService,
+    ActiveDebtsSyncService,
+    FeePlansDbService,
+    FeePlansSyncService,
+    PayrollDbService,
+    PayrollSyncService,
+    EnrollmentVerificationDbService,
+    EnrollmentVerificationSyncService,
+    MpesaBankStatementDbService,
+    MpesaBankStatementSyncService,
+    AuditedFinancialsDbService,
+    AuditedFinancialsSyncService,
+    StudentBreakdownDbService,
+    StudentBreakdownSyncService,
+    OtherSupportingDocsDbService,
+    OtherSupportingDocsSyncService,
+    InvestmentCommitteeDbService,
+    InvestmentCommitteeSyncService,
+    VendorDisbursementDetailsDbService,
+    VendorDisbursementDetailsSyncService,
+    HomeVisitDbService,
+    HomeVisitSyncService,
+    AssetTitleDbService,
+    AssetTitleSyncService,
+    ContractDetailsDbService,
+    ContractDetailsSyncService,
+    CreditApplicationCommentsDbService,
+    CreditApplicationCommentsSyncService,
+    FinancialSurveysDbService,
+    FinancialSurveysSyncService,
+    SyncSchedulerService,
+    FileUploadService,
+    BackgroundUploadService,
   ],
   controllers: [
     SpreadsheetController,
@@ -77,6 +190,7 @@ import { CaseStudiesService } from './services/case-studies.service';
     NotificationController,
     AppSheetController,
     BorrowersController,
+    BorrowersControllerSheets,
     DirectorsController,
     CrbConsentController,
     CreditApplicationsController,
@@ -103,7 +217,29 @@ import { CaseStudiesService } from './services/case-studies.service';
     SchoolPhotosController,
     LoansController,
     NewslettersController,
-    NewsletterSectionsController
+    NewsletterSectionsController,
+    BorrowersMigrationController,
+    BorrowersSyncController,
+    DirectorsControllerSheets,
+    DirectorsMigrationController,
+    CrbConsentsMigrationController,
+    ReferrersMigrationController,
+    CreditApplicationsMigrationController,
+    ActiveDebtsMigrationController,
+    FeePlansMigrationController,
+    PayrollMigrationController,
+    EnrollmentVerificationMigrationController,
+    MpesaBankStatementMigrationController,
+    AuditedFinancialsMigrationController,
+    StudentBreakdownMigrationController,
+    OtherSupportingDocsMigrationController,
+    InvestmentCommitteeMigrationController,
+    VendorDisbursementDetailsMigrationController,
+    FinancialSurveysMigrationController,
+    HomeVisitsMigrationController,
+    AssetTitlesMigrationController,
+    ContractDetailsMigrationController,
+    CreditApplicationCommentsMigrationController,
   ],
   exports: [GoogleDriveService, SheetsService],
 })

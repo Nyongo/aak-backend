@@ -1,3 +1,9 @@
+// Crypto polyfill for @nestjs/schedule
+import { webcrypto } from 'crypto';
+if (!global.crypto) {
+  global.crypto = webcrypto as any;
+}
+
 import { NestFactory, Reflector } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { PrismaService } from './prisma/prisma.service';
@@ -8,6 +14,8 @@ import { CommonFunctionsService } from './common/services/common-functions.servi
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import * as fs from 'fs';
 import * as bodyParser from 'body-parser';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 
 async function bootstrap() {
   const httpsOptions = {
@@ -16,8 +24,8 @@ async function bootstrap() {
   };
   const host = process.env.HOST || 'localhost';
   const port = process.env.PORT || 3000;
-  const app = await NestFactory.create(AppModule, { httpsOptions });
-  //const app = await NestFactory.create(AppModule);
+  //const app = await NestFactory.create(AppModule, { httpsOptions });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   // Enable CORS
   app.enableCors({
     origin: [
@@ -31,6 +39,11 @@ async function bootstrap() {
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
+  // Serve static files
+  app.useStaticAssets(join(__dirname, '..', 'uploads'), {
+    prefix: '/uploads/',
+  });
+
   const commonFunctionsService = app.get(CommonFunctionsService);
   const prismaService = app.get(PrismaService);
   const reflector = app.get(Reflector);

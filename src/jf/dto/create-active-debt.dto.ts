@@ -13,43 +13,45 @@ export class CreateActiveDebtDto {
   @IsString()
   'Debt Status': string;
 
-  @IsBoolean()
-  'Listed on CRB': boolean;
+  @IsString()
+  @IsOptional()
+  'Listed on CRB': string;
 
   @IsString()
   'Personal Loan or School Loan': string;
 
   @IsString()
+  @IsOptional()
+  'Loan Type': string;
+
+  @IsString()
   'Lender': string;
 
-  @IsDate()
-  'Date Loan Taken': Date;
+  @IsString()
+  'Date Loan Taken': string;
 
-  @IsDate()
-  'Final Due Date': Date;
+  @IsString()
+  'Final Due Date': string;
 
-  @IsNumber()
-  'Total Loan Amount': number;
+  @IsString()
+  'Total Loan Amount': string;
 
-  @IsNumber()
-  'Balance': number;
-
-  @IsNumber()
-  @IsOptional()
-  'Amount Overdue': number;
-
-  @IsNumber()
-  'Monthly Payment': number;
+  @IsString()
+  'Balance': string;
 
   @IsString()
   @IsOptional()
-  'Debt Statement': string;
+  'Amount Overdue': string;
 
-  @IsNumber()
-  'Annual Declining Balance Interest Rate': number;
+  @IsString()
+  'Monthly Payment': string;
 
-  @IsBoolean()
-  'Is the loan collateralized?': boolean;
+  @IsString()
+  'Annual Declining Balance Interest Rate': string;
+
+  @IsString()
+  @IsOptional()
+  'Is the loan collateralized?': string;
 
   @IsString()
   @IsOptional()

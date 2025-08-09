@@ -1,40 +1,40 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
 model User {
   id                    Int         @id @default(autoincrement())
+  password              String
+  createdAt             DateTime    @default(now())
   email                 String      @unique
   name                  String
-  password              String
   roleId                Int?
-  role                  Role?       @relation(fields: [roleId], references: [id])
   isActive              Boolean     @default(true)
-  requirePasswordReset  Boolean     @default(false)
   lastLoggedInOn        DateTime?
+  requirePasswordReset  Boolean     @default(false)
   lastPasswordChangedOn DateTime    @default(now())
-  createdAt             DateTime    @default(now())
-  createdPesticides     Pesticide[] @relation("CreatedBy") // Add this reverse relation
-  updatedPesticides     Pesticide[] @relation("LastUpdatedBy") // Add this reverse relation
-  sspUser               SspUser?    @relation("UserSspUser")
   farmerUser            FarmerUser? @relation("UserFarmerUser")
+  createdPesticides     Pesticide[] @relation("CreatedBy")
+  updatedPesticides     Pesticide[] @relation("LastUpdatedBy")
+  sspUser               SspUser?    @relation("UserSspUser")
+  role                  Role?       @relation(fields: [roleId], references: [id])
 }
 
 model Role {
   id              Int              @id @default(autoincrement())
   name            String           @unique
+  createdAt       DateTime         @default(now())
+  createdById     Int?
+  isActive        Boolean          @default(false)
+  lastUpdatedAt   DateTime?
+  lastUpdatedById Int?
   permissions     RolePermission[]
   users           User[]
-  isActive        Boolean          @default(false)
-  createdAt       DateTime         @default(now())
-  lastUpdatedAt   DateTime?
-  createdById     Int?
-  lastUpdatedById Int?
 }
 
 model Permission {
@@ -47,24 +47,24 @@ model RolePermission {
   id           Int        @id @default(autoincrement())
   roleId       Int
   permissionId Int
-  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
-  @@unique([roleId, permissionId]) // Ensure no duplicate role-permission pairs
+  @@unique([roleId, permissionId])
 }
 
 model Pesticide {
   id                       Int       @id @default(autoincrement())
-  name                     String    @unique
   registrationNumber       String    @unique
   activeAgent              String
   manufacturerOfRegistrant String
   localAgent               String
-  published                Boolean   @default(false) // Default value set to false
+  published                Boolean   @default(false)
   createdAt                DateTime  @default(now())
   lastUpdatedAt            DateTime?
   createdById              Int?
   lastUpdatedById          Int?
+  name                     String    @unique
   createdBy                User?     @relation("CreatedBy", fields: [createdById], references: [id])
   lastUpdatedBy            User?     @relation("LastUpdatedBy", fields: [lastUpdatedById], references: [id])
 }
@@ -93,19 +93,19 @@ model County {
   createdById     Int?
   lastUpdatedById Int?
   farms           FarmerFarm[] @relation("FarmInCounty")
-  ssps            SspUser[] @relation("SspInCounty")
+  ssps            SspUser[]    @relation("SspInCounty")
 }
 
 model ServiceType {
-  id              Int       @id @default(autoincrement())
-  name            String    @unique
-  description     String    @db.Text
-  isActive        Boolean   @default(false)
-  createdAt       DateTime  @default(now())
-  lastUpdatedAt   DateTime?
-  createdById     Int?
-  lastUpdatedById Int?
-  servicesRequested  ServiceRequestService[]
+  id                Int                     @id @default(autoincrement())
+  name              String                  @unique
+  description       String
+  isActive          Boolean                 @default(false)
+  createdAt         DateTime                @default(now())
+  lastUpdatedAt     DateTime?
+  createdById       Int?
+  lastUpdatedById   Int?
+  servicesRequested ServiceRequestService[]
 }
 
 model SspUser {
@@ -115,25 +115,22 @@ model SspUser {
   firstName        String
   middleName       String?
   lastName         String
-  gender           String?
-  occupation       String?
-  dob              String?
   userId           Int?             @unique
-  user             User?            @relation(name: "UserSspUser", fields: [userId], references: [id], onDelete: Cascade)
   isActive         Boolean          @default(true)
   createdAt        DateTime         @default(now())
   lastUpdatedAt    DateTime         @updatedAt
   createdById      Int?
   lastUpdatedById  Int?
-  assignedRequests ServiceRequest[] @relation(name: "SspAssignedServiceRequest")
-  schedules     SspSchedule[]
-  bids  SspBidding[] 
-  countyId        Int?
-  county          County?          @relation(name: "SspInCounty", fields: [countyId], references: [id], onDelete: Cascade)
+  dob              String?
+  gender           String?
+  occupation       String?
+  countyId         Int?
+  assignedRequests ServiceRequest[] @relation("SspAssignedServiceRequest")
+  bids             SspBidding[]
+  schedules        SspSchedule[]
+  county           County?          @relation("SspInCounty", fields: [countyId], references: [id], onDelete: Cascade)
+  user             User?            @relation("UserSspUser", fields: [userId], references: [id], onDelete: Cascade)
 }
-
-
-
 
 model FarmerUser {
   id              Int              @id @default(autoincrement())
@@ -146,61 +143,59 @@ model FarmerUser {
   middleName      String?
   lastName        String
   userId          Int?             @unique
-  user            User?            @relation(name: "UserFarmerUser", fields: [userId], references: [id], onDelete: Cascade)
   isActive        Boolean          @default(true)
   createdAt       DateTime         @default(now())
   lastUpdatedAt   DateTime         @updatedAt
   createdById     Int?
   lastUpdatedById Int?
   farms           FarmerFarm[]     @relation("FarmerFarmUser")
-  serviceRequests ServiceRequest[] @relation(name: "FarmerServiceRequest")
-  serviceBids  SspBidding[]
+  user            User?            @relation("UserFarmerUser", fields: [userId], references: [id], onDelete: Cascade)
+  serviceRequests ServiceRequest[] @relation("FarmerServiceRequest")
+  serviceBids     SspBidding[]
 }
 
 model FarmerFarm {
   id              Int              @id @default(autoincrement())
   plotSize        String?
   countyId        Int?
-  county          County?          @relation(name: "FarmInCounty", fields: [countyId], references: [id], onDelete: Cascade)
   location        String?
   latitude        String?
   longitude       String?
   imageUrl        String?
   farmerId        Int?
-  farmer          FarmerUser?      @relation(name: "FarmerFarmUser", fields: [farmerId], references: [id], onDelete: Cascade)
-  altitude        String?
-  soilType        String?
-  soilTemp        String?
-  humidity        String?
   isActive        Boolean          @default(true)
   createdAt       DateTime         @default(now())
   lastUpdatedAt   DateTime         @updatedAt
   createdById     Int?
   lastUpdatedById Int?
+  altitude        String?
+  humidity        String?
+  soilTemp        String?
+  soilType        String?
   crops           CropsInFarm[]    @relation("CropsInFarm")
-  serviceRequests ServiceRequest[] @relation(name: "FarmServices")
+  county          County?          @relation("FarmInCounty", fields: [countyId], references: [id], onDelete: Cascade)
+  farmer          FarmerUser?      @relation("FarmerFarmUser", fields: [farmerId], references: [id], onDelete: Cascade)
+  serviceRequests ServiceRequest[] @relation("FarmServices")
 }
 
 model Crop {
-  id              Int           @id @default(autoincrement())
-  name            String        @unique
+  id              Int                   @id @default(autoincrement())
+  name            String                @unique
   scientificName  String?
   description     String?
-  isActive        Boolean       @default(false)
-  createdAt       DateTime      @default(now())
-  lastUpdatedAt   DateTime?     @updatedAt
+  isActive        Boolean               @default(false)
+  createdAt       DateTime              @default(now())
+  lastUpdatedAt   DateTime?             @updatedAt
   createdById     Int?
   lastUpdatedById Int?
-  farms           CropsInFarm[] @relation("CropsInFarm")
-  serviceRequests           ServiceRequestCrops[] @relation("CropsInRequest")
+  farms           CropsInFarm[]         @relation("CropsInFarm")
+  serviceRequests ServiceRequestCrops[] @relation("CropsInRequest")
 }
 
 model CropsInFarm {
   id              Int        @id @default(autoincrement())
   farmId          Int
-  farm            FarmerFarm @relation(name: "CropsInFarm", fields: [farmId], references: [id], onDelete: Cascade)
   cropId          Int
-  crop            Crop       @relation(name: "CropsInFarm", fields: [cropId], references: [id], onDelete: Cascade)
   description     String?
   cropStatus      String?
   isActive        Boolean    @default(false)
@@ -208,88 +203,383 @@ model CropsInFarm {
   lastUpdatedAt   DateTime?  @updatedAt
   createdById     Int?
   lastUpdatedById Int?
+  crop            Crop       @relation("CropsInFarm", fields: [cropId], references: [id], onDelete: Cascade)
+  farm            FarmerFarm @relation("CropsInFarm", fields: [farmId], references: [id], onDelete: Cascade)
 }
 
 model ServiceRequest {
-  id              Int         @id @default(autoincrement())
-  description     String?
-  farmerId        Int?
-  farmer          FarmerUser? @relation(name: "FarmerServiceRequest", fields: [farmerId], references: [id], onDelete: Cascade)
-  farmId          Int
-  farm            FarmerFarm  @relation(name: "FarmServices", fields: [farmId], references: [id], onDelete: Cascade)
-  assignedSspId   Int?
-  assignedSsp     SspUser?    @relation(name: "SspAssignedServiceRequest", fields: [assignedSspId], references: [id], onDelete: SetNull)
-  requestStatus   String?
-  sspScheduleId    Int?
-  isConfirmed       Boolean     @default(false)
-  isActive        Boolean     @default(true)
-  isPublished        Boolean     @default(true)
-  createdAt       DateTime    @default(now())
-  sspRating          Int?
-  urgency            String?
-  requestDate     DateTime?
-  dateStarted     DateTime?
-  dateCompleted   DateTime?
-  lastUpdatedAt   DateTime    @updatedAt
-  createdById     Int?
-  lastUpdatedById Int?
-  farmersBudget Float?
-  serviceCosts    Float?
+  id                   Int                     @id @default(autoincrement())
+  description          String?
+  farmerId             Int?
+  farmId               Int
+  assignedSspId        Int?
+  requestStatus        String?
+  isActive             Boolean                 @default(true)
+  createdAt            DateTime                @default(now())
+  dateStarted          DateTime?
+  dateCompleted        DateTime?
+  lastUpdatedAt        DateTime                @updatedAt
+  createdById          Int?
+  lastUpdatedById      Int?
+  serviceCosts         Float?
+  sspRating            Int?
+  isConfirmed          Boolean                 @default(false)
+  isPublished          Boolean                 @default(true)
+  requestDate          DateTime?
   requestedServicesIds String?
+  urgency              String?
+  farmersBudget        Float?
+  sspScheduleId        Int?
+  assignedSsp          SspUser?                @relation("SspAssignedServiceRequest", fields: [assignedSspId], references: [id])
+  farm                 FarmerFarm              @relation("FarmServices", fields: [farmId], references: [id], onDelete: Cascade)
+  farmer               FarmerUser?             @relation("FarmerServiceRequest", fields: [farmerId], references: [id], onDelete: Cascade)
+  crops                ServiceRequestCrops[]
+  servicesRequested    ServiceRequestService[]
+  bids                 SspBidding[]
   assignedSspSchedule  SspSchedule?
-  bids  SspBidding[]
-  crops  ServiceRequestCrops[]
-  servicesRequested  ServiceRequestService[]
 }
+
 model ServiceRequestService {
-    id              Int         @id @default(autoincrement())
-    serviceTypeId   Int
-    serviceType   ServiceType  @relation(fields: [serviceTypeId], references: [id], onDelete: Cascade)
-    serviceRequestId Int
-    serviceRequest          ServiceRequest  @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
+  id               Int            @id @default(autoincrement())
+  serviceTypeId    Int
+  serviceRequestId Int
+  serviceRequest   ServiceRequest @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
+  serviceType      ServiceType    @relation(fields: [serviceTypeId], references: [id], onDelete: Cascade)
 }
 
 model ServiceRequestCrops {
-    id              Int         @id @default(autoincrement())
-    cropId   Int
-    crop            Crop       @relation(name: "CropsInRequest", fields: [cropId], references: [id], onDelete: Cascade)
-    serviceRequestId Int
-    serviceRequest          ServiceRequest  @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
+  id               Int            @id @default(autoincrement())
+  cropId           Int
+  serviceRequestId Int
+  crop             Crop           @relation("CropsInRequest", fields: [cropId], references: [id], onDelete: Cascade)
+  serviceRequest   ServiceRequest @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
 }
 
 model SspSchedule {
-  id            Int       @id @default(autoincrement())
-  sspId         Int
-  ssp           SspUser   @relation(fields: [sspId], references: [id], onDelete: Cascade)
-  date          DateTime
-  startTime     DateTime 
-  endTime       DateTime 
-  hasRequests  Boolean   @default(false)
-  isBooked      Boolean   @default(false) // If booked, set to true
-   isAvailable     Boolean   @default(true)
-   serviceRequestId Int? @unique
-   serviceRequest  ServiceRequest? @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
-   createdAt     DateTime  @default(now())
-  lastUpdatedAt DateTime  @updatedAt
-
+  id               Int             @id @default(autoincrement())
+  sspId            Int
+  date             DateTime
+  startTime        DateTime
+  endTime          DateTime
+  isBooked         Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  lastUpdatedAt    DateTime        @updatedAt
+  isAvailable      Boolean         @default(true)
+  serviceRequestId Int?            @unique
+  hasRequests      Boolean         @default(false)
+  serviceRequest   ServiceRequest? @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
+  ssp              SspUser         @relation(fields: [sspId], references: [id], onDelete: Cascade)
 }
 
 model SspBidding {
-  id              Int         @id @default(autoincrement())
-  serviceRequestId        Int
-  serviceRequest          ServiceRequest  @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
-  sspId          Int
-  ssp            SspUser      @relation(fields: [sspId], references: [id], onDelete: Cascade)
+  id                Int            @id @default(autoincrement())
+  serviceRequestId  Int
+  sspId             Int
   farmerId          Int
-  farmer            FarmerUser      @relation(fields: [farmerId], references: [id], onDelete: Cascade)
-  scheduleId     String?
-  status         String       @default("Pending") // Pending, Confirmed, Completed, Cancelled
-  requestedByFarmer  Boolean   @default(false)
-  createdAt      DateTime     @default(now())
-  lastUpdatedAt  DateTime     @updatedAt
+  scheduleId        String?
+  status            String         @default("Pending")
+  createdAt         DateTime       @default(now())
+  lastUpdatedAt     DateTime       @updatedAt
+  requestedByFarmer Boolean        @default(false)
+  farmer            FarmerUser     @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  serviceRequest    ServiceRequest @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
+  ssp               SspUser        @relation(fields: [sspId], references: [id], onDelete: Cascade)
 }
 
-// Shared enums
+model CaseStudy {
+  id        String             @id @default(uuid())
+  slug      String             @unique
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  sections  CaseStudySection[] @relation("CaseStudyToSections")
+
+  @@map("CaseStudy")
+}
+
+model CaseStudySection {
+  id          String                  @id @default(uuid())
+  caseStudyId String
+  order       Int
+  type        SectionType
+  data        Json
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  caseStudy   CaseStudy               @relation("CaseStudyToSections", fields: [caseStudyId], references: [id], onDelete: Cascade)
+  media       CaseStudySectionMedia[]
+
+  @@index([caseStudyId])
+}
+
+/// This model maps exactly to your existing `SectionMedia` table
+model CaseStudySectionMedia {
+  id                 String           @id @default(uuid())
+  caseStudySectionId String
+  mimeType           String
+  blob               Bytes
+  section            CaseStudySection @relation(fields: [caseStudySectionId], references: [id], onDelete: Cascade)
+
+  @@index([caseStudySectionId])
+  @@map("SectionMedia")
+}
+
+model Newsletter {
+  id            String              @id @default(uuid())
+  title         String
+  description   String
+  date          DateTime
+  category      NewsletterCategory
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  imageBlob     Bytes
+  imageMimeType String
+  sections      NewsletterSection[] @relation("NewsletterToSections")
+
+  @@index([date])
+}
+
+model NewsletterSection {
+  id           String                   @id @default(uuid())
+  newsletterId String
+  order        Int
+  type         SectionType
+  data         Json
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+  newsletter   Newsletter               @relation("NewsletterToSections", fields: [newsletterId], references: [id], onDelete: Cascade)
+  media        NewsletterSectionMedia[]
+
+  @@index([newsletterId])
+}
+
+/// This will create a new table `NewsletterSectionMedia`
+model NewsletterSectionMedia {
+  id                  String            @id @default(uuid())
+  newsletterSectionId String
+  mimeType            String
+  blob                Bytes
+  section             NewsletterSection @relation(fields: [newsletterSectionId], references: [id], onDelete: Cascade)
+
+  @@index([newsletterSectionId])
+}
+
+model SslStaff {
+  id                   String          @id
+  name                 String
+  type                 String
+  borrowerId           String
+  email                String
+  sslId                String
+  nationalIdNumber     String
+  nationalIdFront      String?
+  nationalIdBack       String?
+  kraPinNumber         String?
+  kraPinPhoto          String?
+  phoneNumber          String
+  status               String          @default("Active")
+  roleInSchool         String
+  dateOfBirth          String
+  address              String
+  gender               String
+  postalAddress        String?
+  startDate            String
+  insuredForCreditLife Boolean         @default(false)
+  paymentThisMonth     Boolean         @default(false)
+  terminationDate      String?
+  educationLevel       String?
+  sslEmail             String?
+  secondaryRole        String?
+  monthlyTarget        String?
+  creditLifeHelper     String?
+  teamLeader           String?
+  passportPhoto        String?
+  sslLevel             String?
+  sslArea              String?
+  isActive             Boolean         @default(true)
+  createdAt            DateTime        @default(now())
+  lastUpdatedAt        DateTime        @updatedAt
+  createdById          Int?
+  lastUpdatedById      Int?
+  dailyWorkPlans       DailyWorkPlan[]
+
+  @@map("ssl_staff")
+}
+
+model DailyWorkPlan {
+  id                       Int      @id @default(autoincrement())
+  date                     DateTime
+  plannedVisit             String
+  actualGpsCoordinates     String?
+  callsMadeDescription     String
+  notes                    String?
+  supervisorReview         String?
+  status                   String   @default("Pending")
+  sslStaffId               String
+  createdAt                DateTime @default(now())
+  lastUpdatedAt            DateTime @updatedAt
+  createdById              Int?
+  lastUpdatedById          Int?
+  locationIsVerified       Boolean  @default(false)
+  marketingOfficerComments String?
+  pinnedLocation           String?
+  region                   String?
+  schoolName               String?
+  taskOfTheDay             String?
+  teamLeaderId             String?
+  schoolId                 String?
+  school                   School?  @relation(fields: [schoolId], references: [id])
+  sslStaff                 SslStaff @relation(fields: [sslStaffId], references: [id], onDelete: Cascade)
+
+  @@map("daily_work_plan")
+}
+
+model School {
+  id                 String          @id
+  name               String
+  schoolId           String          @unique
+  email              String?
+  phoneNumber        String?
+  address            String?
+  postalAddress      String?
+  county             String?
+  region             String?
+  schoolType         String?
+  status             String          @default("Active")
+  principalName      String?
+  principalPhone     String?
+  principalEmail     String?
+  totalStudents      Int?
+  totalTeachers      Int?
+  registrationNumber String?
+  establishmentDate  String?
+  isActive           Boolean         @default(true)
+  createdAt          DateTime        @default(now())
+  lastUpdatedAt      DateTime        @updatedAt
+  createdById        Int?
+  lastUpdatedById    Int?
+  locationPin        String?
+  sslId              String?
+  dailyWorkPlans     DailyWorkPlan[]
+
+  @@map("schools")
+}
+
+model Vehicle {
+  id                    Int           @id @default(autoincrement())
+  make                  String
+  model                 String
+  licensePlate          String        @unique
+  vin                   String        @unique
+  year                  Int
+  color                 String?
+  fuelType              String?
+  mileage               Int?
+  averageFuelConsumption Float?
+  pricePerKm            Float?
+  registrationExpiry    DateTime?
+  isActive              Boolean       @default(true)
+  notes                 String?
+  createdAt             DateTime      @default(now())
+  lastUpdatedAt         DateTime      @updatedAt
+  createdById           Int?
+  lastUpdatedById       Int?
+  maintenances          Maintenance[]
+  trips                 Trip[]
+}
+
+model Driver {
+  id                  Int           @id @default(autoincrement())
+  firstName           String
+  middleName          String?
+  lastName            String
+  email               String        @unique
+  phoneNumber         String
+  nationalId          String        @unique
+  gender              String
+  licenseNumber       String        @unique
+  licenseExpiry       DateTime
+  dateOfBirth         DateTime?
+  address             String?
+  emergencyContact    String?
+  emergencyPhone      String?
+  idPhoto             String?
+  driverLicensePhoto  String?
+  psvLicenseDoc       String?
+  passportPhoto       String?
+  isActive            Boolean       @default(true)
+  notes               String?
+  createdAt           DateTime      @default(now())
+  lastUpdatedAt       DateTime      @updatedAt
+  createdById         Int?
+  lastUpdatedById     Int?
+  trips               Trip[]
+}
+
+model Maintenance {
+  id                Int           @id @default(autoincrement())
+  vehicleId         Int
+  maintenanceType   String
+  description       String
+  scheduledDate     DateTime
+  completedDate     DateTime?
+  cost              Float?
+  serviceProvider   String?
+  invoiceNumber     String?
+  isCompleted       Boolean       @default(false)
+  notes             String?
+  mileageAtService  Int?
+  createdAt         DateTime      @default(now())
+  lastUpdatedAt     DateTime      @updatedAt
+  createdById       Int?
+  lastUpdatedById   Int?
+  vehicle           Vehicle       @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+}
+
+model Trip {
+  id                    Int           @id @default(autoincrement())
+  vehicleId             Int
+  driverId              Int
+  customerName          String?
+  customerPhone         String?
+  startGps              String        // "latitude,longitude"
+  endGps                String?       // "latitude,longitude"
+  startTime             DateTime
+  endTime               DateTime?
+  distance              Float?        // in kilometers
+  pricePerKm            Float         // captured from vehicle at trip start
+  totalPrice            Float?        // calculated: distance * pricePerKm
+  purpose               String
+  status                TripStatus    @default(SCHEDULED)
+  paymentStatus         PaymentStatus @default(PENDING)
+  paymentMethod         String?
+  fuelConsumption       Float?        // liters consumed
+  fuelCost              Float?        // fuel cost for the trip
+  notes                 String?
+  rating                Int?          // 1-5 star rating
+  feedback              String?
+  createdAt             DateTime      @default(now())
+  lastUpdatedAt         DateTime      @updatedAt
+  createdById           Int?
+  lastUpdatedById       Int?
+  vehicle               Vehicle       @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  driver                Driver        @relation(fields: [driverId], references: [id], onDelete: Cascade)
+}
+
+enum TripStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  ON_HOLD
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  PARTIAL
+  REFUNDED
+  CANCELLED
+}
+
 enum SectionType {
   banner
   content
@@ -301,192 +591,484 @@ enum NewsletterCategory {
   PARTNERSHIPS
   ALL_UPDATES
 }
-// === Top‐level Case Study ===
-model CaseStudy {
-  id         String               @id @default(uuid())
-  slug       String               @unique
-  createdAt  DateTime             @default(now())
-  updatedAt  DateTime             @updatedAt
 
-  sections   CaseStudySection[]   @relation("CaseStudyToSections")
-
-  @@map("CaseStudy")
+model Borrower {
+  id                        Int      @id @default(autoincrement())
+  sheetId                   String?  @unique // Original sheet row ID if available
+  customerType              String?
+  type                      String?
+  name                      String?
+  locationDescription       String?
+  societyCertificate        String?
+  yearFounded               String?
+  sslId                     String?
+  locationPin               String?
+  historicalPaymentDetails  String?
+  paymentMethod             String?
+  bankName                  String?
+  accountName               String?
+  accountNumber             String?
+  primaryPhone              String?
+  documentVerifyingAccount  String?
+  managerVerification       String?
+  status                    String?
+  notes                     String?
+  entityType                String?
+  registrationNumber        String?
+  notesOnStatus             String?
+  officialSearch            String?
+  pelezaSearch              String?
+  productsRequested         String?
+  dataCollectionProgress    Float?
+  initialContactNotes       String?
+  kraPinPhoto               String?
+  kraPinNumber              String?
+  createdAt                 DateTime? @default(now())
+  createdBy                 String?
+  howHeard                  String?
+  monthYearCreated          String?
+  moeCertified              String?
+  moeCertificate            String?
+  county                    String?
+  cr12                      String?
+  nationalIdNumber          String?
+  nationalIdFront           String?
+  nationalIdBack            String?
+  dateOfBirth               String?
+  privateOrApbet            String?
+  synced                    Boolean   @default(false) // Track if synced to Google Sheets
+  relatedCreditApplications String?
+  relatedHandoversGivingId  String?
+  relatedHandoversReceivingId String?
+  relatedCrbConsents        String?
+  relatedCollaterals        String?
+  relatedUsers              String?
+  relatedReferrers          String?
+  relatedCustomerCareCalls  String?
+  relatedEscalations        String?
+  relatedEnrollmentReports  String?
+  relatedLoans              String?
+  relatedDirPaymentSchedules String?
+  relatedCollateralsByLoanId String?
 }
 
-model CaseStudySection {
-  id           String                 @id @default(uuid())
-  caseStudyId  String
-  order        Int
-  type         SectionType
-  data         Json
-  createdAt    DateTime               @default(now())
-  updatedAt    DateTime               @updatedAt
-
-  media        CaseStudySectionMedia[]
-  caseStudy    CaseStudy              @relation("CaseStudyToSections", fields: [caseStudyId], references: [id], onDelete: Cascade)
-
-  @@index([caseStudyId])
-}
-
-/// This model maps exactly to your existing `SectionMedia` table
-model CaseStudySectionMedia {
-  id                  String               @id @default(uuid())
-  caseStudySectionId  String
-  mimeType            String
-  blob                Bytes
-
-  section             CaseStudySection     @relation(fields: [caseStudySectionId], references: [id], onDelete: Cascade)
-
-  @@index([caseStudySectionId])
-  @@map("SectionMedia")       // ← reuse existing table name
-}
-
-// === Newsletter metadata ===
-
-model Newsletter {
-  id             String               @id @default(uuid())
-  title          String
-  description    String
-  date           DateTime
-  category       NewsletterCategory
-  imageBlob      Bytes
-  imageMimeType  String
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
-
-  sections       NewsletterSection[]  @relation("NewsletterToSections")
-
-  @@index([date])
-}
-
-// === Newsletter subsections ===
-
-model NewsletterSection {
-  id                 String                  @id @default(uuid())
-  newsletterId       String
-  order              Int
-  type               SectionType
-  data               Json
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
-
-  newsletter         Newsletter               @relation("NewsletterToSections", fields: [newsletterId], references: [id], onDelete: Cascade)
-  media              NewsletterSectionMedia[]
-
-  @@index([newsletterId])
-}
-
-/// This will create a new table `NewsletterSectionMedia`
-model NewsletterSectionMedia {
-  id                     String               @id @default(uuid())
-  newsletterSectionId    String
-  mimeType               String
-  blob                   Bytes
-
-  section                NewsletterSection    @relation(fields: [newsletterSectionId], references: [id], onDelete: Cascade)
-
-  @@index([newsletterSectionId])
-}
-
-model SslStaff {
-  id                    String    @id // Changed from Int to String for alphanumeric IDs
-  name                  String
-  type                  String
-  borrowerId            String
-  email                 String
-  sslId                 String
-  nationalIdNumber      String
-  nationalIdFront       String?   // File path/URL
-  nationalIdBack        String?   // File path/URL
+model Director {
+  id                    Int      @id @default(autoincrement())
+  sheetId               String?  @unique // Original sheet row ID if available
+  borrowerId            String?  // Borrower ID from the sheet
+  name                  String?
+  nationalIdNumber      String?
   kraPinNumber          String?
-  kraPinPhoto           String?   // File path/URL
-  phoneNumber           String
-  status                String    @default("Active")
-  roleInSchool          String
-  dateOfBirth           String
-  address               String
-  gender                String
-  postalAddress         String?
-  startDate             String
-  insuredForCreditLife  Boolean   @default(false)
-  paymentThisMonth      Boolean   @default(false)
-  terminationDate       String?
-  educationLevel        String?
-  sslEmail              String?
-  secondaryRole         String?
-  monthlyTarget         String?
-  creditLifeHelper      String?
-  teamLeader            String?
-  passportPhoto         String?   // File path/URL
-  sslLevel              String?
-  sslArea               String?
-  isActive              Boolean   @default(true)
-  createdAt             DateTime  @default(now())
-  lastUpdatedAt         DateTime  @updatedAt
-  createdById           Int?
-  lastUpdatedById       Int?
-  dailyWorkPlans        DailyWorkPlan[]
-
-  @@map("ssl_staff")
-}
-
-model DailyWorkPlan {
-  id                    Int       @id @default(autoincrement())
-  date                  DateTime
-  plannedVisit          String    @db.Text
-  actualGpsCoordinates  String?
-  callsMadeDescription  String    @db.Text
-  notes                 String?   @db.Text
-  supervisorReview      String?   @db.Text
-  status                String    @default("Pending")
-  sslStaffId            String    // Changed from Int to String to match SslStaff ID
-  sslStaff              SslStaff  @relation(fields: [sslStaffId], references: [id], onDelete: Cascade)
-  schoolId              String?   // School ID reference
-  school                School?   @relation(fields: [schoolId], references: [id], onDelete: SetNull)
-  teamLeaderId          String?   // Team Leader ID
-  schoolName            String?   // School Name (auto-populated from school.name)
-  region                String?   // Region (auto-populated from sslStaff.sslArea)
-  taskOfTheDay          String?   @db.Text // Task of the Day
-  pinnedLocation        String?   // Pinned Location
-  locationIsVerified    Boolean   @default(false) // Location Is Verified
-  marketingOfficerComments String? @db.Text // Marketing Officer Comments
-  createdAt             DateTime  @default(now())
-  lastUpdatedAt         DateTime  @updatedAt
-  createdById           Int?
-  lastUpdatedById       Int?
-
-  @@map("daily_work_plan")
-}
-
-
-model School {
-  id                    String    @id // Alphanumeric ID from sheet
-  name                  String
-  schoolId              String    @unique // Unique school identifier
-  sslId                 String?   // SSL ID from sheet
-  locationPin           String?   // Location Pin from sheet
-  email                 String?
   phoneNumber           String?
+  email                 String?
+  gender                String?
+  roleInSchool          String?
+  status                String?
+  dateOfBirth           String?
+  educationLevel        String?
+  insuredForCreditLife  String?
   address               String?
   postalAddress         String?
-  county                String?
-  region                String?
-  schoolType            String?   // Primary, Secondary, etc.
-  status                String    @default("Active")
-  principalName         String?
-  principalPhone        String?
-  principalEmail        String?
-  totalStudents         Int?
-  totalTeachers         Int?
-  registrationNumber    String?
-  establishmentDate     String?
-  isActive              Boolean   @default(true)
-  createdAt             DateTime  @default(now())
-  lastUpdatedAt         DateTime  @updatedAt
-  createdById           Int?
-  lastUpdatedById       Int?
-  dailyWorkPlans        DailyWorkPlan[]
-
-  @@map("schools")
+  nationalIdFront       String?
+  nationalIdBack        String?
+  kraPinPhoto           String?
+  passportPhoto         String?
+  type                  String?  // Type field from Google Sheets
+  createdAt             DateTime? @default(now())
+  synced                Boolean   @default(false) // Track if synced to Google Sheets
 }
 
+model CrbConsent {
+  id                    Int      @id @default(autoincrement())
+  sheetId               String?  @unique // Original sheet row ID if available
+  borrowerId            String?  // Borrower ID from the sheet
+  agreement             String?
+  signedByName          String?
+  date                  String?
+  roleInOrganization    String?
+  signature             String?
+  createdAt             DateTime? @default(now())
+  synced                Boolean   @default(false) // Track if synced to Google Sheets
+}
+
+model Referrer {
+  id                    Int      @id @default(autoincrement())
+  sheetId               String?  @unique // Original sheet row ID if available
+  schoolId              String?  // School ID from the sheet
+  referrerName          String?
+  mpesaNumber           String?
+  referralRewardPaid    String?
+  datePaid              String?
+  amountPaid            String?
+  proofOfPayment        String?
+  createdAt             DateTime? @default(now())
+  synced                Boolean   @default(false) // Track if synced to Google Sheets
+}
+
+model CreditApplication {
+  id                              Int      @id @default(autoincrement())
+  sheetId                         String?  @unique // Original sheet row ID if available
+  customerType                    String?
+  borrowerId                      String?
+  applicationStartDate            String?
+  creditType                      String?
+  totalAmountRequested            Float?
+  workingCapitalApplicationNumber String?
+  sslActionNeeded                 String?
+  sslAction                       String?
+  sslId                          String?
+  sslFeedbackOnAction            String?
+  schoolCrbAvailable             String?
+  referredBy                     String?
+  currentCostOfCapital           Float?
+  checksCollected                Float?
+  checksNeededForLoan            Float?
+  photoOfCheck                   String?
+  status                         String?
+  commentsOnChecks               String?
+  createdAt                      DateTime? @default(now())
+  synced                         Boolean   @default(false) // Track if synced to Google Sheets
+}
+
+model ActiveDebt {
+  id                              Int      @id @default(autoincrement())
+  sheetId                         String?  @unique // Original sheet row ID if available
+  creditApplicationId             String?
+  debtStatus                      String?
+  listedOnCrb                     String?
+  personalLoanOrSchoolLoan        String?
+  lender                          String?
+  dateLoanTaken                   String?
+  finalDueDate                    String?
+  totalLoanAmount                 Float?
+  balance                         Float?
+  amountOverdue                   Float?
+  monthlyPayment                  Float?
+  debtStatement                   String?
+  annualDecliningBalanceInterestRate Float?
+  isLoanCollateralized            String?
+  typeOfCollateral                String?
+  whatWasLoanUsedFor              String?
+  createdAt                       DateTime? @default(now())
+  synced                          Boolean   @default(false) // Track if synced to Google Sheets
+}
+
+model FeePlan {
+  id                    Int      @id @default(autoincrement())
+  sheetId               String?  @unique // Original sheet row ID if available
+  creditApplicationId   String?
+  schoolYear            String?
+  photo                 String?
+  file                  String?
+  createdAt             DateTime? @default(now())
+  synced                Boolean   @default(false) // Track if synced to Google Sheets
+}
+
+model Payroll {
+  id                              Int      @id @default(autoincrement())
+  sheetId                         String?  @unique // Original sheet row ID if available
+  creditApplicationId             String?
+  role                            String?
+  numberOfEmployeesInRole         Int?
+  monthlySalary                   Float?
+  monthsPerYearTheRoleIsPaid      Int?
+  notes                           String?
+  totalAnnualCost                 Float?
+  createdAt                       DateTime? @default(now())
+  synced                          Boolean   @default(false) // Track if synced to Google Sheets
+}
+
+model EnrollmentVerification {
+  id                              Int      @id @default(autoincrement())
+  sheetId                         String?  @unique // Original sheet row ID if available
+  creditApplicationId             String?
+  subCountyEnrollmentReport       String?
+  enrollmentReport                String?
+  numberOfStudentsThisYear        Int?
+  numberOfStudentsLastYear        Int?
+  numberOfStudentsTwoYearsAgo     Int?
+  createdAt                       DateTime? @default(now())
+  synced                          Boolean   @default(false) // Track if synced to Google Sheets
+}
+
+model MpesaBankStatement {
+  id                              Int      @id @default(autoincrement())
+  sheetId                         String?  @unique // Original sheet row ID if available
+  creditApplicationId             String?
+  personalOrBusinessAccount       String?
+  type                            String?
+  accountDetails                  String?
+  description                     String?
+  statement                       String?
+  statementStartDate              String?
+  statementEndDate                String?
+  totalRevenue                    Float?
+  convertedExcelFile              String?
+  createdAt                       DateTime? @default(now())
+  synced                          Boolean   @default(false) // Track if synced to Google Sheets
+}
+
+model AuditedFinancial {
+  id                              Int      @id @default(autoincrement())
+  sheetId                         String?  @unique // Original sheet row ID if available
+  creditApplicationId             String?
+  statementType                   String?
+  notes                           String?
+  file                            String?
+  createdAt                       DateTime? @default(now())
+  synced                          Boolean   @default(false) // Track if synced to Google Sheets
+}
+
+model StudentBreakdown {
+  id                              Int      @id @default(autoincrement())
+  sheetId                         String?  @unique // Original sheet row ID if available
+  creditApplicationId             String?
+  feeType                         String?
+  term                            String?
+  grade                           String?
+  numberOfStudents                Int?
+  fee                             Float?
+  totalRevenue                    Float?
+  createdAt                       DateTime? @default(now())
+  synced                          Boolean   @default(false) // Track if synced to Google Sheets
+}
+
+model OtherSupportingDoc {
+  id                              Int      @id @default(autoincrement())
+  sheetId                         String?  @unique // Original sheet row ID if available
+  creditApplicationId             String?
+  documentType                    String?
+  notes                           String?
+  file                            String?
+  image                           String?
+  createdAt                       DateTime? @default(now())
+  synced                          Boolean   @default(false) // Track if synced to Google Sheets
+}
+
+model InvestmentCommittee {
+  id                              Int      @id @default(autoincrement())
+  sheetId                         String?  @unique // Original sheet row ID if available
+  creditApplicationId             String?
+  sslId                          String?
+  schoolId                       String?
+  typeOfSchool                   String?
+  ageOfSchool                    String?
+  incorporationStructure          String?
+  schoolIsProfitable             String?
+  solvencyAssetsLiabilities      String?
+  numberOfStudentsPreviousYear   String?
+  numberOfStudentsFromEnrollmentVerification String?
+  growthInPopulation             String?
+  auditedFinancialsProvided      String?
+  schoolHasBankAccountAndChecks  String?
+  assetValueHasIncreasedFromTwoYearsAgo String?
+  totalAnnualRevenueFromFeesFromStudentBreakdownUnadjusted String?
+  annualRevenueFromBankaAndMPesaStatements String?
+  lesserOfAnnualRevenueFromBankaAndMPesaStatementsAnd75PercentCollections String?
+  collectionsRate                 String?
+  averageSchoolFeesCharged       String?
+  schoolSitsOnOwnedLeasedOrRentedLand String?
+  totalCashHeldInBankAndMPesaAccounts String?
+  totalAnnualSpendingOnSalariesExcludingCooksAndDrivers String?
+  totalAnnualSpendingOnRent      String?
+  totalAnnualOwnersDraw          String?
+  totalAnnualDebtPaymentOfSchoolAndDirectors String?
+  totalOfSalariesRentDebtAndOwnersDraw String?
+  annualExpenseEstimateExcludingPayrollRentDebtOwnersDrawFoodAndTransport String?
+  totalAnnualExpensesExcludingFoodAndTransport String?
+  annualProfitExcludingFoodAndTransportExpenses String?
+  annualTransportExpenseEstimateIncludingDriverSalaries String?
+  annualFoodExpenseEstimateIncludingCookSalaries String?
+  annualProfitIncludingFoodAndTransportExpenses String?
+  monthlyProfitIncludingAllExpenses String?
+  lesserOfMonthlyProfitAnd35PercentProfitMargin String?
+  debtRatio                       String?
+  loanLengthMonths               String?
+  annualReducingInterestRate     String?
+  maximumMonthlyPayment          String?
+  maximumLoan                    String?
+  annualNonSchoolRevenueGenerated String?
+  annualSponsorshipRevenue       String?
+  totalBadDebtOnCrbHeldBySchoolAndDirectors String?
+  totalDebtOnCrbFullyPaidOffBySchoolAndDirectors String?
+  totalEstimatedValueOfAssets    String?
+  annualDonationRevenue          String?
+  maximumPreviousDaysLate        String?
+  numberOfInstallmentsPaidLate   String?
+  schoolCreditRisk               String?
+  previousRestructure            String?
+  predictedDaysLate              Int?
+  currentDebtToIncome            String?
+  profitMarginTotalProfitTotalRevenueNotAdjustedDownTo35Percent String?
+  totalDebt                      String?
+  collateralCoverageOfLoanAmountRequested String?
+  previousLoansWithJackfruit     String?
+  averageBankBalance             String?
+  averageBankBalanceTotalUnadjustedRevenue String?
+  createdAt                       DateTime? @default(now())
+  synced                          Boolean   @default(false) // Track if synced to Google Sheets
+}
+
+model VendorDisbursementDetail {
+  id                              Int      @id @default(autoincrement())
+  sheetId                         String?  @unique // Original sheet row ID if available
+  creditApplicationId             String?
+  vendorPaymentMethod             String?
+  phoneNumberForMPesaPayment      String?
+  managerVerification             String?
+  documentVerifyingPaymentAccount String?
+  bankName                        String?
+  accountName                     String?
+  accountNumber                   String?
+  phoneNumberForBankAccount       String?
+  paybillNumberAndAccount         String?
+  buyGoodsTill                    String?
+  createdAt                       DateTime? @default(now())
+  synced                          Boolean   @default(false) // Track if synced to Google Sheets
+}
+
+model HomeVisit {
+  id                              Int      @id @default(autoincrement())
+  sheetId                         String?  @unique // Original sheet row ID if available
+  creditApplicationId             String?
+  userId                          String?
+  county                          String?
+  addressDetails                  String?
+  locationPin                     String?
+  ownOrRent                      String?
+  howManyYearsStayed             String?
+  maritalStatus                   String?
+  howManyChildren                String?
+  isSpouseInvolvedInSchool       String?
+  doesSpouseHaveOtherIncome      String?
+  ifYesHowMuchPerMonth           String?
+  isDirectorBehindOnUtilityBills String?
+  totalNumberOfRooms             String?
+  howIsNeighborhood              String?
+  howAccessibleIsHouse           String?
+  isDirectorHomeInSameCity       String?
+  isDirectorTrainedEducator      String?
+  doesDirectorHaveOtherBusiness  String?
+  otherNotes                     String?
+  createdAt                       DateTime? @default(now())
+  synced                          Boolean   @default(false) // Track if synced to Google Sheets
+}
+
+model AssetTitle {
+  id                                    Int      @id @default(autoincrement())
+  sheetId                               String?  @unique // Original sheet row ID if available
+  creditApplicationId                   String?
+  type                                  String?
+  toBeUsedAsSecurity                    String?
+  description                           String?
+  legalOwner                            String?
+  userId                                String?
+  fullOwnerDetails                      String?
+  collateralOwnedByDirectorOfSchool     String?
+  plotNumber                            String?
+  schoolSitsOnLand                     String?
+  hasComprehensiveInsurance             String?
+  originalInsuranceCoverage             String?
+  initialEstimatedValue                 String?
+  approvedByLegalTeamOrNTSAAgent       String?
+  notesOnApprovalForUse                 String?
+  evaluatorsMarketValue                 String?
+  evaluatorsForcedValue                 String?
+  moneyOwedOnAsset                     String?
+  licensePlateNumber                    String?
+  engineCC                              String?
+  yearOfManufacture                     String?
+  logbookPhoto                         String?
+  titleDeedPhoto                       String?
+  fullTitleDeed                        String?
+  evaluatorsReport                     String?
+  createdAt                             DateTime? @default(now())
+  synced                                Boolean   @default(false) // Track if synced to Google Sheets
+}
+
+model ContractDetails {
+  id                                    Int      @id @default(autoincrement())
+  sheetId                               String?  @unique // Original sheet row ID if available
+  creditApplicationId                   String?
+  loanLengthRequestedMonths             String?
+  monthsSchoolRequestsForgiveness       String?
+  disbursalDateRequested                String?
+  tenPercentDownOnVehicleOrLandFinancing String?
+  createdBy                             String?
+  createdAt                             DateTime? @default(now())
+  synced                                Boolean   @default(false) // Track if synced to Google Sheets
+}
+
+model CreditApplicationComment {
+  id                    Int      @id @default(autoincrement())
+  sheetId               String?  @unique // Original sheet row ID if available
+  creditApplicationId   String?
+  commenterType         String?
+  comments              String?
+  commenterName         String?
+  createdAt             DateTime? @default(now())
+  synced                Boolean   @default(false) // Track if synced to Google Sheets
+}
+
+model FinancialSurvey {
+  id                                    Int      @id @default(autoincrement())
+  sheetId                               String?  @unique // Original sheet row ID if available
+  creditApplicationId                   String?
+  surveyDate                            String?
+  directorId                            String?
+  createdBy                             String?
+  schoolGrades                          String?
+  isSchoolAPBETOrPrivate                String?
+  isChurchSupported                     String?
+  churchName                            String?
+  churchAnnualSupport                   String?
+  churchBenefits                        String?
+  facilityOwnership                     String?
+  annualLeaseRent                       String?
+  ownerAnnualWithdrawal                 String?
+  monthlyDebtPayments                   String?
+  providesMeals                         String?
+  termlyFoodExpense                     String?
+  termlyFuelExpense                     String?
+  annualStudentTextbookExpense          String?
+  annualTeacherTextbookExpense          String?
+  termlyStationeryExpense               String?
+  monthlyWifiExpense                    String?
+  termlyAirtimeExpense                  String?
+  monthlyWaterExpense                   String?
+  termlyMiscExpense                     String?
+  annualTaxLicenseExpense               String?
+  monthlyElectricityExpense             String?
+  hasVehicles                           String?
+  termlyVehicleServiceExpense           String?
+  termlyVehicleFuelExpense              String?
+  totalVehiclePurchaseExpense           String?
+  annualEquipmentFurnitureExpense       String?
+  annualRepairMaintenanceExpense        String?
+  hasOtherRevenue                       String?
+  otherRevenueSources                   String?
+  annualOtherRevenue                    String?
+  sponsoredChildrenCount                String?
+  annualSponsorshipRevenue              String?
+  annualExpenseEstimate                 String?
+  annualFoodExpenseEstimate             String?
+  annualTransportExpenseEstimate        String?
+  lastYearAssetValue                    String?
+  lastYearLoanDeposits                  String?
+  previousYearStudentCount              String?
+  leaseAgreement                        String?
+  receivesSignificantDonations          String?
+  annualDonationRevenue                 String?
+  majorProjectsAndMitigation            String?
+  nextYearExpectedStudents              String?
+  twoYearsAgoAssetValue                String?
+  currentBankBalance                    String?
+  yearsAtCurrentPremises                String?
+  yearsWithBankAccount                  String?
+  hasAuditedFinancials                  String?
+  branchCount                           String?
+  hasMicrofinanceBorrowing             String?
+  hasFormalBankBorrowing               String?
+  createdAt                             DateTime? @default(now())
+  synced                                Boolean   @default(false) // Track if synced to Google Sheets
+}
