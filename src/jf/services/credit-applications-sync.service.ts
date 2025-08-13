@@ -122,14 +122,10 @@ export class CreditApplicationsSyncService {
       );
     }
 
-    // Check if sheetId exists and is not null and not a temporary ID
-    const isValidSheetId =
-      sheetId && sheetId !== null && !sheetId.startsWith('CA-');
+    // Check if sheetId exists and is not null
+    const isValidSheetId = sheetId && sheetId !== null;
 
-    // Check if we have a temporary sheetId that needs to be replaced
-    const hasTemporarySheetId = sheetId && sheetId.startsWith('CA-');
-
-    // 1. If sheetId exists and is valid (not temporary), check if it exists in sheets before updating
+    // 1. If sheetId exists and is valid, check if it exists in sheets before updating
     if (isValidSheetId) {
       const sheetIdExists = await this.checkSheetIdExists(sheetId);
 
@@ -182,39 +178,75 @@ export class CreditApplicationsSyncService {
       }
     }
 
-    // 2. If no valid sheetId, check if a record with the same borrowerId and creditType already exists
-    this.logger.debug(`No valid sheetId found, checking for existing record:`, {
+    // 2. If we have a sheetId, always create a new record with that ID
+    // This allows multiple credit applications for the same borrower
+    if (sheetId) {
+      this.logger.debug(
+        `Creating new credit application with sheetId as permanent ID:`,
+        {
+          borrowerId: borrowerId,
+          creditType: creditType,
+          sheetId: sheetId,
+        },
+      );
+
+      let result;
+      // Use our sheetId as the permanent ID in the sheet
+      this.logger.debug(
+        `Creating new credit application with sheetId as permanent ID: ${sheetId}`,
+      );
+      result = await this.sheetsService.addCreditApplicationWithId(
+        creditApplication,
+        sheetId,
+      );
+
+      this.logger.debug(
+        `Added new credit application to sheet: ${borrowerId || creditType} (ID: ${result.ID})`,
+      );
+
+      // Update the Postgres record with the final sheet ID if we have the database ID
+      if (creditApplication.dbId && result.ID) {
+        try {
+          // If we used a sheetId, it should now be the permanent ID
+          if (result.ID !== sheetId) {
+            await this.creditApplicationsDbService.update(
+              creditApplication.dbId,
+              {
+                sheetId: result.ID,
+              },
+            );
+            this.logger.debug(
+              `Updated sheetId in database from ${sheetId} to ${result.ID}`,
+            );
+          }
+
+          // Mark as synced
+          await this.creditApplicationsDbService.updateSyncStatus(
+            creditApplication.dbId,
+            true,
+          );
+          this.logger.debug(
+            `Marked Postgres record ${creditApplication.dbId} as synced`,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `Failed to update sheetId or mark Postgres record as synced: ${error}`,
+          );
+        }
+      }
+      return; // Successfully created, exit
+    }
+
+    // 3. If no sheetId provided, check for existing records by borrowerId and creditType
+    this.logger.debug(`No sheetId provided, checking for existing record:`, {
       borrowerId: borrowerId,
       creditType: creditType,
-      sheetId: sheetId,
       dbId: creditApplication.dbId,
     });
 
-    // First, try to find existing record by sheetId (if we have one, even if temporary)
-    let existingCreditApplication = null;
-    if (sheetId) {
-      existingCreditApplication =
-        await this.findCreditApplicationBySheetId(sheetId);
-      if (existingCreditApplication) {
-        this.logger.debug(
-          `Found existing record by sheetId: ${existingCreditApplication.ID}`,
-        );
-      }
-    }
-
-    // If not found by sheetId, try by borrowerId and creditType
-    if (!existingCreditApplication) {
-      existingCreditApplication =
-        await this.findExistingCreditApplicationInSheets(
-          borrowerId,
-          creditType,
-        );
-      if (existingCreditApplication) {
-        this.logger.debug(
-          `Found existing record by borrowerId/creditType: ${existingCreditApplication.ID}`,
-        );
-      }
-    }
+    // Try to find existing record by borrowerId and creditType
+    const existingCreditApplication =
+      await this.findExistingCreditApplicationInSheets(borrowerId, creditType);
 
     if (existingCreditApplication) {
       // Update existing record
@@ -243,11 +275,12 @@ export class CreditApplicationsSyncService {
             );
 
             // Then, update the sheetId separately to avoid unique constraint violation
-            const originalSheetId =
-              creditApplication.sheetId || creditApplication.ID;
-            await this.creditApplicationsDbService.update(originalSheetId, {
-              sheetId: existingCreditApplication.ID, // Update with the real sheet ID
-            });
+            await this.creditApplicationsDbService.update(
+              creditApplication.dbId,
+              {
+                sheetId: existingCreditApplication.ID, // Update with the real sheet ID
+              },
+            );
             this.logger.debug(
               `Updated Postgres record ${creditApplication.dbId} with sheetId: ${existingCreditApplication.ID}`,
             );
@@ -265,13 +298,12 @@ export class CreditApplicationsSyncService {
       }
     }
 
-    // 3. If no existing record found, create new credit application
+    // 4. If no existing record found, create new credit application
     this.logger.debug(
       `No existing record found, creating new credit application:`,
       {
         borrowerId: borrowerId,
         creditType: creditType,
-        sheetId: sheetId,
       },
     );
 
@@ -294,9 +326,7 @@ export class CreditApplicationsSyncService {
         );
 
         // Then, update the sheetId separately to avoid unique constraint violation
-        const originalSheetId =
-          creditApplication.sheetId || creditApplication.ID;
-        await this.creditApplicationsDbService.update(originalSheetId, {
+        await this.creditApplicationsDbService.update(creditApplication.dbId, {
           sheetId: result.ID, // Update with the real sheet ID
         });
         this.logger.debug(
@@ -311,9 +341,9 @@ export class CreditApplicationsSyncService {
   /**
    * Sync a single credit application by database ID
    */
-  async syncCreditApplicationById(dbId: number) {
+  async syncCreditApplicationById(dbId: number, sheetId?: string) {
     this.logger.log(
-      `Syncing single credit application by database ID: ${dbId}`,
+      `Syncing single credit application by database ID: ${dbId}${sheetId ? ` with sheetId: ${sheetId}` : ''}`,
     );
 
     try {
@@ -341,6 +371,12 @@ export class CreditApplicationsSyncService {
 
       // Add the database ID to the credit application data for sync service
       (creditApplicationInSheetFormat as any).dbId = creditApplication.id;
+
+      // If a sheetId is provided, use it as the permanent ID
+      if (sheetId) {
+        creditApplicationInSheetFormat.sheetId = sheetId;
+        creditApplicationInSheetFormat.ID = sheetId;
+      }
 
       try {
         await this.syncCreditApplicationToSheet(creditApplicationInSheetFormat);

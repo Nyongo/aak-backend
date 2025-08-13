@@ -128,7 +128,9 @@ export class CrbConsentController {
 
       // Save to database first
       const result = await this.crbConsentDbService.create(consentDataForDb);
-      this.logger.log(`CRB consent added successfully via Postgres`);
+      this.logger.log(
+        `CRB consent added successfully via Postgres with temporary sheetId: ${temporarySheetId}`,
+      );
 
       // Queue signature upload to Google Drive if provided
       if (signature) {
@@ -146,7 +148,13 @@ export class CrbConsentController {
       }
 
       // Trigger automatic sync to Google Sheets (non-blocking)
-      this.triggerBackgroundSync(result.id, result.borrowerId, 'create');
+      // Pass the temporary sheetId to ensure it becomes the permanent ID
+      this.triggerBackgroundSync(
+        result.id,
+        result.borrowerId,
+        'create',
+        temporarySheetId,
+      );
 
       return {
         success: true,
@@ -303,6 +311,7 @@ export class CrbConsentController {
     consentId: number,
     borrowerId: string,
     operation: 'create' | 'update',
+    temporarySheetId?: string,
   ) {
     try {
       this.logger.log(
@@ -352,9 +361,7 @@ export class CrbConsentController {
   async getMissingSheetIds() {
     try {
       const consents = await this.crbConsentDbService.findAll();
-      const missingSheetIds = consents.filter(
-        (consent) => !consent.sheetId || consent.sheetId.startsWith('CRB-'),
-      );
+      const missingSheetIds = consents.filter((consent) => !consent.sheetId);
       return {
         success: true,
         count: missingSheetIds.length,

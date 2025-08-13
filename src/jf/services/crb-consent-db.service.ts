@@ -126,6 +126,16 @@ export class CrbConsentDbService {
   }
 
   /**
+   * Update sheetId
+   */
+  async updateSheetId(id: number, sheetId: string) {
+    return this.prisma.crbConsent.update({
+      where: { id },
+      data: { sheetId },
+    });
+  }
+
+  /**
    * Convert data types for database storage
    */
   private convertDataTypes(data: any) {

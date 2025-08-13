@@ -111,14 +111,10 @@ export class CrbConsentSyncService {
       );
     }
 
-    // Check if sheetId exists and is not null and not a temporary ID
-    const isValidSheetId =
-      sheetId && sheetId !== null && !sheetId.startsWith('CRB-');
+    // Treat all sheetIds as permanent, including temporary ones
+    const isValidSheetId = sheetId && sheetId !== null;
 
-    // Check if we have a temporary sheetId that needs to be replaced
-    const hasTemporarySheetId = sheetId && sheetId.startsWith('CRB-');
-
-    // 1. If sheetId exists and is valid (not temporary), check if it exists in sheets before updating
+    // 1. If sheetId exists, check if it exists in sheets before updating
     if (isValidSheetId) {
       const sheetIdExists = await this.checkSheetIdExists(sheetId);
 
@@ -164,7 +160,56 @@ export class CrbConsentSyncService {
       }
     }
 
-    // 2. If no valid sheetId, check if a record with the same borrowerId and signedByName already exists
+    // 2. If we have a temporary sheetId, always create a new record
+    // This allows multiple CRB consents for the same director
+    if (sheetId && sheetId.startsWith('CRB-')) {
+      this.logger.debug(
+        `Temporary sheetId detected, creating new CRB consent:`,
+        {
+          borrowerId: borrowerId,
+          signedByName: signedByName,
+          sheetId: sheetId,
+        },
+      );
+
+      let result;
+      // Use our temporary sheetId as the permanent ID in the sheet
+      this.logger.debug(
+        `Creating new CRB consent with temporary sheetId as permanent ID: ${sheetId}`,
+      );
+      result = await this.sheetsService.addCrbConsentWithId(consent, sheetId);
+
+      this.logger.debug(
+        `Added new CRB consent to sheet: ${borrowerId || signedByName} (ID: ${result.ID})`,
+      );
+
+      // Update the Postgres record with the final sheet ID if we have the database ID
+      if (consent.dbId && result.ID) {
+        try {
+          // If we used a temporary sheetId, it should now be the permanent ID
+          if (result.ID !== sheetId) {
+            await this.crbConsentDbService.updateSheetId(
+              consent.dbId,
+              result.ID,
+            );
+            this.logger.debug(
+              `Updated sheetId in database from ${sheetId} to ${result.ID}`,
+            );
+          }
+
+          // Mark as synced
+          await this.crbConsentDbService.updateSyncStatus(consent.dbId, true);
+          this.logger.debug(`Marked Postgres record ${consent.dbId} as synced`);
+        } catch (error) {
+          this.logger.warn(
+            `Failed to update sheetId or mark Postgres record as synced: ${error}`,
+          );
+        }
+      }
+      return; // Successfully created, exit
+    }
+
+    // 3. If no valid sheetId and no temporary sheetId, check for existing records
     this.logger.debug(`No valid sheetId found, checking for existing record:`, {
       borrowerId: borrowerId,
       signedByName: signedByName,
@@ -211,26 +256,47 @@ export class CrbConsentSyncService {
       }
     }
 
-    // 3. If no existing record found, create new consent
+    // 4. If no existing record found, create new consent
     this.logger.debug(`No existing record found, creating new CRB consent:`, {
       borrowerId: borrowerId,
       signedByName: signedByName,
       sheetId: sheetId,
     });
 
-    const result = await this.sheetsService.addCrbConsent(consent);
+    let result;
+    if (sheetId) {
+      // Use our sheetId as the permanent ID in the sheet
+      this.logger.debug(
+        `Creating new CRB consent with sheetId as permanent ID: ${sheetId}`,
+      );
+      result = await this.sheetsService.addCrbConsentWithId(consent, sheetId);
+    } else {
+      // If no sheetId, let Google Sheets handle ID generation
+      result = await this.sheetsService.addCrbConsent(consent);
+    }
+
     this.logger.debug(
       `Added new CRB consent to sheet: ${borrowerId || signedByName} (ID: ${result.ID})`,
     );
 
-    // Update the Postgres record with the generated sheet ID if we have the database ID
+    // Update the Postgres record with the final sheet ID if we have the database ID
     if (consent.dbId && result.ID) {
       try {
-        // Use upsert to handle the unique constraint on sheetId
+        // If we used a sheetId, it should now be the permanent ID
+        if (result.ID !== sheetId) {
+          await this.crbConsentDbService.updateSheetId(consent.dbId, result.ID);
+          this.logger.debug(
+            `Updated sheetId in database from ${sheetId} to ${result.ID}`,
+          );
+        }
+
+        // Mark as synced
         await this.crbConsentDbService.updateSyncStatus(consent.dbId, true);
         this.logger.debug(`Marked Postgres record ${consent.dbId} as synced`);
       } catch (error) {
-        this.logger.warn(`Failed to mark Postgres record as synced: ${error}`);
+        this.logger.warn(
+          `Failed to update sheetId or mark Postgres record as synced: ${error}`,
+        );
       }
     }
   }

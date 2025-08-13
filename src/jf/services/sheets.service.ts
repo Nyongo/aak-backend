@@ -1116,6 +1116,70 @@ export class SheetsService {
   }
 
   /**
+   * Add CRB consent to Google Sheets with a specific ID
+   */
+  async addCrbConsentWithId(
+    consentData: any,
+    specificId: string,
+  ): Promise<any> {
+    try {
+      this.logger.log(`Adding new CRB consent with specific ID: ${specificId}`);
+
+      const headerResponse = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.BORROWERS_SHEET_ID,
+        range: 'CRB Consent!A1:ZZ1',
+      });
+
+      if (!headerResponse.data.values || !headerResponse.data.values[0]) {
+        throw new Error('Failed to get headers from CRB Consent sheet');
+      }
+
+      const headers = headerResponse.data.values[0];
+
+      // Prepare row data
+      const rowData = new Array(headers.length).fill('');
+      headers.forEach((header: string, index) => {
+        if (consentData[header] !== undefined) {
+          rowData[index] = consentData[header];
+        }
+      });
+
+      // Set the ID column with our specific ID
+      const idIndex = headers.findIndex((header) => header === 'ID');
+      if (idIndex !== -1) {
+        rowData[idIndex] = specificId;
+      }
+
+      // Add Created At if exists
+      const createdAtIndex = headers.findIndex(
+        (header) => header === 'Created At',
+      );
+      if (createdAtIndex !== -1) {
+        rowData[createdAtIndex] = new Date().toISOString();
+      }
+
+      const appendResponse = await this.sheets.spreadsheets.values.append({
+        spreadsheetId: this.BORROWERS_SHEET_ID,
+        range: 'CRB Consent!A2:ZZ2',
+        valueInputOption: 'USER_ENTERED',
+        insertDataOption: 'INSERT_ROWS',
+        requestBody: {
+          values: [rowData],
+        },
+      });
+
+      return {
+        ...consentData,
+        ID: specificId,
+        'Created At': new Date().toISOString(),
+      };
+    } catch (error) {
+      this.logger.error('Error adding CRB consent with specific ID:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Update CRB consent in Google Sheets
    */
   async updateCrbConsent(consentId: string, updateData: any): Promise<any> {
@@ -1379,7 +1443,7 @@ export class SheetsService {
   }
 
   /**
-   * Add credit application to Google Sheets
+   * Add new credit application to Google Sheets
    */
   async addCreditApplication(creditApplicationData: any): Promise<any> {
     try {
@@ -1444,6 +1508,70 @@ export class SheetsService {
       };
     } catch (error) {
       this.logger.error('Error adding credit application:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add new credit application to Google Sheets with a specific ID
+   */
+  async addCreditApplicationWithId(
+    creditApplicationData: any,
+    specificId: string,
+  ): Promise<any> {
+    try {
+      this.logger.log(
+        `Adding new credit application with specific ID: ${specificId}`,
+      );
+      const headerResponse = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.BORROWERS_SHEET_ID,
+        range: 'Credit Applications!A1:ZZ1',
+      });
+      if (!headerResponse.data.values || !headerResponse.data.values[0]) {
+        throw new Error('Failed to get headers from Credit Applications sheet');
+      }
+      const headers = headerResponse.data.values[0];
+      const rowData = new Array(headers.length).fill('');
+      headers.forEach((header: string, index) => {
+        if (creditApplicationData[header] !== undefined) {
+          rowData[index] = creditApplicationData[header];
+        }
+      });
+
+      // Set the ID column with our specific ID
+      const idIndex = headers.findIndex((header) => header === 'ID');
+      if (idIndex !== -1) {
+        rowData[idIndex] = specificId;
+      }
+
+      // Add Created At if exists
+      const createdAtIndex = headers.findIndex(
+        (header) => header === 'Created At',
+      );
+      if (createdAtIndex !== -1) {
+        rowData[createdAtIndex] = new Date().toISOString();
+      }
+
+      const appendResponse = await this.sheets.spreadsheets.values.append({
+        spreadsheetId: this.BORROWERS_SHEET_ID,
+        range: 'Credit Applications!A2:ZZ2',
+        valueInputOption: 'USER_ENTERED',
+        insertDataOption: 'INSERT_ROWS',
+        requestBody: {
+          values: [rowData],
+        },
+      });
+
+      return {
+        ...creditApplicationData,
+        ID: specificId,
+        'Created At': new Date().toISOString(),
+      };
+    } catch (error) {
+      this.logger.error(
+        'Error adding credit application with specific ID:',
+        error,
+      );
       throw error;
     }
   }

@@ -508,6 +508,7 @@ export class BorrowersController {
       const borrowerData = {
         ...updateBorrowerDto,
         type: 'School',
+        status: 'Low Risk',
         synced: false,
       };
 

@@ -33,6 +33,7 @@ export class CreditApplicationsDbService {
     'Photo of Check': 'photoOfCheck',
     'Comments on Checks': 'commentsOnChecks',
     'Created At': 'createdAt',
+    'Final Amount Approved and Disbursed': 'finalAmountApprovedAndDisbursed',
   };
 
   private readonly dbToSheetMapping = Object.fromEntries(
@@ -178,6 +179,7 @@ export class CreditApplicationsDbService {
       'sheetId',
       'customerType',
       'borrowerId',
+      'applicationStartDate',
       'creditType',
       'workingCapitalApplicationNumber',
       'sslActionNeeded',
@@ -191,7 +193,7 @@ export class CreditApplicationsDbService {
       'commentsOnChecks',
     ];
 
-    const dateFields = ['applicationStartDate', 'createdAt'];
+    const dateFields = ['createdAt'];
 
     const convertedData = { ...data };
 

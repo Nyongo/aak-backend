@@ -348,7 +348,7 @@ export class CreditApplicationsMigrationController {
         delete dbCreditApp[key];
       }
     });
-
+    console.log('+++++dbCreditApp', dbCreditApp);
     return dbCreditApp;
   }
 

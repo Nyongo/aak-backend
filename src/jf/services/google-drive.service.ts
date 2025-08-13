@@ -187,7 +187,7 @@ export class GoogleDriveService {
       // Escape special characters in filename for the query
       const escapedFilename = filename.replace(/'/g, "\\'");
       const searchQuery = `name = '${escapedFilename}' and '${folderId || this.GOOGLE_DRIVE_ROOT_FOLDER_ID}' in parents and trashed = false`;
-      console.log('Searching Google Drive with query:', searchQuery);
+      // console.log('Searching Google Drive with query:', searchQuery);
 
       const response = await this.drive.files.list({
         q: searchQuery,
@@ -197,15 +197,15 @@ export class GoogleDriveService {
         includeItemsFromAllDrives: true,
       });
 
-      console.log('Google Drive response:', response.data);
+      //  console.log('Google Drive response:', response.data);
 
       if (!response.data.files || response.data.files.length === 0) {
-        console.log('No files found matching the search criteria');
+        // console.log('No files found matching the search criteria');
         return null;
       }
 
       const fileLink = response.data.files[0].webViewLink;
-      console.log('Found file link:', fileLink);
+      //  console.log('Found file link:', fileLink);
       return fileLink;
     } catch (error) {
       console.error('Error getting file link from Google Drive:', error);

@@ -88,7 +88,8 @@ import { CreditApplicationCommentsDbService } from './services/credit-applicatio
 import { CreditApplicationCommentsSyncService } from './services/credit-application-comments-sync.service';
 import { FinancialSurveysDbService } from './services/financial-surveys-db.service';
 import { FinancialSurveysSyncService } from './services/financial-surveys-sync.service';
-import { SyncSchedulerService } from './sync-scheduler.service';
+import { MlDataService } from './services/ml-data.service';
+import { MlDataController } from './controllers/ml-data.controller';
 import { BorrowersMigrationController } from './controllers/borrowers-migration.controller';
 import { DirectorsMigrationController } from './controllers/directors-migration.controller';
 import { CrbConsentsMigrationController } from './controllers/crb-consents-migration.controller';
@@ -109,7 +110,7 @@ import { HomeVisitsMigrationController } from './controllers/home-visits-migrati
 import { AssetTitlesMigrationController } from './controllers/asset-titles-migration.controller';
 import { ContractDetailsMigrationController } from './controllers/contract-details-migration.controller';
 import { CreditApplicationCommentsMigrationController } from './controllers/credit-application-comments-migration.controller';
-import { BorrowersSyncController } from './controllers/borrowers-sync.controller';
+
 import { DirectorsControllerSheets } from './controllers/directors.controller.sheets';
 import { CommonModule } from '../common/common.module';
 import { FileUploadService } from './services/file-upload.service';
@@ -179,7 +180,7 @@ import { BackgroundUploadService } from './services/background-upload.service';
     CreditApplicationCommentsSyncService,
     FinancialSurveysDbService,
     FinancialSurveysSyncService,
-    SyncSchedulerService,
+    MlDataService,
     FileUploadService,
     BackgroundUploadService,
   ],
@@ -218,8 +219,8 @@ import { BackgroundUploadService } from './services/background-upload.service';
     LoansController,
     NewslettersController,
     NewsletterSectionsController,
+    MlDataController,
     BorrowersMigrationController,
-    BorrowersSyncController,
     DirectorsControllerSheets,
     DirectorsMigrationController,
     CrbConsentsMigrationController,

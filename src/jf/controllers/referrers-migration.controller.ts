@@ -126,6 +126,14 @@ export class ReferrersMigrationController {
           // Convert sheet data to database format
           const dbReferrer = this.convertSheetToDbFormat(sheetReferrer);
 
+          // Log what columns were imported for debugging
+          this.logger.debug(`Importing referrer with columns:`, {
+            sheetId: sheetReferrer.ID,
+            availableColumns: Object.keys(sheetReferrer),
+            mappedColumns: Object.keys(dbReferrer),
+            finalRecord: dbReferrer,
+          });
+
           // Create record in database
           await this.referrersDbService.create(dbReferrer);
           imported++;
@@ -262,6 +270,51 @@ export class ReferrersMigrationController {
     }
   }
 
+  @Get('sheet-columns')
+  async getSheetColumns() {
+    this.logger.log(
+      'Getting available columns from Google Sheets Referrers tab',
+    );
+    try {
+      // Get data from Google Sheets to see what columns are available
+      const sheetsData = await this.sheetsService.getReferrers();
+
+      if (!sheetsData || sheetsData.length === 0) {
+        return {
+          success: true,
+          message: 'No data found in Google Sheets',
+          columns: [],
+        };
+      }
+
+      // Get the first record to see all available columns
+      const firstRecord = sheetsData[0];
+      const availableColumns = Object.keys(firstRecord);
+
+      // Get a sample of data to show column values
+      const sampleData = sheetsData.slice(0, 3).map((record) => {
+        const sample: any = {};
+        availableColumns.forEach((column) => {
+          sample[column] = record[column];
+        });
+        return sample;
+      });
+
+      return {
+        success: true,
+        message: `Found ${availableColumns.length} columns in Google Sheets`,
+        totalRecords: sheetsData.length,
+        availableColumns,
+        sampleData,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to get sheet columns: ${errorMessage}`);
+      return { success: false, error: errorMessage };
+    }
+  }
+
   @Get('compare/:sheetId')
   async compareRecord(@Param('sheetId') sheetId: string) {
     this.logger.log(`Comparing Referrer record: ${sheetId}`);
@@ -299,18 +352,130 @@ export class ReferrersMigrationController {
   }
 
   private convertSheetToDbFormat(sheetReferrer: any): any {
-    // Map sheet data to database format
-    const dbReferrer = {
+    // Import ALL columns from the sheet to ensure no data is lost
+    const dbReferrer: any = {
       sheetId: sheetReferrer.ID,
-      schoolId: sheetReferrer['School ID'],
-      referrerName: sheetReferrer['Referrer Name'],
-      mpesaNumber: sheetReferrer['Mpesa Number'],
-      referralRewardPaid: sheetReferrer['Referral Reward Paid'],
-      datePaid: sheetReferrer['Date Paid'],
-      amountPaid: this.convertToFloat(sheetReferrer['Amount Paid']),
-      proofOfPayment: sheetReferrer['Proof of Payment'],
       synced: true, // Mark as synced since we're importing from sheets
     };
+
+    // Log all available columns for debugging
+    this.logger.debug(`Available columns in sheet data:`, {
+      allColumns: Object.keys(sheetReferrer),
+      sampleValues: Object.keys(sheetReferrer).reduce((acc, key) => {
+        acc[key] = sheetReferrer[key];
+        return acc;
+      }, {} as any),
+    });
+
+    // Map all other columns from the sheet to the database
+    // This ensures we don't lose any data during import
+    Object.keys(sheetReferrer).forEach((key) => {
+      // Skip the ID field as we're using it as sheetId
+      if (key === 'ID') return;
+
+      // Log the original key for debugging
+      this.logger.debug(
+        `Processing column: "${key}" with value: "${sheetReferrer[key]}"`,
+      );
+
+      // Map sheet column names to database field names
+      let dbFieldName = key;
+      let mappingSource = 'original';
+
+      // CRITICAL: Check for Mpesa-related columns first, before any other processing
+      if (
+        key.toLowerCase().includes('mpesa') ||
+        key.toLowerCase().includes('pesa')
+      ) {
+        dbFieldName = 'mpesaNumber';
+        mappingSource = 'early mpesa detection';
+        this.logger.debug(`Early Mpesa detection: "${key}" → "mpesaNumber"`);
+      } else {
+        // Handle special cases where sheet column names differ from database field names
+        switch (key) {
+          case 'School ID':
+            dbFieldName = 'schoolId';
+            mappingSource = 'explicit mapping';
+            break;
+          case 'Referrer Name':
+            dbFieldName = 'referrerName';
+            mappingSource = 'explicit mapping';
+            break;
+          case 'Mpesa Number':
+          case 'MPesa Number':
+          case 'MPESA Number':
+          case 'MpesaNumber':
+          case 'MPesaNumber':
+          case 'MPESANumber':
+          case 'M-Pesa Number':
+          case 'M-PesaNumber':
+          case 'Mpesa':
+          case 'MPesa':
+          case 'MPESA':
+            dbFieldName = 'mpesaNumber';
+            mappingSource = 'explicit mapping';
+            break;
+          case 'Referral Reward Paid':
+          case 'Referral Reward':
+          case 'Reward Paid':
+          case 'ReferralRewardPaid':
+          case 'ReferralReward':
+          case 'RewardPaid':
+            dbFieldName = 'referralRewardPaid';
+            mappingSource = 'explicit mapping';
+            break;
+          case 'Date Paid':
+          case 'Payment Date':
+          case 'Date':
+          case 'DatePaid':
+          case 'PaymentDate':
+            dbFieldName = 'datePaid';
+            mappingSource = 'explicit mapping';
+            break;
+          case 'Amount Paid':
+          case 'Amount':
+          case 'Payment Amount':
+          case 'AmountPaid':
+          case 'PaymentAmount':
+            dbFieldName = 'amountPaid';
+            mappingSource = 'explicit mapping';
+            break;
+          case 'Proof of Payment':
+          case 'Payment Proof':
+          case 'Proof':
+          case 'ProofOfPayment':
+          case 'PaymentProof':
+            dbFieldName = 'proofOfPayment';
+            mappingSource = 'explicit mapping';
+            break;
+          // Add more mappings as needed for other columns
+          default:
+            // For any other columns, use the original name
+            // Convert to camelCase if it's not already
+            dbFieldName = this.toCamelCase(key);
+            mappingSource = 'toCamelCase';
+            break;
+        }
+      }
+
+      // Log the column mapping for debugging
+      this.logger.debug(
+        `Column mapping: "${key}" → "${dbFieldName}" (original value: "${sheetReferrer[key]}") [${mappingSource}]`,
+      );
+
+      // Handle numeric fields
+      if (key === 'Amount Paid') {
+        dbReferrer[dbFieldName] = this.convertToFloat(sheetReferrer[key]);
+      } else {
+        dbReferrer[dbFieldName] = sheetReferrer[key];
+      }
+    });
+
+    // Log the intermediate state before filtering
+    this.logger.debug(
+      `Intermediate dbReferrer object before filtering:`,
+      dbReferrer,
+    );
 
     // Filter out undefined, null, and empty string values
     Object.keys(dbReferrer).forEach((key) => {
@@ -322,6 +487,9 @@ export class ReferrersMigrationController {
         delete dbReferrer[key];
       }
     });
+
+    // Log the final database object for debugging
+    this.logger.debug(`Final database object:`, dbReferrer);
 
     return dbReferrer;
   }
@@ -337,5 +505,49 @@ export class ReferrersMigrationController {
     }
 
     return num;
+  }
+
+  private toCamelCase(str: string): string {
+    this.logger.debug(`toCamelCase called with: "${str}"`);
+
+    // Handle common abbreviations and special cases first
+    const specialCases: { [key: string]: string } = {
+      MPESA: 'mpesa',
+      MPesa: 'mpesa',
+      Mpesa: 'mpesa',
+      ID: 'id',
+      CRB: 'crb',
+      SSL: 'ssl',
+      SSP: 'ssp',
+    };
+
+    // Check if the entire string is a special case
+    if (specialCases[str]) {
+      this.logger.debug(
+        `Special case match: "${str}" → "${specialCases[str]}"`,
+      );
+      return specialCases[str];
+    }
+
+    // Handle specific problematic patterns
+    if (str.toLowerCase().includes('mpesa')) {
+      const result = str
+        .toLowerCase()
+        .replace(/\s+/g, '')
+        .replace(/[^a-zA-Z0-9]/g, '');
+      this.logger.debug(`Mpesa pattern match: "${str}" → "${result}"`);
+      return result;
+    }
+
+    // Convert to camelCase for general cases
+    const result = str
+      .replace(/(?:^\w|[A-Z]|\b\w)/g, (word, index) => {
+        return index === 0 ? word.toLowerCase() : word.toUpperCase();
+      })
+      .replace(/\s+/g, '')
+      .replace(/[^a-zA-Z0-9]/g, ''); // Remove any special characters
+
+    this.logger.debug(`General camelCase conversion: "${str}" → "${result}"`);
+    return result;
   }
 }

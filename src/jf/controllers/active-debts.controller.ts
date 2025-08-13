@@ -159,7 +159,7 @@ export class ActiveDebtsController {
         sheetId: `AD-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`, // Generate temporary sheetId
         creditApplicationId: createDto['Credit Application ID'],
         debtStatus: createDto['Debt Status'],
-        listedOnCrb: createDto['Listed on CRB'] || '',
+        listedOnCrb: createDto['Listed on CRB'] == 'true' ? 'TRUE' : 'FALSE',
         personalLoanOrSchoolLoan: createDto['Personal Loan or School Loan'],
         lender: createDto['Lender'],
         dateLoanTaken: createDto['Date Loan Taken'] || '',
@@ -180,7 +180,8 @@ export class ActiveDebtsController {
         ]
           ? Number(createDto['Annual Declining Balance Interest Rate'])
           : 0,
-        isLoanCollateralized: createDto['Is the loan collateralized?'] || '',
+        isLoanCollateralized:
+          createDto['Is the loan collateralized?'] == 'true' ? 'TRUE' : 'FALSE',
         typeOfCollateral: createDto['Type of collateral'] || '',
         whatWasLoanUsedFor: createDto['What was the loan used for'],
         synced: false,
@@ -571,15 +572,17 @@ export class ActiveDebtsController {
           'debtStatement', // Pass field name
         );
       }
-
+      let listedOnCrb =
+        updateData['Listed on CRB?'] == 'true' ? 'TRUE' : 'FALSE';
+      let isLoanCollateralized =
+        updateData['Is the loan collateralized? '] == 'Yes' ? 'TRUE' : 'FALSE';
       // Prepare update data
       const updateDataForDb = {
         creditApplicationId:
           updateData['Credit Application ID'] ||
           existingActiveDebt.creditApplicationId,
         debtStatus: updateData['Debt Status'] || existingActiveDebt.debtStatus,
-        listedOnCrb:
-          updateData['Listed on CRB'] || existingActiveDebt.listedOnCrb,
+        listedOnCrb: listedOnCrb || existingActiveDebt.listedOnCrb,
         personalLoanOrSchoolLoan:
           updateData['Personal Loan or School Loan'] ||
           existingActiveDebt.personalLoanOrSchoolLoan,
@@ -607,8 +610,7 @@ export class ActiveDebtsController {
           ? Number(updateData['Annual Declining Balance Interest Rate'])
           : existingActiveDebt.annualDecliningBalanceInterestRate,
         isLoanCollateralized:
-          updateData['Is the loan collateralized?'] ||
-          existingActiveDebt.isLoanCollateralized,
+          isLoanCollateralized || existingActiveDebt.isLoanCollateralized,
         typeOfCollateral:
           updateData['Type of collateral'] ||
           existingActiveDebt.typeOfCollateral,

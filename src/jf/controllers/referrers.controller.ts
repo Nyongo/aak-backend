@@ -71,7 +71,8 @@ export class ReferrersController {
         schoolId: referrerData['School ID'],
         referrerName: referrerData['Referrer Name'],
         mpesaNumber: referrerData['M Pesa Number'] || '',
-        referralRewardPaid: referrerData['Referral Reward Paid?'] || '',
+        referralRewardPaid:
+          referrerData['Referral Reward Paid?'] == 'Yes' ? 'TRUE' : 'FALSE',
         datePaid: referrerData['Date Paid'] || '',
         amountPaid: referrerData['Amount Paid'] || '',
         proofOfPayment: proofOfPaymentPath || '',
@@ -301,6 +302,9 @@ export class ReferrersController {
         );
       }
 
+      let referralRewardPaid =
+        referrerData['Referral Reward Paid?'] == 'Yes' ? 'TRUE' : 'FALSE';
+
       // Prepare update data
       const updateData = {
         schoolId: referrerData['School ID'] || existingReferrer.schoolId,
@@ -309,8 +313,7 @@ export class ReferrersController {
         mpesaNumber:
           referrerData['M Pesa Number'] || existingReferrer.mpesaNumber,
         referralRewardPaid:
-          referrerData['Referral Reward Paid?'] ||
-          existingReferrer.referralRewardPaid,
+          referralRewardPaid || existingReferrer.referralRewardPaid,
         datePaid: referrerData['Date Paid'] || existingReferrer.datePaid,
         amountPaid: referrerData['Amount Paid'] || existingReferrer.amountPaid,
         proofOfPayment: proofOfPaymentPath,

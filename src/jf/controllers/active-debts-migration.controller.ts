@@ -318,7 +318,7 @@ export class ActiveDebtsMigrationController {
       sheetId: sheetActiveDebt.ID,
       creditApplicationId: sheetActiveDebt['Credit Application ID'],
       debtStatus: sheetActiveDebt['Debt Status'],
-      listedOnCrb: sheetActiveDebt['Listed on CRB'],
+      listedOnCrb: sheetActiveDebt['Listed on CRB?'],
       personalLoanOrSchoolLoan: sheetActiveDebt['Personal Loan or School Loan'],
       lender: sheetActiveDebt['Lender'],
       dateLoanTaken: sheetActiveDebt['Date Loan Taken'],
@@ -333,9 +333,9 @@ export class ActiveDebtsMigrationController {
       annualDecliningBalanceInterestRate: this.convertToFloat(
         sheetActiveDebt['Annual Declining Balance Interest Rate'],
       ),
-      isLoanCollateralized: sheetActiveDebt['Is Loan Collateralized'],
-      typeOfCollateral: sheetActiveDebt['Type of Collateral'],
-      whatWasLoanUsedFor: sheetActiveDebt['What was Loan Used For'],
+      isLoanCollateralized: sheetActiveDebt['Is the loan collateralized? '],
+      typeOfCollateral: sheetActiveDebt['Type of collateral '],
+      whatWasLoanUsedFor: sheetActiveDebt['What was the loan used for'],
       synced: true, // Mark as synced since we're importing from sheets
     };
 

@@ -464,104 +464,586 @@ model School {
 }
 
 model Vehicle {
-  id                    Int           @id @default(autoincrement())
-  make                  String
-  model                 String
-  licensePlate          String        @unique
-  vin                   String        @unique
-  year                  Int
-  color                 String?
-  fuelType              String?
-  mileage               Int?
+  id                     Int           @id @default(autoincrement())
+  make                   String
+  model                  String
+  licensePlate           String        @unique
+  vin                    String        @unique
+  year                   Int
+  color                  String?
+  fuelType               String?
+  mileage                Int?
+  registrationExpiry     DateTime?
+  isActive               Boolean       @default(true)
+  notes                  String?
+  createdAt              DateTime      @default(now())
+  lastUpdatedAt          DateTime      @updatedAt
+  createdById            Int?
+  lastUpdatedById        Int?
   averageFuelConsumption Float?
-  pricePerKm            Float?
-  registrationExpiry    DateTime?
-  isActive              Boolean       @default(true)
-  notes                 String?
-  createdAt             DateTime      @default(now())
-  lastUpdatedAt         DateTime      @updatedAt
-  createdById           Int?
-  lastUpdatedById       Int?
-  maintenances          Maintenance[]
-  trips                 Trip[]
+  pricePerKm             Float?
+  maintenances           Maintenance[]
+  trips                  Trip[]
 }
 
 model Driver {
-  id                  Int           @id @default(autoincrement())
-  firstName           String
-  middleName          String?
-  lastName            String
-  email               String        @unique
-  phoneNumber         String
-  nationalId          String        @unique
-  gender              String
-  licenseNumber       String        @unique
-  licenseExpiry       DateTime
-  dateOfBirth         DateTime?
-  address             String?
-  emergencyContact    String?
-  emergencyPhone      String?
-  idPhoto             String?
-  driverLicensePhoto  String?
-  psvLicenseDoc       String?
-  passportPhoto       String?
-  isActive            Boolean       @default(true)
-  notes               String?
-  createdAt           DateTime      @default(now())
-  lastUpdatedAt       DateTime      @updatedAt
-  createdById         Int?
-  lastUpdatedById     Int?
-  trips               Trip[]
+  id                 Int       @id @default(autoincrement())
+  firstName          String
+  middleName         String?
+  lastName           String
+  email              String    @unique
+  phoneNumber        String
+  licenseNumber      String    @unique
+  licenseExpiry      DateTime
+  dateOfBirth        DateTime?
+  address            String?
+  emergencyContact   String?
+  emergencyPhone     String?
+  isActive           Boolean   @default(true)
+  notes              String?
+  createdAt          DateTime  @default(now())
+  lastUpdatedAt      DateTime  @updatedAt
+  createdById        Int?
+  lastUpdatedById    Int?
+  driverLicensePhoto String?
+  gender             String
+  idPhoto            String?
+  nationalId         String    @unique
+  passportPhoto      String?
+  psvLicenseDoc      String?
+  trips              Trip[]
 }
 
 model Maintenance {
-  id                Int           @id @default(autoincrement())
-  vehicleId         Int
-  maintenanceType   String
-  description       String
-  scheduledDate     DateTime
-  completedDate     DateTime?
-  cost              Float?
-  serviceProvider   String?
-  invoiceNumber     String?
-  isCompleted       Boolean       @default(false)
-  notes             String?
-  mileageAtService  Int?
-  createdAt         DateTime      @default(now())
-  lastUpdatedAt     DateTime      @updatedAt
-  createdById       Int?
-  lastUpdatedById   Int?
-  vehicle           Vehicle       @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  id               Int       @id @default(autoincrement())
+  vehicleId        Int
+  maintenanceType  String
+  description      String
+  scheduledDate    DateTime
+  completedDate    DateTime?
+  cost             Float?
+  serviceProvider  String?
+  invoiceNumber    String?
+  isCompleted      Boolean   @default(false)
+  notes            String?
+  mileageAtService Int?
+  createdAt        DateTime  @default(now())
+  lastUpdatedAt    DateTime  @updatedAt
+  createdById      Int?
+  lastUpdatedById  Int?
+  vehicle          Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
 }
 
 model Trip {
-  id                    Int           @id @default(autoincrement())
-  vehicleId             Int
-  driverId              Int
-  customerName          String?
-  customerPhone         String?
-  startGps              String        // "latitude,longitude"
-  endGps                String?       // "latitude,longitude"
-  startTime             DateTime
-  endTime               DateTime?
-  distance              Float?        // in kilometers
-  pricePerKm            Float         // captured from vehicle at trip start
-  totalPrice            Float?        // calculated: distance * pricePerKm
-  purpose               String
-  status                TripStatus    @default(SCHEDULED)
-  paymentStatus         PaymentStatus @default(PENDING)
-  paymentMethod         String?
-  fuelConsumption       Float?        // liters consumed
-  fuelCost              Float?        // fuel cost for the trip
-  notes                 String?
-  rating                Int?          // 1-5 star rating
-  feedback              String?
-  createdAt             DateTime      @default(now())
-  lastUpdatedAt         DateTime      @updatedAt
-  createdById           Int?
-  lastUpdatedById       Int?
-  vehicle               Vehicle       @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  driver                Driver        @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  id              Int           @id @default(autoincrement())
+  vehicleId       Int
+  driverId        Int
+  startTime       DateTime
+  endTime         DateTime?
+  purpose         String
+  notes           String?
+  createdAt       DateTime      @default(now())
+  lastUpdatedAt   DateTime      @updatedAt
+  createdById     Int?
+  lastUpdatedById Int?
+  customerName    String?
+  customerPhone   String?
+  distance        Float?
+  feedback        String?
+  fuelConsumption Float?
+  fuelCost        Float?
+  paymentMethod   String?
+  paymentStatus   PaymentStatus @default(PENDING)
+  pricePerKm      Float
+  rating          Int?
+  totalPrice      Float?
+  status          TripStatus    @default(SCHEDULED)
+  endGps          String?
+  startGps        String
+  driver          Driver        @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  vehicle         Vehicle       @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+}
+
+model Borrower {
+  id                          Int       @id @default(autoincrement())
+  sheetId                     String?   @unique
+  customerType                String?
+  type                        String?
+  name                        String?
+  locationDescription         String?
+  societyCertificate          String?
+  yearFounded                 String?
+  sslId                       String?
+  locationPin                 String?
+  historicalPaymentDetails    String?
+  paymentMethod               String?
+  bankName                    String?
+  accountName                 String?
+  accountNumber               String?
+  primaryPhone                String?
+  documentVerifyingAccount    String?
+  managerVerification         String?
+  status                      String?
+  notes                       String?
+  entityType                  String?
+  registrationNumber          String?
+  notesOnStatus               String?
+  officialSearch              String?
+  pelezaSearch                String?
+  productsRequested           String?
+  dataCollectionProgress      Float?
+  initialContactNotes         String?
+  kraPinPhoto                 String?
+  kraPinNumber                String?
+  createdAt                   DateTime? @default(now())
+  createdBy                   String?
+  howHeard                    String?
+  monthYearCreated            String?
+  moeCertified                String?
+  moeCertificate              String?
+  county                      String?
+  cr12                        String?
+  nationalIdNumber            String?
+  nationalIdFront             String?
+  nationalIdBack              String?
+  dateOfBirth                 String?
+  privateOrApbet              String?
+  relatedCreditApplications   String?
+  relatedHandoversGivingId    String?
+  relatedHandoversReceivingId String?
+  relatedCrbConsents          String?
+  relatedCollaterals          String?
+  relatedUsers                String?
+  relatedReferrers            String?
+  relatedCustomerCareCalls    String?
+  relatedEscalations          String?
+  relatedEnrollmentReports    String?
+  relatedLoans                String?
+  relatedDirPaymentSchedules  String?
+  relatedCollateralsByLoanId  String?
+  synced                      Boolean   @default(false)
+}
+
+model Director {
+  id                   Int       @id @default(autoincrement())
+  sheetId              String?   @unique
+  borrowerId           String?
+  name                 String?
+  nationalIdNumber     String?
+  kraPinNumber         String?
+  phoneNumber          String?
+  email                String?
+  gender               String?
+  roleInSchool         String?
+  status               String?
+  dateOfBirth          String?
+  educationLevel       String?
+  insuredForCreditLife String?
+  address              String?
+  postalAddress        String?
+  nationalIdFront      String?
+  nationalIdBack       String?
+  kraPinPhoto          String?
+  passportPhoto        String?
+  createdAt            DateTime? @default(now())
+  synced               Boolean   @default(false)
+  type                 String?
+}
+
+model CrbConsent {
+  id                 Int       @id @default(autoincrement())
+  sheetId            String?   @unique
+  borrowerId         String?
+  agreement          String?
+  signedByName       String?
+  date               String?
+  roleInOrganization String?
+  signature          String?
+  createdAt          DateTime? @default(now())
+  synced             Boolean   @default(false)
+}
+
+model Referrer {
+  id                 Int       @id @default(autoincrement())
+  sheetId            String?   @unique
+  schoolId           String?
+  referrerName       String?
+  mpesaNumber        String?
+  referralRewardPaid String?
+  datePaid           String?
+  amountPaid         String?
+  proofOfPayment     String?
+  createdAt          DateTime? @default(now())
+  synced             Boolean   @default(false)
+}
+
+model CreditApplication {
+  id                              Int       @id @default(autoincrement())
+  sheetId                         String?   @unique
+  customerType                    String?
+  borrowerId                      String?
+  applicationStartDate            String?
+  creditType                      String?
+  workingCapitalApplicationNumber String?
+  sslActionNeeded                 String?
+  sslAction                       String?
+  sslId                           String?
+  sslFeedbackOnAction             String?
+  schoolCrbAvailable              String?
+  referredBy                      String?
+  photoOfCheck                    String?
+  status                          String?
+  commentsOnChecks                String?
+  createdAt                       DateTime? @default(now())
+  synced                          Boolean   @default(false)
+  totalAmountRequested            Float?
+  currentCostOfCapital            Float?
+  checksCollected                 Float?
+  checksNeededForLoan             Float?
+  finalAmountApprovedAndDisbursed Float?
+}
+
+model ActiveDebt {
+  id                                 Int       @id @default(autoincrement())
+  sheetId                            String?   @unique
+  creditApplicationId                String?
+  debtStatus                         String?
+  listedOnCrb                        String?
+  personalLoanOrSchoolLoan           String?
+  lender                             String?
+  dateLoanTaken                      String?
+  finalDueDate                       String?
+  totalLoanAmount                    Float?
+  balance                            Float?
+  amountOverdue                      Float?
+  monthlyPayment                     Float?
+  debtStatement                      String?
+  annualDecliningBalanceInterestRate Float?
+  isLoanCollateralized               String?
+  typeOfCollateral                   String?
+  whatWasLoanUsedFor                 String?
+  createdAt                          DateTime? @default(now())
+  synced                             Boolean   @default(false)
+}
+
+model FeePlan {
+  id                  Int       @id @default(autoincrement())
+  sheetId             String?   @unique
+  creditApplicationId String?
+  schoolYear          String?
+  photo               String?
+  file                String?
+  createdAt           DateTime? @default(now())
+  synced              Boolean   @default(false)
+}
+
+model Payroll {
+  id                         Int       @id @default(autoincrement())
+  sheetId                    String?   @unique
+  creditApplicationId        String?
+  role                       String?
+  numberOfEmployeesInRole    Int?
+  monthlySalary              Float?
+  monthsPerYearTheRoleIsPaid Int?
+  notes                      String?
+  totalAnnualCost            Float?
+  createdAt                  DateTime? @default(now())
+  synced                     Boolean   @default(false)
+}
+
+model EnrollmentVerification {
+  id                          Int       @id @default(autoincrement())
+  sheetId                     String?   @unique
+  creditApplicationId         String?
+  subCountyEnrollmentReport   String?
+  enrollmentReport            String?
+  numberOfStudentsThisYear    Int?
+  numberOfStudentsLastYear    Int?
+  numberOfStudentsTwoYearsAgo Int?
+  createdAt                   DateTime? @default(now())
+  synced                      Boolean   @default(false)
+}
+
+model MpesaBankStatement {
+  id                        Int       @id @default(autoincrement())
+  sheetId                   String?   @unique
+  creditApplicationId       String?
+  personalOrBusinessAccount String?
+  type                      String?
+  accountDetails            String?
+  description               String?
+  statement                 String?
+  statementStartDate        String?
+  statementEndDate          String?
+  totalRevenue              Float?
+  convertedExcelFile        String?
+  createdAt                 DateTime? @default(now())
+  synced                    Boolean   @default(false)
+}
+
+model AuditedFinancial {
+  id                  Int       @id @default(autoincrement())
+  sheetId             String?   @unique
+  creditApplicationId String?
+  statementType       String?
+  notes               String?
+  file                String?
+  createdAt           DateTime? @default(now())
+  synced              Boolean   @default(false)
+}
+
+model StudentBreakdown {
+  id                  Int       @id @default(autoincrement())
+  sheetId             String?   @unique
+  creditApplicationId String?
+  feeType             String?
+  term                String?
+  grade               String?
+  numberOfStudents    Int?
+  fee                 Float?
+  totalRevenue        Float?
+  createdAt           DateTime? @default(now())
+  synced              Boolean   @default(false)
+}
+
+model OtherSupportingDoc {
+  id                  Int       @id @default(autoincrement())
+  sheetId             String?   @unique
+  creditApplicationId String?
+  documentType        String?
+  notes               String?
+  file                String?
+  image               String?
+  createdAt           DateTime? @default(now())
+  synced              Boolean   @default(false)
+}
+
+model InvestmentCommittee {
+  id                                                              Int       @id @default(autoincrement())
+  sheetId                                                         String?   @unique
+  creditApplicationId                                             String?
+  auditedFinancialsProvided                                       String?
+  schoolHasBankAccountAndChecks                                   String?
+  annualRevenueFromBankaAndMPesaStatements                        String?
+  totalCashHeldInBankAndMPesaAccounts                             String?
+  debtRatio                                                       String?
+  loanLengthMonths                                                String?
+  annualReducingInterestRate                                      String?
+  totalEstimatedValueOfAssets                                     String?
+  predictedDaysLate                                               Int?
+  averageBankBalance                                              String?
+  createdAt                                                       DateTime? @default(now())
+  synced                                                          Boolean   @default(false)
+  totalAnnualRevenueFromFeesFromStudentBreakdownUnadjusted        String?
+  ageOfSchool                                                     String?
+  annualDonationRevenue                                           String?
+  annualFoodExpenseEstimateIncludingCookSalaries                  String?
+  annualNonSchoolRevenueGenerated                                 String?
+  annualProfitExcludingFoodAndTransportExpenses                   String?
+  annualProfitIncludingFoodAndTransportExpenses                   String?
+  annualSponsorshipRevenue                                        String?
+  annualTransportExpenseEstimateIncludingDriverSalaries           String?
+  assetValueHasIncreasedFromTwoYearsAgo                           String?
+  averageBankBalanceTotalUnadjustedRevenue                        String?
+  averageSchoolFeesCharged                                        String?
+  collateralCoverageOfLoanAmountRequested                         String?
+  collectionsRate                                                 String?
+  currentDebtToIncome                                             String?
+  growthInPopulation                                              String?
+  incorporationStructure                                          String?
+  lesserOfMonthlyProfitAnd35PercentProfitMargin                   String?
+  maximumLoan                                                     String?
+  maximumMonthlyPayment                                           String?
+  maximumPreviousDaysLate                                         String?
+  monthlyProfitIncludingAllExpenses                               String?
+  numberOfInstallmentsPaidLate                                    String?
+  numberOfStudentsFromEnrollmentVerification                      String?
+  numberOfStudentsPreviousYear                                    String?
+  previousLoansWithJackfruit                                      String?
+  previousRestructure                                             String?
+  profitMarginTotalProfitTotalRevenueNotAdjustedDownTo35Percent   String?
+  schoolCreditRisk                                                String?
+  schoolId                                                        String?
+  schoolIsProfitable                                              String?
+  schoolSitsOnOwnedLeasedOrRentedLand                             String?
+  solvencyAssetsLiabilities                                       String?
+  sslId                                                           String?
+  totalAnnualDebtPaymentOfSchoolAndDirectors                      String?
+  totalAnnualExpensesExcludingFoodAndTransport                    String?
+  totalAnnualOwnersDraw                                           String?
+  totalAnnualSpendingOnRent                                       String?
+  totalAnnualSpendingOnSalariesExcludingCooksAndDrivers           String?
+  totalBadDebtOnCrbHeldBySchoolAndDirectors                       String?
+  totalDebt                                                       String?
+  totalDebtOnCrbFullyPaidOffBySchoolAndDirectors                  String?
+  totalOfSalariesRentDebtAndOwnersDraw                            String?
+  typeOfSchool                                                    String?
+  annualExpenseEstimateExcludingPayrollRentDebtOwnersDrawFoodAndTransport String?
+  lesserOfAnnualRevenueFromBankaAndMPesaStatementsAnd75PercentCollections String?
+}
+
+model VendorDisbursementDetail {
+  id                              Int       @id @default(autoincrement())
+  sheetId                         String?   @unique
+  creditApplicationId             String?
+  vendorPaymentMethod             String?
+  phoneNumberForMPesaPayment      String?
+  managerVerification             String?
+  documentVerifyingPaymentAccount String?
+  bankName                        String?
+  accountName                     String?
+  accountNumber                   String?
+  phoneNumberForBankAccount       String?
+  paybillNumberAndAccount         String?
+  buyGoodsTill                    String?
+  createdAt                       DateTime? @default(now())
+  synced                          Boolean   @default(false)
+}
+
+model HomeVisit {
+  id                             Int       @id @default(autoincrement())
+  sheetId                        String?   @unique
+  creditApplicationId            String?
+  userId                         String?
+  county                         String?
+  addressDetails                 String?
+  locationPin                    String?
+  ownOrRent                      String?
+  howManyYearsStayed             String?
+  maritalStatus                  String?
+  howManyChildren                String?
+  isSpouseInvolvedInSchool       String?
+  doesSpouseHaveOtherIncome      String?
+  ifYesHowMuchPerMonth           String?
+  isDirectorBehindOnUtilityBills String?
+  totalNumberOfRooms             String?
+  howIsNeighborhood              String?
+  howAccessibleIsHouse           String?
+  isDirectorHomeInSameCity       String?
+  isDirectorTrainedEducator      String?
+  doesDirectorHaveOtherBusiness  String?
+  otherNotes                     String?
+  createdAt                      DateTime? @default(now())
+  synced                         Boolean   @default(false)
+}
+
+model AssetTitle {
+  id                                Int       @id @default(autoincrement())
+  sheetId                           String?   @unique
+  creditApplicationId               String?
+  type                              String?
+  toBeUsedAsSecurity                String?
+  description                       String?
+  legalOwner                        String?
+  userId                            String?
+  fullOwnerDetails                  String?
+  collateralOwnedByDirectorOfSchool String?
+  plotNumber                        String?
+  schoolSitsOnLand                  String?
+  hasComprehensiveInsurance         String?
+  originalInsuranceCoverage         String?
+  initialEstimatedValue             String?
+  approvedByLegalTeamOrNTSAAgent    String?
+  notesOnApprovalForUse             String?
+  evaluatorsMarketValue             String?
+  evaluatorsForcedValue             String?
+  moneyOwedOnAsset                  String?
+  licensePlateNumber                String?
+  engineCC                          String?
+  yearOfManufacture                 String?
+  logbookPhoto                      String?
+  titleDeedPhoto                    String?
+  fullTitleDeed                     String?
+  evaluatorsReport                  String?
+  createdAt                         DateTime? @default(now())
+  synced                            Boolean   @default(false)
+}
+
+model ContractDetails {
+  id                                     Int       @id @default(autoincrement())
+  sheetId                                String?   @unique
+  creditApplicationId                    String?
+  loanLengthRequestedMonths              String?
+  monthsSchoolRequestsForgiveness        String?
+  disbursalDateRequested                 String?
+  tenPercentDownOnVehicleOrLandFinancing String?
+  createdBy                              String?
+  createdAt                              DateTime? @default(now())
+  synced                                 Boolean   @default(false)
+}
+
+model CreditApplicationComment {
+  id                  Int       @id @default(autoincrement())
+  sheetId             String?   @unique
+  creditApplicationId String?
+  commenterType       String?
+  comments            String?
+  commenterName       String?
+  createdAt           DateTime? @default(now())
+  synced              Boolean   @default(false)
+}
+
+model FinancialSurvey {
+  id                              Int       @id @default(autoincrement())
+  sheetId                         String?   @unique
+  creditApplicationId             String?
+  surveyDate                      String?
+  directorId                      String?
+  schoolGrades                    String?
+  isSchoolAPBETOrPrivate          String?
+  isChurchSupported               String?
+  churchName                      String?
+  churchAnnualSupport             String?
+  churchBenefits                  String?
+  facilityOwnership               String?
+  annualLeaseRent                 String?
+  ownerAnnualWithdrawal           String?
+  monthlyDebtPayments             String?
+  providesMeals                   String?
+  termlyFoodExpense               String?
+  termlyFuelExpense               String?
+  annualStudentTextbookExpense    String?
+  annualTeacherTextbookExpense    String?
+  termlyStationeryExpense         String?
+  monthlyWifiExpense              String?
+  termlyAirtimeExpense            String?
+  monthlyWaterExpense             String?
+  termlyMiscExpense               String?
+  annualTaxLicenseExpense         String?
+  monthlyElectricityExpense       String?
+  hasVehicles                     String?
+  termlyVehicleServiceExpense     String?
+  termlyVehicleFuelExpense        String?
+  totalVehiclePurchaseExpense     String?
+  annualEquipmentFurnitureExpense String?
+  annualRepairMaintenanceExpense  String?
+  hasOtherRevenue                 String?
+  otherRevenueSources             String?
+  annualOtherRevenue              String?
+  sponsoredChildrenCount          String?
+  annualSponsorshipRevenue        String?
+  lastYearAssetValue              String?
+  lastYearLoanDeposits            String?
+  previousYearStudentCount        String?
+  leaseAgreement                  String?
+  receivesSignificantDonations    String?
+  annualDonationRevenue           String?
+  majorProjectsAndMitigation      String?
+  nextYearExpectedStudents        String?
+  twoYearsAgoAssetValue           String?
+  currentBankBalance              String?
+  yearsAtCurrentPremises          String?
+  yearsWithBankAccount            String?
+  hasAuditedFinancials            String?
+  branchCount                     String?
+  hasMicrofinanceBorrowing        String?
+  hasFormalBankBorrowing          String?
+  createdAt                       DateTime? @default(now())
+  synced                          Boolean   @default(false)
+  annualExpenseEstimate           String?
+  annualFoodExpenseEstimate       String?
+  annualTransportExpenseEstimate  String?
+  createdBy                       String?
 }
 
 enum TripStatus {
@@ -590,485 +1072,4 @@ enum NewsletterCategory {
   SUCCESS_STORIES
   PARTNERSHIPS
   ALL_UPDATES
-}
-
-model Borrower {
-  id                        Int      @id @default(autoincrement())
-  sheetId                   String?  @unique // Original sheet row ID if available
-  customerType              String?
-  type                      String?
-  name                      String?
-  locationDescription       String?
-  societyCertificate        String?
-  yearFounded               String?
-  sslId                     String?
-  locationPin               String?
-  historicalPaymentDetails  String?
-  paymentMethod             String?
-  bankName                  String?
-  accountName               String?
-  accountNumber             String?
-  primaryPhone              String?
-  documentVerifyingAccount  String?
-  managerVerification       String?
-  status                    String?
-  notes                     String?
-  entityType                String?
-  registrationNumber        String?
-  notesOnStatus             String?
-  officialSearch            String?
-  pelezaSearch              String?
-  productsRequested         String?
-  dataCollectionProgress    Float?
-  initialContactNotes       String?
-  kraPinPhoto               String?
-  kraPinNumber              String?
-  createdAt                 DateTime? @default(now())
-  createdBy                 String?
-  howHeard                  String?
-  monthYearCreated          String?
-  moeCertified              String?
-  moeCertificate            String?
-  county                    String?
-  cr12                      String?
-  nationalIdNumber          String?
-  nationalIdFront           String?
-  nationalIdBack            String?
-  dateOfBirth               String?
-  privateOrApbet            String?
-  synced                    Boolean   @default(false) // Track if synced to Google Sheets
-  relatedCreditApplications String?
-  relatedHandoversGivingId  String?
-  relatedHandoversReceivingId String?
-  relatedCrbConsents        String?
-  relatedCollaterals        String?
-  relatedUsers              String?
-  relatedReferrers          String?
-  relatedCustomerCareCalls  String?
-  relatedEscalations        String?
-  relatedEnrollmentReports  String?
-  relatedLoans              String?
-  relatedDirPaymentSchedules String?
-  relatedCollateralsByLoanId String?
-}
-
-model Director {
-  id                    Int      @id @default(autoincrement())
-  sheetId               String?  @unique // Original sheet row ID if available
-  borrowerId            String?  // Borrower ID from the sheet
-  name                  String?
-  nationalIdNumber      String?
-  kraPinNumber          String?
-  phoneNumber           String?
-  email                 String?
-  gender                String?
-  roleInSchool          String?
-  status                String?
-  dateOfBirth           String?
-  educationLevel        String?
-  insuredForCreditLife  String?
-  address               String?
-  postalAddress         String?
-  nationalIdFront       String?
-  nationalIdBack        String?
-  kraPinPhoto           String?
-  passportPhoto         String?
-  type                  String?  // Type field from Google Sheets
-  createdAt             DateTime? @default(now())
-  synced                Boolean   @default(false) // Track if synced to Google Sheets
-}
-
-model CrbConsent {
-  id                    Int      @id @default(autoincrement())
-  sheetId               String?  @unique // Original sheet row ID if available
-  borrowerId            String?  // Borrower ID from the sheet
-  agreement             String?
-  signedByName          String?
-  date                  String?
-  roleInOrganization    String?
-  signature             String?
-  createdAt             DateTime? @default(now())
-  synced                Boolean   @default(false) // Track if synced to Google Sheets
-}
-
-model Referrer {
-  id                    Int      @id @default(autoincrement())
-  sheetId               String?  @unique // Original sheet row ID if available
-  schoolId              String?  // School ID from the sheet
-  referrerName          String?
-  mpesaNumber           String?
-  referralRewardPaid    String?
-  datePaid              String?
-  amountPaid            String?
-  proofOfPayment        String?
-  createdAt             DateTime? @default(now())
-  synced                Boolean   @default(false) // Track if synced to Google Sheets
-}
-
-model CreditApplication {
-  id                              Int      @id @default(autoincrement())
-  sheetId                         String?  @unique // Original sheet row ID if available
-  customerType                    String?
-  borrowerId                      String?
-  applicationStartDate            String?
-  creditType                      String?
-  totalAmountRequested            Float?
-  workingCapitalApplicationNumber String?
-  sslActionNeeded                 String?
-  sslAction                       String?
-  sslId                          String?
-  sslFeedbackOnAction            String?
-  schoolCrbAvailable             String?
-  referredBy                     String?
-  currentCostOfCapital           Float?
-  checksCollected                Float?
-  checksNeededForLoan            Float?
-  photoOfCheck                   String?
-  status                         String?
-  commentsOnChecks               String?
-  createdAt                      DateTime? @default(now())
-  synced                         Boolean   @default(false) // Track if synced to Google Sheets
-}
-
-model ActiveDebt {
-  id                              Int      @id @default(autoincrement())
-  sheetId                         String?  @unique // Original sheet row ID if available
-  creditApplicationId             String?
-  debtStatus                      String?
-  listedOnCrb                     String?
-  personalLoanOrSchoolLoan        String?
-  lender                          String?
-  dateLoanTaken                   String?
-  finalDueDate                    String?
-  totalLoanAmount                 Float?
-  balance                         Float?
-  amountOverdue                   Float?
-  monthlyPayment                  Float?
-  debtStatement                   String?
-  annualDecliningBalanceInterestRate Float?
-  isLoanCollateralized            String?
-  typeOfCollateral                String?
-  whatWasLoanUsedFor              String?
-  createdAt                       DateTime? @default(now())
-  synced                          Boolean   @default(false) // Track if synced to Google Sheets
-}
-
-model FeePlan {
-  id                    Int      @id @default(autoincrement())
-  sheetId               String?  @unique // Original sheet row ID if available
-  creditApplicationId   String?
-  schoolYear            String?
-  photo                 String?
-  file                  String?
-  createdAt             DateTime? @default(now())
-  synced                Boolean   @default(false) // Track if synced to Google Sheets
-}
-
-model Payroll {
-  id                              Int      @id @default(autoincrement())
-  sheetId                         String?  @unique // Original sheet row ID if available
-  creditApplicationId             String?
-  role                            String?
-  numberOfEmployeesInRole         Int?
-  monthlySalary                   Float?
-  monthsPerYearTheRoleIsPaid      Int?
-  notes                           String?
-  totalAnnualCost                 Float?
-  createdAt                       DateTime? @default(now())
-  synced                          Boolean   @default(false) // Track if synced to Google Sheets
-}
-
-model EnrollmentVerification {
-  id                              Int      @id @default(autoincrement())
-  sheetId                         String?  @unique // Original sheet row ID if available
-  creditApplicationId             String?
-  subCountyEnrollmentReport       String?
-  enrollmentReport                String?
-  numberOfStudentsThisYear        Int?
-  numberOfStudentsLastYear        Int?
-  numberOfStudentsTwoYearsAgo     Int?
-  createdAt                       DateTime? @default(now())
-  synced                          Boolean   @default(false) // Track if synced to Google Sheets
-}
-
-model MpesaBankStatement {
-  id                              Int      @id @default(autoincrement())
-  sheetId                         String?  @unique // Original sheet row ID if available
-  creditApplicationId             String?
-  personalOrBusinessAccount       String?
-  type                            String?
-  accountDetails                  String?
-  description                     String?
-  statement                       String?
-  statementStartDate              String?
-  statementEndDate                String?
-  totalRevenue                    Float?
-  convertedExcelFile              String?
-  createdAt                       DateTime? @default(now())
-  synced                          Boolean   @default(false) // Track if synced to Google Sheets
-}
-
-model AuditedFinancial {
-  id                              Int      @id @default(autoincrement())
-  sheetId                         String?  @unique // Original sheet row ID if available
-  creditApplicationId             String?
-  statementType                   String?
-  notes                           String?
-  file                            String?
-  createdAt                       DateTime? @default(now())
-  synced                          Boolean   @default(false) // Track if synced to Google Sheets
-}
-
-model StudentBreakdown {
-  id                              Int      @id @default(autoincrement())
-  sheetId                         String?  @unique // Original sheet row ID if available
-  creditApplicationId             String?
-  feeType                         String?
-  term                            String?
-  grade                           String?
-  numberOfStudents                Int?
-  fee                             Float?
-  totalRevenue                    Float?
-  createdAt                       DateTime? @default(now())
-  synced                          Boolean   @default(false) // Track if synced to Google Sheets
-}
-
-model OtherSupportingDoc {
-  id                              Int      @id @default(autoincrement())
-  sheetId                         String?  @unique // Original sheet row ID if available
-  creditApplicationId             String?
-  documentType                    String?
-  notes                           String?
-  file                            String?
-  image                           String?
-  createdAt                       DateTime? @default(now())
-  synced                          Boolean   @default(false) // Track if synced to Google Sheets
-}
-
-model InvestmentCommittee {
-  id                              Int      @id @default(autoincrement())
-  sheetId                         String?  @unique // Original sheet row ID if available
-  creditApplicationId             String?
-  sslId                          String?
-  schoolId                       String?
-  typeOfSchool                   String?
-  ageOfSchool                    String?
-  incorporationStructure          String?
-  schoolIsProfitable             String?
-  solvencyAssetsLiabilities      String?
-  numberOfStudentsPreviousYear   String?
-  numberOfStudentsFromEnrollmentVerification String?
-  growthInPopulation             String?
-  auditedFinancialsProvided      String?
-  schoolHasBankAccountAndChecks  String?
-  assetValueHasIncreasedFromTwoYearsAgo String?
-  totalAnnualRevenueFromFeesFromStudentBreakdownUnadjusted String?
-  annualRevenueFromBankaAndMPesaStatements String?
-  lesserOfAnnualRevenueFromBankaAndMPesaStatementsAnd75PercentCollections String?
-  collectionsRate                 String?
-  averageSchoolFeesCharged       String?
-  schoolSitsOnOwnedLeasedOrRentedLand String?
-  totalCashHeldInBankAndMPesaAccounts String?
-  totalAnnualSpendingOnSalariesExcludingCooksAndDrivers String?
-  totalAnnualSpendingOnRent      String?
-  totalAnnualOwnersDraw          String?
-  totalAnnualDebtPaymentOfSchoolAndDirectors String?
-  totalOfSalariesRentDebtAndOwnersDraw String?
-  annualExpenseEstimateExcludingPayrollRentDebtOwnersDrawFoodAndTransport String?
-  totalAnnualExpensesExcludingFoodAndTransport String?
-  annualProfitExcludingFoodAndTransportExpenses String?
-  annualTransportExpenseEstimateIncludingDriverSalaries String?
-  annualFoodExpenseEstimateIncludingCookSalaries String?
-  annualProfitIncludingFoodAndTransportExpenses String?
-  monthlyProfitIncludingAllExpenses String?
-  lesserOfMonthlyProfitAnd35PercentProfitMargin String?
-  debtRatio                       String?
-  loanLengthMonths               String?
-  annualReducingInterestRate     String?
-  maximumMonthlyPayment          String?
-  maximumLoan                    String?
-  annualNonSchoolRevenueGenerated String?
-  annualSponsorshipRevenue       String?
-  totalBadDebtOnCrbHeldBySchoolAndDirectors String?
-  totalDebtOnCrbFullyPaidOffBySchoolAndDirectors String?
-  totalEstimatedValueOfAssets    String?
-  annualDonationRevenue          String?
-  maximumPreviousDaysLate        String?
-  numberOfInstallmentsPaidLate   String?
-  schoolCreditRisk               String?
-  previousRestructure            String?
-  predictedDaysLate              Int?
-  currentDebtToIncome            String?
-  profitMarginTotalProfitTotalRevenueNotAdjustedDownTo35Percent String?
-  totalDebt                      String?
-  collateralCoverageOfLoanAmountRequested String?
-  previousLoansWithJackfruit     String?
-  averageBankBalance             String?
-  averageBankBalanceTotalUnadjustedRevenue String?
-  createdAt                       DateTime? @default(now())
-  synced                          Boolean   @default(false) // Track if synced to Google Sheets
-}
-
-model VendorDisbursementDetail {
-  id                              Int      @id @default(autoincrement())
-  sheetId                         String?  @unique // Original sheet row ID if available
-  creditApplicationId             String?
-  vendorPaymentMethod             String?
-  phoneNumberForMPesaPayment      String?
-  managerVerification             String?
-  documentVerifyingPaymentAccount String?
-  bankName                        String?
-  accountName                     String?
-  accountNumber                   String?
-  phoneNumberForBankAccount       String?
-  paybillNumberAndAccount         String?
-  buyGoodsTill                    String?
-  createdAt                       DateTime? @default(now())
-  synced                          Boolean   @default(false) // Track if synced to Google Sheets
-}
-
-model HomeVisit {
-  id                              Int      @id @default(autoincrement())
-  sheetId                         String?  @unique // Original sheet row ID if available
-  creditApplicationId             String?
-  userId                          String?
-  county                          String?
-  addressDetails                  String?
-  locationPin                     String?
-  ownOrRent                      String?
-  howManyYearsStayed             String?
-  maritalStatus                   String?
-  howManyChildren                String?
-  isSpouseInvolvedInSchool       String?
-  doesSpouseHaveOtherIncome      String?
-  ifYesHowMuchPerMonth           String?
-  isDirectorBehindOnUtilityBills String?
-  totalNumberOfRooms             String?
-  howIsNeighborhood              String?
-  howAccessibleIsHouse           String?
-  isDirectorHomeInSameCity       String?
-  isDirectorTrainedEducator      String?
-  doesDirectorHaveOtherBusiness  String?
-  otherNotes                     String?
-  createdAt                       DateTime? @default(now())
-  synced                          Boolean   @default(false) // Track if synced to Google Sheets
-}
-
-model AssetTitle {
-  id                                    Int      @id @default(autoincrement())
-  sheetId                               String?  @unique // Original sheet row ID if available
-  creditApplicationId                   String?
-  type                                  String?
-  toBeUsedAsSecurity                    String?
-  description                           String?
-  legalOwner                            String?
-  userId                                String?
-  fullOwnerDetails                      String?
-  collateralOwnedByDirectorOfSchool     String?
-  plotNumber                            String?
-  schoolSitsOnLand                     String?
-  hasComprehensiveInsurance             String?
-  originalInsuranceCoverage             String?
-  initialEstimatedValue                 String?
-  approvedByLegalTeamOrNTSAAgent       String?
-  notesOnApprovalForUse                 String?
-  evaluatorsMarketValue                 String?
-  evaluatorsForcedValue                 String?
-  moneyOwedOnAsset                     String?
-  licensePlateNumber                    String?
-  engineCC                              String?
-  yearOfManufacture                     String?
-  logbookPhoto                         String?
-  titleDeedPhoto                       String?
-  fullTitleDeed                        String?
-  evaluatorsReport                     String?
-  createdAt                             DateTime? @default(now())
-  synced                                Boolean   @default(false) // Track if synced to Google Sheets
-}
-
-model ContractDetails {
-  id                                    Int      @id @default(autoincrement())
-  sheetId                               String?  @unique // Original sheet row ID if available
-  creditApplicationId                   String?
-  loanLengthRequestedMonths             String?
-  monthsSchoolRequestsForgiveness       String?
-  disbursalDateRequested                String?
-  tenPercentDownOnVehicleOrLandFinancing String?
-  createdBy                             String?
-  createdAt                             DateTime? @default(now())
-  synced                                Boolean   @default(false) // Track if synced to Google Sheets
-}
-
-model CreditApplicationComment {
-  id                    Int      @id @default(autoincrement())
-  sheetId               String?  @unique // Original sheet row ID if available
-  creditApplicationId   String?
-  commenterType         String?
-  comments              String?
-  commenterName         String?
-  createdAt             DateTime? @default(now())
-  synced                Boolean   @default(false) // Track if synced to Google Sheets
-}
-
-model FinancialSurvey {
-  id                                    Int      @id @default(autoincrement())
-  sheetId                               String?  @unique // Original sheet row ID if available
-  creditApplicationId                   String?
-  surveyDate                            String?
-  directorId                            String?
-  createdBy                             String?
-  schoolGrades                          String?
-  isSchoolAPBETOrPrivate                String?
-  isChurchSupported                     String?
-  churchName                            String?
-  churchAnnualSupport                   String?
-  churchBenefits                        String?
-  facilityOwnership                     String?
-  annualLeaseRent                       String?
-  ownerAnnualWithdrawal                 String?
-  monthlyDebtPayments                   String?
-  providesMeals                         String?
-  termlyFoodExpense                     String?
-  termlyFuelExpense                     String?
-  annualStudentTextbookExpense          String?
-  annualTeacherTextbookExpense          String?
-  termlyStationeryExpense               String?
-  monthlyWifiExpense                    String?
-  termlyAirtimeExpense                  String?
-  monthlyWaterExpense                   String?
-  termlyMiscExpense                     String?
-  annualTaxLicenseExpense               String?
-  monthlyElectricityExpense             String?
-  hasVehicles                           String?
-  termlyVehicleServiceExpense           String?
-  termlyVehicleFuelExpense              String?
-  totalVehiclePurchaseExpense           String?
-  annualEquipmentFurnitureExpense       String?
-  annualRepairMaintenanceExpense        String?
-  hasOtherRevenue                       String?
-  otherRevenueSources                   String?
-  annualOtherRevenue                    String?
-  sponsoredChildrenCount                String?
-  annualSponsorshipRevenue              String?
-  annualExpenseEstimate                 String?
-  annualFoodExpenseEstimate             String?
-  annualTransportExpenseEstimate        String?
-  lastYearAssetValue                    String?
-  lastYearLoanDeposits                  String?
-  previousYearStudentCount              String?
-  leaseAgreement                        String?
-  receivesSignificantDonations          String?
-  annualDonationRevenue                 String?
-  majorProjectsAndMitigation            String?
-  nextYearExpectedStudents              String?
-  twoYearsAgoAssetValue                String?
-  currentBankBalance                    String?
-  yearsAtCurrentPremises                String?
-  yearsWithBankAccount                  String?
-  hasAuditedFinancials                  String?
-  branchCount                           String?
-  hasMicrofinanceBorrowing             String?
-  hasFormalBankBorrowing               String?
-  createdAt                             DateTime? @default(now())
-  synced                                Boolean   @default(false) // Track if synced to Google Sheets
 }

@@ -10,7 +10,7 @@ export class ActiveDebtsDbService {
     ID: 'sheetId',
     'Credit Application ID': 'creditApplicationId',
     'Debt Status': 'debtStatus',
-    'Listed on CRB': 'listedOnCrb',
+    'Listed on CRB?': 'listedOnCrb',
     'Personal Loan or School Loan': 'personalLoanOrSchoolLoan',
     Lender: 'lender',
     'Date Loan Taken': 'dateLoanTaken',

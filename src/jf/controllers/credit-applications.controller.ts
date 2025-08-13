@@ -177,12 +177,10 @@ export class CreditApplicationsController {
 
       // Prepare credit application data for Postgres
       const creditApplicationDataForDb = {
-        sheetId: `CA-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`, // Generate temporary sheetId
+        sheetId: `CA-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`, // Generate permanent sheetId
         customerType: 'School',
         borrowerId: createDto['Borrower ID'],
-        applicationStartDate: createDto['Application Start Date']
-          ? new Date(createDto['Application Start Date']).toISOString()
-          : new Date().toISOString(),
+        applicationStartDate: createDto['Application Start Date'] || null,
         creditType: createDto['Credit Type'],
         totalAmountRequested: createDto['Total Amount Requested']
           ? Number(createDto['Total Amount Requested'])
@@ -215,7 +213,9 @@ export class CreditApplicationsController {
       const result = await this.creditApplicationsDbService.create(
         creditApplicationDataForDb,
       );
-      this.logger.log(`Credit application added successfully via Postgres`);
+      this.logger.log(
+        `Credit application added successfully via Postgres with sheetId: ${result.sheetId}`,
+      );
 
       // Queue file upload to Google Drive with credit application ID for database updates
       if (checkPhoto) {
@@ -237,7 +237,12 @@ export class CreditApplicationsController {
       }
 
       // Trigger automatic sync to Google Sheets (non-blocking)
-      this.triggerBackgroundSync(result.id, result.borrowerId, 'create');
+      this.triggerBackgroundSync(
+        result.id,
+        result.borrowerId,
+        'create',
+        result.sheetId,
+      );
 
       return {
         success: true,
@@ -431,9 +436,9 @@ export class CreditApplicationsController {
         customerType: 'School',
         borrowerId:
           updateData['Borrower ID'] || existingCreditApplication.borrowerId,
-        applicationStartDate: updateData['Application Start Date']
-          ? new Date(updateData['Application Start Date']).toISOString()
-          : existingCreditApplication.applicationStartDate,
+        applicationStartDate:
+          updateData['Application Start Date'] ||
+          existingCreditApplication.applicationStartDate,
         creditType:
           updateData['Credit Type'] || existingCreditApplication.creditType,
         totalAmountRequested: updateData['Total Amount Requested']
@@ -483,7 +488,12 @@ export class CreditApplicationsController {
       this.logger.log(`Credit application updated successfully via Postgres`);
 
       // Trigger background sync
-      this.triggerBackgroundSync(result.id, result.borrowerId, 'update');
+      this.triggerBackgroundSync(
+        result.id,
+        result.borrowerId,
+        'update',
+        result.sheetId || '',
+      );
 
       return {
         success: true,
@@ -580,12 +590,16 @@ export class CreditApplicationsController {
     dbId: number,
     borrowerId: string,
     operation: 'create' | 'update',
+    sheetId: string,
   ) {
     try {
       this.logger.log(
-        `Triggering background sync for credit application ${dbId} (${operation})`,
+        `Triggering background sync for credit application ${dbId} (${operation}) with sheetId: ${sheetId}`,
       );
-      await this.creditApplicationsSyncService.syncCreditApplicationById(dbId);
+      await this.creditApplicationsSyncService.syncCreditApplicationById(
+        dbId,
+        sheetId,
+      );
       this.logger.log(
         `Background sync completed for credit application ${dbId}`,
       );
