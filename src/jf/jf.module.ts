@@ -110,6 +110,10 @@ import { HomeVisitsMigrationController } from './controllers/home-visits-migrati
 import { AssetTitlesMigrationController } from './controllers/asset-titles-migration.controller';
 import { ContractDetailsMigrationController } from './controllers/contract-details-migration.controller';
 import { CreditApplicationCommentsMigrationController } from './controllers/credit-application-comments-migration.controller';
+import { DirectPaymentSchedulesController } from './controllers/direct-payment-schedules.controller';
+import { DirectPaymentSchedulesMigrationController } from './controllers/direct-payment-schedules-migration.controller';
+import { DirectPaymentSchedulesDbService } from './services/direct-payment-schedules-db.service';
+import { DirectPaymentSchedulesSyncService } from './services/direct-payment-schedules-sync.service';
 
 import { DirectorsControllerSheets } from './controllers/directors.controller.sheets';
 import { CommonModule } from '../common/common.module';
@@ -178,6 +182,8 @@ import { BackgroundUploadService } from './services/background-upload.service';
     ContractDetailsSyncService,
     CreditApplicationCommentsDbService,
     CreditApplicationCommentsSyncService,
+    DirectPaymentSchedulesDbService,
+    DirectPaymentSchedulesSyncService,
     FinancialSurveysDbService,
     FinancialSurveysSyncService,
     MlDataService,
@@ -241,6 +247,8 @@ import { BackgroundUploadService } from './services/background-upload.service';
     AssetTitlesMigrationController,
     ContractDetailsMigrationController,
     CreditApplicationCommentsMigrationController,
+    DirectPaymentSchedulesController,
+    DirectPaymentSchedulesMigrationController,
   ],
   exports: [GoogleDriveService, SheetsService],
 })

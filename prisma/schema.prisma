@@ -983,6 +983,32 @@ model CreditApplicationComment {
   synced              Boolean   @default(false)
 }
 
+model DirectPaymentSchedule {
+  id                    Int       @id @default(autoincrement())
+  sheetId               String?   @unique
+  borrowerId            String?
+  schoolId              String?
+  loanId                String?
+  creditApplicationId   String?
+  paymentScheduleNumber String?
+  installmentNumber     String?
+  dueDate               String?
+  amountDue             String?
+  principalAmount       String?
+  interestAmount        String?
+  feesAmount            String?
+  penaltyAmount         String?
+  totalAmount           String?
+  paymentStatus         String?
+  paymentMethod         String?
+  paymentDate           String?
+  amountPaid            String?
+  balanceCarriedForward String?
+  remarks               String?
+  createdAt             DateTime  @default(now())
+  synced                Boolean   @default(false)
+}
+
 model FinancialSurvey {
   id                              Int       @id @default(autoincrement())
   sheetId                         String?   @unique
