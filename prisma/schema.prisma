@@ -1240,3 +1240,35 @@ enum NewsletterCategory {
   PARTNERSHIPS
   ALL_UPDATES
 }
+
+model ContactMessage {
+  id           String      @id @default(uuid())
+  messageType  MessageType
+  name         String
+  email        String
+  subject      String
+  message      String
+  status       MessageStatus @default(UNREAD)
+  platform     Platform
+  createdAt    DateTime    @default(now())
+  viewedBy     String?
+  viewedAt     DateTime?
+}
+
+enum MessageType {
+  PARTNER
+  NORMAL
+  ENQUIRY
+}
+
+enum MessageStatus {
+  READ
+  UNREAD
+}
+
+enum Platform {
+  JF_NETWORK
+  JF_FOUNDATION
+  JF_FINANCE
+  JF_HUB
+}

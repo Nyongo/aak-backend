@@ -121,6 +121,8 @@ import { DirectorsControllerSheets } from './controllers/directors.controller.sh
 import { CommonModule } from '../common/common.module';
 import { FileUploadService } from './services/file-upload.service';
 import { BackgroundUploadService } from './services/background-upload.service';
+import { JFNetworkContactPageService } from './services/jf-network-contact-page.service';
+import { JFNetworkContactPageController } from './controllers/jf-network-contact-page.controller';
 
 @Module({
   imports: [
@@ -192,6 +194,7 @@ import { BackgroundUploadService } from './services/background-upload.service';
     MlDataService,
     FileUploadService,
     BackgroundUploadService,
+    JFNetworkContactPageService
   ],
   controllers: [
     SpreadsheetController,
@@ -253,6 +256,7 @@ import { BackgroundUploadService } from './services/background-upload.service';
     DirectPaymentSchedulesController,
     DirectPaymentSchedulesMigrationController,
     LoansMigrationController,
+    JFNetworkContactPageController
   ],
   exports: [GoogleDriveService, SheetsService],
 })
