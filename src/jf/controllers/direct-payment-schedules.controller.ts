@@ -56,10 +56,12 @@ export class DirectPaymentSchedulesController {
     );
   }
 
-  @Get('by-status/:status')
-  findByStatus(@Param('status') status: string) {
-    this.logger.log(`Getting payment schedules with status: ${status}`);
-    return this.directPaymentSchedulesDbService.findByPaymentStatus(status);
+  @Get('by-overdue/:overdue')
+  findByPaymentOverdue(@Param('overdue') overdue: string) {
+    this.logger.log(
+      `Getting payment schedules with overdue status: ${overdue}`,
+    );
+    return this.directPaymentSchedulesDbService.findByPaymentOverdue(overdue);
   }
 
   @Get('by-borrower/:borrowerId')
@@ -68,10 +70,14 @@ export class DirectPaymentSchedulesController {
     return this.directPaymentSchedulesDbService.findByBorrowerId(borrowerId);
   }
 
-  @Get('by-loan/:loanId')
-  findByLoan(@Param('loanId') loanId: string) {
-    this.logger.log(`Getting payment schedules for loan: ${loanId}`);
-    return this.directPaymentSchedulesDbService.findByLoanId(loanId);
+  @Get('by-direct-loan/:directLoanId')
+  findByDirectLoan(@Param('directLoanId') directLoanId: string) {
+    this.logger.log(
+      `Getting payment schedules for direct loan: ${directLoanId}`,
+    );
+    return this.directPaymentSchedulesDbService.findByDirectLoanId(
+      directLoanId,
+    );
   }
 
   @Get(':id')

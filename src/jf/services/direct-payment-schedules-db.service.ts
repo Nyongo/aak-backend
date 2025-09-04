@@ -76,15 +76,15 @@ export class DirectPaymentSchedulesDbService {
     }
   }
 
-  async findByLoanId(loanId: string) {
+  async findByDirectLoanId(directLoanId: string) {
     try {
       return await this.prisma.directPaymentSchedule.findMany({
-        where: { loanId },
+        where: { directLoanId },
         orderBy: { dueDate: 'asc' },
       });
     } catch (error) {
       this.logger.error(
-        `Error fetching direct payment schedules for loan ${loanId}:`,
+        `Error fetching direct payment schedules for direct loan ${directLoanId}:`,
         error,
       );
       throw error;
@@ -127,15 +127,15 @@ export class DirectPaymentSchedulesDbService {
     }
   }
 
-  async findByPaymentStatus(paymentStatus: string) {
+  async findByPaymentOverdue(paymentOverdue: string) {
     try {
       return await this.prisma.directPaymentSchedule.findMany({
-        where: { paymentStatus },
+        where: { paymentOverdue },
         orderBy: { dueDate: 'asc' },
       });
     } catch (error) {
       this.logger.error(
-        `Error fetching direct payment schedules with status ${paymentStatus}:`,
+        `Error fetching direct payment schedules with overdue status ${paymentOverdue}:`,
         error,
       );
       throw error;
@@ -144,15 +144,9 @@ export class DirectPaymentSchedulesDbService {
 
   async findOverdueSchedules() {
     try {
-      const today = new Date().toISOString().split('T')[0];
       return await this.prisma.directPaymentSchedule.findMany({
         where: {
-          dueDate: {
-            lt: today,
-          },
-          paymentStatus: {
-            not: 'PAID',
-          },
+          paymentOverdue: 'TRUE',
         },
         orderBy: { dueDate: 'asc' },
       });
@@ -174,9 +168,7 @@ export class DirectPaymentSchedulesDbService {
             gte: today.toISOString().split('T')[0],
             lte: futureDateString,
           },
-          paymentStatus: {
-            not: 'PAID',
-          },
+          paymentOverdue: 'FALSE',
         },
         orderBy: { dueDate: 'asc' },
       });
@@ -192,26 +184,52 @@ export class DirectPaymentSchedulesDbService {
   // Convert database record to sheet format
   convertDbToSheet(dbRecord: any) {
     return {
-      'Sheet ID': dbRecord.sheetId || '',
+      ID: dbRecord.sheetId || '',
+      'Direct Loan ID': dbRecord.directLoanId || '',
+      'Borrower Type ': dbRecord.borrowerType || '',
       'Borrower ID': dbRecord.borrowerId || '',
-      'School ID': dbRecord.schoolId || '',
-      'Loan ID': dbRecord.loanId || '',
-      'Credit Application ID': dbRecord.creditApplicationId || '',
-      'Payment Schedule Number': dbRecord.paymentScheduleNumber || '',
-      'Installment Number': dbRecord.installmentNumber || '',
       'Due Date': dbRecord.dueDate || '',
+      'Holiday Forgiveness?': dbRecord.holidayForgiveness || '',
+      'Amount Still Unpaid': dbRecord.amountStillUnpaid || '',
+      'Days Late': dbRecord.daysLate || '',
+      'Date Fully Paid': dbRecord.dateFullyPaid || '',
+      'Payment Overdue?': dbRecord.paymentOverdue || '',
+      'PAR 14': dbRecord.par14 || '',
+      'PAR 30': dbRecord.par30 || '',
+      'Check Cashing Status': dbRecord.checkCashingStatus || '',
+      'Debt Type': dbRecord.debtType || '',
+      'Notes on Payment': dbRecord.notesOnPayment || '',
+      'Adjusted Month': dbRecord.adjustedMonth || '',
+      'Credit Life Insurance Fees Charged':
+        dbRecord.creditLifeInsuranceFeesCharged || '',
+      'Interest Charged without Forgiveness':
+        dbRecord.interestChargedWithoutForgiveness || '',
+      'Principal Repayment without Forgiveness':
+        dbRecord.principalRepaymentWithoutForgiveness || '',
+      'Vehicle Insurance Payment Due, without Forgiveness':
+        dbRecord.vehicleInsurancePaymentDueWithoutForgiveness || '',
+      'Vehicle Insurance Payment Due':
+        dbRecord.vehicleInsurancePaymentDue || '',
+      'Interest Repayment Due': dbRecord.interestRepaymentDue || '',
+      'Principal Repayment Due': dbRecord.principalRepaymentDue || '',
       'Amount Due': dbRecord.amountDue || '',
-      'Principal Amount': dbRecord.principalAmount || '',
-      'Interest Amount': dbRecord.interestAmount || '',
-      'Fees Amount': dbRecord.feesAmount || '',
-      'Penalty Amount': dbRecord.penaltyAmount || '',
-      'Total Amount': dbRecord.totalAmount || '',
-      'Payment Status': dbRecord.paymentStatus || '',
-      'Payment Method': dbRecord.paymentMethod || '',
-      'Payment Date': dbRecord.paymentDate || '',
       'Amount Paid': dbRecord.amountPaid || '',
-      'Balance Carried Forward': dbRecord.balanceCarriedForward || '',
-      Remarks: dbRecord.remarks || '',
+      'Vehicle Insurance Premium Due without Forgiveness':
+        dbRecord.vehicleInsurancePremiumDueWithoutForgiveness || '',
+      'Vehicle Insurance Surcharge Due without Forgiveness':
+        dbRecord.vehicleInsuranceSurchargeDueWithoutForgiveness || '',
+      'Vehicle Insurance Premium Due with Forgiveness':
+        dbRecord.vehicleInsurancePremiumDueWithForgiveness || '',
+      'Vehicle Insurance Surcharge Due with Forgiveness':
+        dbRecord.vehicleInsuranceSurchargeDueWithForgiveness || '',
+      'Credit Life Insurance Fees Owed to Insurer':
+        dbRecord.creditLifeInsuranceFeesOwedToInsurer || '',
+      'Credit Life Insurance Fee Payments Utilized':
+        dbRecord.creditLifeInsuranceFeePaymentsUtilized || '',
+      'Credit Life Insurance Fee Insurance Expense':
+        dbRecord.creditLifeInsuranceFeeInsuranceExpense || '',
+      'Vehicle Insurance Fees Owed to Insurer':
+        dbRecord.vehicleInsuranceFeesOwedToInsurer || '',
       'Created At': dbRecord.createdAt || '',
       Synced: dbRecord.synced || false,
     };
@@ -219,27 +237,59 @@ export class DirectPaymentSchedulesDbService {
 
   // Convert sheet record to database format
   convertSheetToDb(sheetRecord: any) {
+    // Map the actual column names from the sheet to database fields
     return {
-      sheetId: sheetRecord['Sheet ID'] || null,
+      sheetId: sheetRecord['ID'] || null, // The ID column becomes sheetId
+
+      // Core fields from the sheet - exact column names
+      directLoanId: sheetRecord['Direct Loan ID'] || null,
+      borrowerType: sheetRecord['Borrower Type '] || null, // Note the space at the end
       borrowerId: sheetRecord['Borrower ID'] || null,
-      schoolId: sheetRecord['School ID'] || null,
-      loanId: sheetRecord['Loan ID'] || null,
-      creditApplicationId: sheetRecord['Credit Application ID'] || null,
-      paymentScheduleNumber: sheetRecord['Payment Schedule Number'] || null,
-      installmentNumber: sheetRecord['Installment Number'] || null,
       dueDate: sheetRecord['Due Date'] || null,
+      holidayForgiveness: sheetRecord['Holiday Forgiveness?'] || null,
+      amountStillUnpaid: sheetRecord['Amount Still Unpaid'] || null,
+      daysLate: sheetRecord['Days Late'] || null,
+      dateFullyPaid: sheetRecord['Date Fully Paid'] || null,
+      paymentOverdue: sheetRecord['Payment Overdue?'] || null,
+      par14: sheetRecord['PAR 14'] || null,
+      par30: sheetRecord['PAR 30'] || null,
+      checkCashingStatus: sheetRecord['Check Cashing Status'] || null,
+      debtType: sheetRecord['Debt Type'] || null,
+      notesOnPayment: sheetRecord['Notes on Payment'] || null,
+      adjustedMonth: sheetRecord['Adjusted Month'] || null,
+      creditLifeInsuranceFeesCharged:
+        sheetRecord['Credit Life Insurance Fees Charged'] || null,
+      interestChargedWithoutForgiveness:
+        sheetRecord['Interest Charged without Forgiveness'] || null,
+      principalRepaymentWithoutForgiveness:
+        sheetRecord['Principal Repayment without Forgiveness'] || null,
+      vehicleInsurancePaymentDueWithoutForgiveness:
+        sheetRecord['Vehicle Insurance Payment Due, without Forgiveness'] ||
+        null,
+      vehicleInsurancePaymentDue:
+        sheetRecord['Vehicle Insurance Payment Due'] || null,
+      interestRepaymentDue: sheetRecord['Interest Repayment Due'] || null,
+      principalRepaymentDue: sheetRecord['Principal Repayment Due'] || null,
       amountDue: sheetRecord['Amount Due'] || null,
-      principalAmount: sheetRecord['Principal Amount'] || null,
-      interestAmount: sheetRecord['Interest Amount'] || null,
-      feesAmount: sheetRecord['Fees Amount'] || null,
-      penaltyAmount: sheetRecord['Penalty Amount'] || null,
-      totalAmount: sheetRecord['Total Amount'] || null,
-      paymentStatus: sheetRecord['Payment Status'] || null,
-      paymentMethod: sheetRecord['Payment Method'] || null,
-      paymentDate: sheetRecord['Payment Date'] || null,
       amountPaid: sheetRecord['Amount Paid'] || null,
-      balanceCarriedForward: sheetRecord['Balance Carried Forward'] || null,
-      remarks: sheetRecord['Remarks'] || null,
+      vehicleInsurancePremiumDueWithoutForgiveness:
+        sheetRecord['Vehicle Insurance Premium Due without Forgiveness'] ||
+        null,
+      vehicleInsuranceSurchargeDueWithoutForgiveness:
+        sheetRecord['Vehicle Insurance Surcharge Due without Forgiveness'] ||
+        null,
+      vehicleInsurancePremiumDueWithForgiveness:
+        sheetRecord['Vehicle Insurance Premium Due with Forgiveness'] || null,
+      vehicleInsuranceSurchargeDueWithForgiveness:
+        sheetRecord['Vehicle Insurance Surcharge Due with Forgiveness'] || null,
+      creditLifeInsuranceFeesOwedToInsurer:
+        sheetRecord['Credit Life Insurance Fees Owed to Insurer'] || null,
+      creditLifeInsuranceFeePaymentsUtilized:
+        sheetRecord['Credit Life Insurance Fee Payments Utilized'] || null,
+      creditLifeInsuranceFeeInsuranceExpense:
+        sheetRecord['Credit Life Insurance Fee Insurance Expense'] || null,
+      vehicleInsuranceFeesOwedToInsurer:
+        sheetRecord['Vehicle Insurance Fees Owed to Insurer'] || null,
     };
   }
 

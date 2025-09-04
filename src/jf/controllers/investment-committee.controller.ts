@@ -74,7 +74,7 @@ export class InvestmentCommitteeController {
           ] || '',
         annualRevenueFromBankaAndMPesaStatements:
           createDto['Annual revenue from Banka and M Pesa Statements'] || '',
-        lesserOfAnnualRevenueFromBankaAndMPesaStatementsAnd75PercentCollections:
+        lesserOfAnnualRevenueFromBankaAndMPesaStatementsAnd75PercentCol:
           createDto[
             'Lesser of annual revenue from Banka and M Pesa Statements and 75% collections of school fees'
           ] || '',
@@ -102,7 +102,7 @@ export class InvestmentCommitteeController {
         totalOfSalariesRentDebtAndOwnersDraw:
           createDto['Total of salaries, rent, debt, and owners draw (KES)'] ||
           '',
-        annualExpenseEstimateExcludingPayrollRentDebtOwnersDrawFoodAndTransport:
+        annualExpenseEstimateExcludingPayrollRentDebtOwnersDrawFoodAndT:
           createDto[
             'Annual Expense Estimate Excluding Payroll, Rent, Debt, Owners Draw, Food, and Transport'
           ] || '',
@@ -387,11 +387,11 @@ export class InvestmentCommitteeController {
         annualRevenueFromBankaAndMPesaStatements:
           updateDto['Annual revenue from Banka and M Pesa Statements'] ||
           existingRecord.annualRevenueFromBankaAndMPesaStatements,
-        lesserOfAnnualRevenueFromBankaAndMPesaStatementsAnd75PercentCollections:
+        lesserOfAnnualRevenueFromBankaAndMPesaStatementsAnd75PercentCol:
           updateDto[
             'Lesser of annual revenue from Banka and M Pesa Statements and 75% collections of school fees'
           ] ||
-          existingRecord.lesserOfAnnualRevenueFromBankaAndMPesaStatementsAnd75PercentCollections,
+          existingRecord.lesserOfAnnualRevenueFromBankaAndMPesaStatementsAnd75PercentCol,
         collectionsRate:
           updateDto['Collections Rate'] || existingRecord.collectionsRate,
         averageSchoolFeesCharged:
@@ -422,11 +422,11 @@ export class InvestmentCommitteeController {
         totalOfSalariesRentDebtAndOwnersDraw:
           updateDto['Total of salaries, rent, debt, and owners draw (KES)'] ||
           existingRecord.totalOfSalariesRentDebtAndOwnersDraw,
-        annualExpenseEstimateExcludingPayrollRentDebtOwnersDrawFoodAndTransport:
+        annualExpenseEstimateExcludingPayrollRentDebtOwnersDrawFoodAndT:
           updateDto[
             'Annual Expense Estimate Excluding Payroll, Rent, Debt, Owners Draw, Food, and Transport'
           ] ||
-          existingRecord.annualExpenseEstimateExcludingPayrollRentDebtOwnersDrawFoodAndTransport,
+          existingRecord.annualExpenseEstimateExcludingPayrollRentDebtOwnersDrawFoodAndT,
         totalAnnualExpensesExcludingFoodAndTransport:
           updateDto[
             'Total Annual Expenses Excluding Food and Transport (KES)'

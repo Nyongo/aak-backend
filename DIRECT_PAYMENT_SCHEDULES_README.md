@@ -69,88 +69,114 @@ The `DirectPaymentSchedule` model includes the following fields:
 
 ### Migration Controller: `/jf/direct-payment-schedules-migration`
 
-#### Import Operations
+#### Migration Operations
 
-- `POST /import?spreadsheetId=xxx` - Import data from Google Sheets
-- `GET /status?spreadsheetId=xxx` - Get migration status
-- `GET /preview?spreadsheetId=xxx` - Preview sheet data before import
-- `POST /validate?spreadsheetId=xxx` - Validate sheet data
+- `GET /status` - Get migration status (sheets vs database)
+- `POST /import-from-sheets` - Import data from Google Sheets
+- `POST /sync-to-sheets` - Sync database changes to sheets (read-only)
+- `POST /full-migration` - Run complete import and sync process
+- `GET /compare/:sheetId` - Compare specific record between sheets and database
 
 ## Usage Examples
 
-### 1. Import Existing Records
-
-To import existing records from the "Dir. Payment Schedules" sheet:
+### 1. Check Migration Status
 
 ```bash
-POST /jf/direct-payment-schedules-migration/import?spreadsheetId=YOUR_SPREADSHEET_ID
+GET /jf/direct-payment-schedules-migration/status
 ```
 
-### 2. Preview Data Before Import
+This will show you:
+
+- Total records in Google Sheets
+- Total records in database
+- How many are synced/unsynced
+- Sample records from both sources
+
+### 2. Import Data from Google Sheets
 
 ```bash
-GET /jf/direct-payment-schedules-migration/preview?spreadsheetId=YOUR_SPREADSHEET_ID
+POST /jf/direct-payment-schedules-migration/import-from-sheets
 ```
 
-### 3. Validate Sheet Data
+This will:
+
+- Read all data from "Dir. Payment Schedules" sheet
+- Skip empty records and existing records
+- Import new records with `synced = true`
+- Return detailed import statistics
+
+### 3. Run Full Migration
 
 ```bash
-POST /jf/direct-payment-schedules-migration/validate?spreadsheetId=YOUR_SPREADSHEET_ID
+POST /jf/direct-payment-schedules-migration/full-migration
 ```
 
-### 4. Get Overdue Payments
+This runs both import and sync operations in sequence.
+
+### 4. Compare Specific Record
+
+```bash
+GET /jf/direct-payment-schedules-migration/compare/SHEET_ID
+```
+
+This compares a specific record between Google Sheets and your database.
+
+### 5. Get Overdue Payments
 
 ```bash
 GET /jf/direct-payment-schedules/overdue
 ```
 
-### 5. Get Upcoming Payments
+### 6. Get Upcoming Payments
 
 ```bash
 GET /jf/direct-payment-schedules/upcoming?days=60
 ```
 
-### 6. Get Payments by Status
+### 7. Get Payments by Status
 
 ```bash
 GET /jf/direct-payment-schedules/by-status/PENDING
 ```
 
-### 7. Get Payments for Specific Borrower
+### 8. Get Payments for Specific Borrower
 
 ```bash
 GET /jf/direct-payment-schedules/by-borrower/BORROWER_ID
 ```
 
-## Data Validation
+## Migration Process
 
-The migration controller includes comprehensive data validation:
-
-- **Required Fields**: Borrower ID, School ID, or Loan ID (at least one)
-- **Required Fields**: Due Date, Amount Due
-- **Date Validation**: Supports ISO dates and DD/MM/YYYY format
-- **Numeric Validation**: Ensures amount fields are valid numbers
-
-## Sync Process
-
-### From Google Sheets to Database
+### Import from Sheets
 
 1. Reads data from "Dir. Payment Schedules" sheet
-2. Validates each row
-3. Creates new records or updates existing ones
-4. Tracks sync status
+2. Validates each row (skips empty records)
+3. Checks for existing records (skips duplicates)
+4. Converts sheet format to database format
+5. Creates new records with `synced = true`
+6. Returns detailed import statistics
 
-### To Google Sheets (Read-Only)
+### Sync to Sheets (Read-Only)
 
 - Currently read-only due to API limitations
-- Returns data in sheet format for manual review
+- Marks records as synced in database
+- In a real implementation, would write back to sheets
+
+## Data Validation
+
+The migration process includes comprehensive validation:
+
+- **Empty Record Detection**: Skips completely empty rows
+- **ID Validation**: Ensures records have valid identifiers
+- **Duplicate Prevention**: Skips records that already exist
+- **Data Conversion**: Properly converts between sheet and database formats
 
 ## Error Handling
 
 - Comprehensive logging for all operations
-- Detailed error messages for validation failures
-- Graceful handling of API errors
-- Transaction rollback on failures
+- Detailed error tracking with context
+- Graceful handling of individual record failures
+- Returns detailed success/error statistics
 
 ## Configuration
 
@@ -171,4 +197,5 @@ Ensure the following environment variables are set:
 - The "Dir" in "Dir. Payment Schedules" refers to "Direct" payments, not "Director"
 - All monetary amounts are stored as strings to preserve precision
 - Dates are stored as strings to maintain flexibility with various formats
-- The sync process is designed to be idempotent and safe to run multiple times
+- The migration process is designed to be idempotent and safe to run multiple times
+- Follows the exact same pattern as other migration controllers in the system

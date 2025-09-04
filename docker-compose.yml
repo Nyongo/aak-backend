@@ -9,9 +9,12 @@ services:
       POSTGRES_PASSWORD: NyNj92
       POSTGRES_DB: nest
     ports:
-      - "5433:5432"
+      - "5432:5432"  # Changed to standard PostgreSQL port
     volumes:
       - postgres_data:/var/lib/postgresql/data  # Attach named volume for persistence
+      - ./postgresql.conf:/etc/postgresql/postgresql.conf  # Custom PostgreSQL config
+      - ./pg_hba.conf:/etc/postgresql/pg_hba.conf  # Custom authentication config
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
 
   nestjs_app:
     build:

@@ -38,6 +38,7 @@ export class SpreadsheetService {
     }
 
     const headers = rows[0];
+    console.log('headers', headers);
     const data = rows.slice(1).map((row) =>
       headers.reduce((obj, key, index) => {
         obj[key] = row[index] || '';
@@ -49,7 +50,7 @@ export class SpreadsheetService {
 
   async readDbSheet(
     spreadsheetId: string,
-    range: string = 'Borrowers!A1:CQ1000',
+    range: string = 'Worksheet!A1:CQ1000',
   ): Promise<any> {
     const response = await this.sheets.spreadsheets.values.get({
       spreadsheetId,
@@ -233,8 +234,10 @@ export class SpreadsheetService {
       };
       return location;
     });
+    const totalNoOfSchools = data.length + this.initTotalNoOfSchools;
+    console.log('totalNoOfSchools', data.length);
     return {
-      totalNoOfSchools: data.length + this.initTotalNoOfSchools,
+      totalNoOfSchools,
       totalEnrolment: totalEnrolment + this.initTotalEnrollment,
       totalMaleStudents: totalMaleStudents + this.initTotalMaleStudents,
       totalFemaleStudents: totalFemaleStudents + this.initTotalFemaleStudents,

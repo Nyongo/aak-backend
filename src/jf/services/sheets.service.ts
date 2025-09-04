@@ -3808,4 +3808,43 @@ export class SheetsService {
       throw error;
     }
   }
+
+  async getDirectPaymentSchedules(): Promise<any[]> {
+    try {
+      this.logger.debug('Fetching direct payment schedules from sheets');
+      const schedules = await this.getSheetData('Direct Payment Schedules');
+      this.logger.debug(
+        `Retrieved ${schedules?.length || 0} direct payment schedules`,
+      );
+      return schedules;
+    } catch (error) {
+      this.logger.error('Error fetching direct payment schedules:', error);
+      throw error;
+    }
+  }
+
+  async getLoans(): Promise<any[]> {
+    try {
+      this.logger.debug('Fetching loans from sheets');
+      const loans = await this.getSheetData('Loans');
+      this.logger.debug(`Retrieved ${loans?.length || 0} loans`);
+      return loans;
+    } catch (error) {
+      this.logger.error('Error fetching loans:', error);
+      throw error;
+    }
+  }
+
+  async getLoansCount(): Promise<number> {
+    try {
+      this.logger.debug('Getting loans count from sheets');
+      const loans = await this.getSheetData('Loans');
+      const count = loans?.length || 0;
+      this.logger.debug(`Found ${count} loans in sheets`);
+      return count;
+    } catch (error) {
+      this.logger.error('Error getting loans count:', error);
+      throw error;
+    }
+  }
 }

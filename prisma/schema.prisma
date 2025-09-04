@@ -878,8 +878,8 @@ model InvestmentCommittee {
   totalDebtOnCrbFullyPaidOffBySchoolAndDirectors                  String?
   totalOfSalariesRentDebtAndOwnersDraw                            String?
   typeOfSchool                                                    String?
-  annualExpenseEstimateExcludingPayrollRentDebtOwnersDrawFoodAndTransport String?
-  lesserOfAnnualRevenueFromBankaAndMPesaStatementsAnd75PercentCollections String?
+  annualExpenseEstimateExcludingPayrollRentDebtOwnersDrawFoodAndT String?
+  lesserOfAnnualRevenueFromBankaAndMPesaStatementsAnd75PercentCol String?
 }
 
 model VendorDisbursementDetail {
@@ -984,29 +984,170 @@ model CreditApplicationComment {
 }
 
 model DirectPaymentSchedule {
-  id                    Int       @id @default(autoincrement())
-  sheetId               String?   @unique
-  borrowerId            String?
-  schoolId              String?
-  loanId                String?
-  creditApplicationId   String?
-  paymentScheduleNumber String?
-  installmentNumber     String?
-  dueDate               String?
-  amountDue             String?
-  principalAmount       String?
-  interestAmount        String?
-  feesAmount            String?
-  penaltyAmount         String?
-  totalAmount           String?
-  paymentStatus         String?
-  paymentMethod         String?
-  paymentDate           String?
-  amountPaid            String?
-  balanceCarriedForward String?
-  remarks               String?
-  createdAt             DateTime  @default(now())
-  synced                Boolean   @default(false)
+  id                                             Int      @id @default(autoincrement())
+  sheetId                                        String?  @unique
+  borrowerId                                     String?
+  dueDate                                        String?
+  amountDue                                      String?
+  amountPaid                                     String?
+  createdAt                                      DateTime @default(now())
+  synced                                         Boolean  @default(false)
+  adjustedMonth                                  String?
+  amountStillUnpaid                              String?
+  borrowerType                                   String?
+  checkCashingStatus                             String?
+  creditLifeInsuranceFeeInsuranceExpense         String?
+  creditLifeInsuranceFeePaymentsUtilized         String?
+  creditLifeInsuranceFeesCharged                 String?
+  creditLifeInsuranceFeesOwedToInsurer           String?
+  dateFullyPaid                                  String?
+  daysLate                                       String?
+  debtType                                       String?
+  directLoanId                                   String?
+  holidayForgiveness                             String?
+  interestChargedWithoutForgiveness              String?
+  interestRepaymentDue                           String?
+  notesOnPayment                                 String?
+  par14                                          String?
+  par30                                          String?
+  paymentOverdue                                 String?
+  principalRepaymentDue                          String?
+  principalRepaymentWithoutForgiveness           String?
+  vehicleInsuranceFeesOwedToInsurer              String?
+  vehicleInsurancePaymentDue                     String?
+  vehicleInsurancePaymentDueWithoutForgiveness   String?
+  vehicleInsurancePremiumDueWithForgiveness      String?
+  vehicleInsurancePremiumDueWithoutForgiveness   String?
+  vehicleInsuranceSurchargeDueWithForgiveness    String?
+  vehicleInsuranceSurchargeDueWithoutForgiveness String?
+}
+
+model Loan {
+  id                                                              Int      @id @default(autoincrement())
+  sheetId                                                         String?  @unique
+  loanType                                                        String?
+  loanPurpose                                                     String?
+  borrowerType                                                    String?
+  borrowerId                                                      String?
+  borrowerName                                                    String?
+  principalAmount                                                 String?
+  interestType                                                    String?
+  annualDecliningInterest                                         String?
+  annualFlatInterest                                              String?
+  processingFeePercentage                                         String?
+  creditLifeInsurancePercentage                                   String?
+  securitizationFee                                               String?
+  processingFee                                                   String?
+  creditLifeInsuranceFee                                          String?
+  numberOfMonths                                                  String?
+  dailyPenalty                                                    String?
+  amountToDisburse                                                String?
+  totalComprehensiveVehicleInsurancePaymentsToPay                 String?
+  totalInterestCharged                                            String?
+  totalInterestToPay                                              String?
+  totalPrincipalToPay                                             String?
+  creditApplicationId                                             String?
+  firstPaymentPeriod                                              String?
+  createdBy                                                       String?
+  totalLoanAmountPaidIncludingPenaltiesAndInsurance               String?
+  totalPenaltiesAssessed                                          String?
+  totalPenaltiesPaid                                              String?
+  penaltiesStillDue                                               String?
+  sslId                                                           String?
+  loanOverdue                                                     String?
+  par14                                                           String?
+  par30                                                           String?
+  par60                                                           String?
+  par90                                                           String?
+  par120                                                          String?
+  amountOverdue                                                   String?
+  loanFullyPaid                                                   String?
+  loanStatus                                                      String?
+  totalAmountDueToDate                                            String?
+  amountDisbursedToDateIncludingFees                              String?
+  balanceOfDisbursementsOwed                                      String?
+  principalPaidToDate                                             String?
+  outstandingPrincipalBalance                                     String?
+  numberOfAssetsUsedAsCollateral                                  String?
+  numberOfAssetsRecorded                                          String?
+  allCollateralRecorded                                           String?
+  principalDifference                                             String?
+  creditLifeInsuranceSubmitted                                    String?
+  directorHasCompletedCreditLifeHealthExamination                 String?
+  recordOfReceiptForCreditLifeInsurance                           String?
+  percentDisbursed                                                String?
+  daysLate                                                        String?
+  totalUnpaidLiability                                            String?
+  restructured                                                    String?
+  collateralCheckedByLegalTeam                                    String?
+  hasFemaleDirector                                               String?
+  reportsGenerated                                                String?
+  contractUploaded                                                String?
+  percentChargeOnVehicleInsuranceFinancing                        String?
+  customerCareCallDone                                            String?
+  checksHeld                                                      String?
+  remainingPeriodsForChecks                                       String?
+  adequateChecksForRemainingPeriods                               String?
+  totalLiabilityAmountFromContract                                String?
+  liabilityCheck                                                  String?
+  creditLifeInsurer                                               String?
+  interestChargedVsDueDifference                                  String?
+  principalDueWithForgivenessVsWithoutForgiveness                 String?
+  insuranceDueWithVsWithoutForgiveness                            String?
+  firstLoan                                                       String?
+  additionalFeesWithheldFromDisbursement                          String?
+  daysSinceCreation                                               String?
+  referral                                                        String?
+  numberOfInstallmentsOverdue                                     String?
+  amountPaidTowardsOverdueInstallments                            String?
+  borrowerIdForContracts                                          String?
+  mostRecentInstallmentPartiallyPaid                              String?
+  willingnessToPay                                                String?
+  capabilityToPay                                                 String?
+  loanRiskCategory                                                String?
+  calculatedAmountToDisburse                                      String?
+  differenceBetweenCalculatedAndRecordedDisbursement              String?
+  teachers                                                        String?
+  totalInterestPaid                                               String?
+  outstandingInterestBalance                                      String?
+  totalVehicleInsuranceDue                                        String?
+  totalVehicleInsurancePaid                                       String?
+  outstandingVehicleInsuranceBalance                              String?
+  reassigned                                                      String?
+  flexiLoan                                                       String?
+  loanQualifiesForCatalyzeProgram                                 String?
+  allStaff                                                        String?
+  loanHasGonePAR30                                                String?
+  hasMaleDirector                                                 String?
+  schoolArea                                                      String?
+  firstDisbursement                                               String?
+  totalAdditionalFeesNotWithheldFromDisbursement                  String?
+  additionalFeesNotWithheldFromDisbursementPaid                   String?
+  additionalFeesNotWithheldFromDisbursementStillDue               String?
+  averageSchoolFees                                               String?
+  contractingDate                                                 String?
+  submittedToCatalyze                                             String?
+  mostRecentContract                                              String?
+  mostRecentContractType                                          String?
+  schoolType                                                      String?
+  howManyClassroomsWillBeConstructedWithTheLoan                   String?
+  howManyVehiclesWillBePurchasedWithTheLoan                       String?
+  principalWrittenOff                                             String?
+  interestWrittenOff                                              String?
+  vehicleInsuranceWrittenOff                                      String?
+  segmentedRepaymentView                                          String?
+  beforeJan12024                                                  String?
+  loanNumber                                                      String?
+  teamLeader                                                      String?
+  vehicleInsuranceWithoutForgivenessCheck                         String?
+  vehicleInsuranceWithForgivenessCheck                            String?
+  suspendedInterestCharged                                        String?
+  suspendedInterestDue                                            String?
+  region                                                          String?
+  exciseDuty                                                      String?
+  createdAt                                                       DateTime @default(now())
+  synced                                                          Boolean  @default(false)
+  totalLiabilityAmountIncludingPenaltiesAndComprehensiveVehicleIn String?
 }
 
 model FinancialSurvey {

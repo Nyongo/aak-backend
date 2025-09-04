@@ -430,7 +430,7 @@ export class InvestmentCommitteeMigrationController {
                 sheetRecord[
                   'Annual revenue from Banka and M Pesa Statements'
                 ] || '',
-              lesserOfAnnualRevenueFromBankaAndMPesaStatementsAnd75PercentCollections:
+              lesserOfAnnualRevenueFromBankaAndMPesaStatementsAnd75PercentCol:
                 sheetRecord[
                   'Lesser of annual revenue from Banka and M Pesa Statements and 75% collections of school fees'
                 ] || '',
@@ -460,7 +460,7 @@ export class InvestmentCommitteeMigrationController {
                 sheetRecord[
                   'Total of salaries, rent, debt, and owners draw (KES)'
                 ] || '',
-              annualExpenseEstimateExcludingPayrollRentDebtOwnersDrawFoodAndTransport:
+              annualExpenseEstimateExcludingPayrollRentDebtOwnersDrawFoodAndT:
                 sheetRecord[
                   'Annual Expense Estimate Excluding Payroll, Rent, Debt, Owners Draw, Food, and Transport'
                 ] || '',
@@ -620,7 +620,7 @@ export class InvestmentCommitteeMigrationController {
         ] || '',
       annualRevenueFromBankaAndMPesaStatements:
         sheetRecord['Annual revenue from Banka and M Pesa Statements'] || '',
-      lesserOfAnnualRevenueFromBankaAndMPesaStatementsAnd75PercentCollections:
+      lesserOfAnnualRevenueFromBankaAndMPesaStatementsAnd75PercentCol:
         sheetRecord[
           'Lesser of annual revenue from Banka and M Pesa Statements and 75% collections of school fees'
         ] || '',
@@ -648,7 +648,7 @@ export class InvestmentCommitteeMigrationController {
       totalOfSalariesRentDebtAndOwnersDraw:
         sheetRecord['Total of salaries, rent, debt, and owners draw (KES)'] ||
         '',
-      annualExpenseEstimateExcludingPayrollRentDebtOwnersDrawFoodAndTransport:
+      annualExpenseEstimateExcludingPayrollRentDebtOwnersDrawFoodAndT:
         sheetRecord[
           'Annual Expense Estimate Excluding Payroll, Rent, Debt, Owners Draw, Food, and Transport'
         ] || '',

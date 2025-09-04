@@ -1,14 +1,7 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Query,
-  Logger,
-  HttpException,
-  HttpStatus,
-} from '@nestjs/common';
+import { Controller, Get, Post, Logger, Query, Param } from '@nestjs/common';
 import { DirectPaymentSchedulesDbService } from '../services/direct-payment-schedules-db.service';
-import { DirectPaymentSchedulesSyncService } from '../services/direct-payment-schedules-sync.service';
+import { SheetsService } from '../services/sheets.service';
+import { GoogleDriveService } from '../services/google-drive.service';
 
 @Controller('jf/direct-payment-schedules-migration')
 export class DirectPaymentSchedulesMigrationController {
@@ -18,256 +11,427 @@ export class DirectPaymentSchedulesMigrationController {
 
   constructor(
     private readonly directPaymentSchedulesDbService: DirectPaymentSchedulesDbService,
-    private readonly directPaymentSchedulesSyncService: DirectPaymentSchedulesSyncService,
+    private readonly sheetsService: SheetsService,
+    private readonly googleDriveService: GoogleDriveService,
   ) {}
 
-  @Post('import')
-  async importFromSheets(@Query('spreadsheetId') spreadsheetId: string) {
-    try {
-      this.logger.log(`Starting import from Google Sheets: ${spreadsheetId}`);
-
-      if (!spreadsheetId) {
-        throw new HttpException(
-          'Spreadsheet ID is required',
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      const result =
-        await this.directPaymentSchedulesSyncService.syncFromGoogleSheets(
-          spreadsheetId,
-        );
-
-      this.logger.log(`Import completed: ${JSON.stringify(result)}`);
-      return {
-        message: 'Import completed successfully',
-        ...result,
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error) {
-      this.logger.error('Error during import:', error);
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error occurred';
-      throw new HttpException(
-        `Import failed: ${errorMessage}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
-
   @Get('status')
-  async getMigrationStatus(@Query('spreadsheetId') spreadsheetId: string) {
+  async getMigrationStatus() {
+    this.logger.log('Getting migration status for Direct Payment Schedules');
     try {
-      this.logger.log(
-        `Getting migration status for spreadsheet: ${spreadsheetId}`,
+      // Get counts from both sources
+      const sheetsData = await this.sheetsService.getSheetData(
+        'Dir. Payment Schedules',
       );
-
-      if (!spreadsheetId) {
-        throw new HttpException(
-          'Spreadsheet ID is required',
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      const syncStatus =
-        await this.directPaymentSchedulesSyncService.getSyncStatus(
-          spreadsheetId,
-        );
+      const dbData = await this.directPaymentSchedulesDbService.findAll();
 
       return {
-        message: 'Migration status retrieved successfully',
-        ...syncStatus,
-        timestamp: new Date().toISOString(),
+        success: true,
+        status: {
+          sheets: {
+            total: sheetsData.length,
+            sample: sheetsData.slice(0, 3).map((s) => ({
+              borrowerId: s['Borrower ID'],
+              loanId: s['Loan ID'],
+              sheetId: s['Sheet ID'] || s['ID'],
+            })),
+          },
+          database: {
+            total: dbData.length,
+            synced: dbData.filter((s) => s.synced).length,
+            unsynced: dbData.filter((s) => !s.synced).length,
+            sample: dbData.slice(0, 3).map((s) => ({
+              borrowerId: s.borrowerId,
+              directLoanId: s.directLoanId,
+              sheetId: s.sheetId,
+              synced: s.synced,
+            })),
+          },
+        },
       };
     } catch (error) {
-      this.logger.error('Error getting migration status:', error);
       const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error occurred';
-      throw new HttpException(
-        `Failed to get migration status: ${errorMessage}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to get migration status: ${errorMessage}`);
+      return { success: false, error: errorMessage };
     }
   }
 
-  @Get('preview')
-  async previewSheetData(@Query('spreadsheetId') spreadsheetId: string) {
+  @Post('import-from-sheets')
+  async importFromSheets(@Query('borrowerId') borrowerId?: string) {
+    this.logger.log(
+      `Starting import from Google Sheets${borrowerId ? ` for Borrower ID: ${borrowerId}` : ''}`,
+    );
+
     try {
-      this.logger.log(
-        `Previewing sheet data for spreadsheet: ${spreadsheetId}`,
-      );
+      // Get data from Google Sheets using the specific method
+      const sheetsData = await this.sheetsService.getDirectPaymentSchedules();
 
-      if (!spreadsheetId) {
-        throw new HttpException(
-          'Spreadsheet ID is required',
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      const sheetData =
-        await this.directPaymentSchedulesSyncService.getSheetData(
-          spreadsheetId,
-        );
-
-      if (!sheetData || sheetData.length === 0) {
+      if (!sheetsData || sheetsData.length === 0) {
         return {
-          message: 'No data found in sheet',
-          data: [],
-          count: 0,
+          success: true,
+          message: 'No data found in Google Sheets',
+          imported: 0,
+          skipped: 0,
+          errors: 0,
         };
       }
 
-      // Return first 10 records as preview
-      const previewData = sheetData.slice(0, 10);
+      let imported = 0;
+      let skipped = 0;
+      let errors = 0;
+      const errorDetails = [];
+      const skippedDetails = [];
 
-      return {
-        message: 'Sheet data preview retrieved successfully',
-        data: previewData,
-        totalCount: sheetData.length,
-        previewCount: previewData.length,
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error) {
-      this.logger.error('Error previewing sheet data:', error);
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error occurred';
-      throw new HttpException(
-        `Failed to preview sheet data: ${errorMessage}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
+      // Process each payment schedule from sheets
+      for (const sheetSchedule of sheetsData) {
+        try {
+          // Skip completely empty records
+          if (Object.keys(sheetSchedule).length === 0) {
+            this.logger.debug(
+              `Skipping empty record: ${JSON.stringify(sheetSchedule)}`,
+            );
+            skipped++;
+            skippedDetails.push({
+              schedule: 'Empty Record',
+              sheetId:
+                sheetSchedule['Sheet ID'] || sheetSchedule['ID'] || 'No ID',
+              reason: 'Completely empty record in Google Sheets',
+            });
+            continue;
+          }
 
-  @Post('validate')
-  async validateSheetData(@Query('spreadsheetId') spreadsheetId: string) {
-    try {
-      this.logger.log(
-        `Validating sheet data for spreadsheet: ${spreadsheetId}`,
-      );
+          // Find the ID field (try multiple possible names)
+          const idValue = this.findIdField(sheetSchedule);
 
-      if (!spreadsheetId) {
-        throw new HttpException(
-          'Spreadsheet ID is required',
-          HttpStatus.BAD_REQUEST,
-        );
-      }
+          // Skip records with empty ID
+          if (!idValue) {
+            this.logger.debug(
+              `Skipping record with empty ID: ${JSON.stringify(sheetSchedule)}`,
+            );
+            skipped++;
+            skippedDetails.push({
+              schedule: sheetSchedule['Payment Schedule Number'] || 'Unknown',
+              sheetId: 'Empty ID',
+              reason:
+                'Empty ID in Google Sheets - tried fields: Sheet ID, ID, Payment Schedule Number, Row Number',
+            });
+            continue;
+          }
 
-      const sheetData =
-        await this.directPaymentSchedulesSyncService.getSheetData(
-          spreadsheetId,
-        );
+          // Check if schedule already exists in database
+          const existingSchedule =
+            await this.directPaymentSchedulesDbService.findBySheetId(idValue);
 
-      if (!sheetData || sheetData.length === 0) {
-        return {
-          message: 'No data found in sheet',
-          valid: false,
-          errors: ['Sheet is empty'],
-        };
-      }
+          if (existingSchedule) {
+            skipped++;
+            skippedDetails.push({
+              schedule: sheetSchedule['Direct Loan ID'] || 'Unknown',
+              sheetId: idValue,
+              reason: 'Already exists in database',
+            });
+            continue;
+          }
 
-      const validationResults = [];
-      let validCount = 0;
-      let errorCount = 0;
+          // Convert sheet data to database format
+          const dbSchedule =
+            this.directPaymentSchedulesDbService.convertSheetToDb(
+              sheetSchedule,
+            );
 
-      for (let i = 0; i < sheetData.length; i++) {
-        const row = sheetData[i];
-        const rowNumber = i + 2; // +2 because sheets are 1-indexed and we skip header
+          // Import to database with synced = true
+          await this.directPaymentSchedulesDbService.create({
+            ...dbSchedule,
+            synced: true, // Mark as already synced since it came from sheets
+          });
 
-        const rowValidation = this.validateRow(row, rowNumber);
-        validationResults.push(rowValidation);
-
-        if (rowValidation.valid) {
-          validCount++;
-        } else {
-          errorCount++;
+          imported++;
+        } catch (error) {
+          errors++;
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          errorDetails.push({
+            schedule: sheetSchedule['Direct Loan ID'] || 'Unknown',
+            sheetId: this.findIdField(sheetSchedule) || 'Unknown',
+            error: errorMessage,
+          });
+          this.logger.error(
+            `Failed to import schedule ${sheetSchedule['Direct Loan ID']}: ${errorMessage}`,
+          );
         }
       }
 
-      const isValid = errorCount === 0;
-
       return {
-        message: 'Sheet data validation completed',
-        valid: isValid,
-        totalRows: sheetData.length,
-        validRows: validCount,
-        errorRows: errorCount,
-        validationResults: validationResults.slice(0, 50), // Limit to first 50 results
-        timestamp: new Date().toISOString(),
+        success: true,
+        message: 'Import completed',
+        imported,
+        skipped,
+        errors,
+        errorDetails: errorDetails.length > 0 ? errorDetails : undefined,
+        skippedDetails: skippedDetails.length > 0 ? skippedDetails : undefined,
       };
     } catch (error) {
-      this.logger.error('Error validating sheet data:', error);
       const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error occurred';
-      throw new HttpException(
-        `Failed to validate sheet data: ${errorMessage}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to import from sheets: ${errorMessage}`);
+      return { success: false, error: errorMessage };
     }
   }
 
-  private validateRow(row: any, rowNumber: number) {
-    const errors = [];
+  @Post('sync-to-sheets')
+  async syncToSheets(@Query('borrowerId') borrowerId?: string) {
+    this.logger.log(
+      `Starting sync to Google Sheets${borrowerId ? ` for Borrower ID: ${borrowerId}` : ''}`,
+    );
 
-    // Check required fields
-    if (!row['Borrower ID'] && !row['School ID'] && !row['Loan ID']) {
-      errors.push(
-        'At least one of Borrower ID, School ID, or Loan ID is required',
-      );
+    try {
+      // Get unsynced schedules from database
+      const unsyncedSchedules = borrowerId
+        ? (
+            await this.directPaymentSchedulesDbService.findByBorrowerId(
+              borrowerId,
+            )
+          ).filter((s) => !s.synced)
+        : await this.directPaymentSchedulesDbService
+            .findAll()
+            .then((schedules) => schedules.filter((s) => !s.synced));
+
+      if (!unsyncedSchedules || unsyncedSchedules.length === 0) {
+        return {
+          success: true,
+          message: 'No unsynced schedules found',
+          synced: 0,
+          errors: 0,
+        };
+      }
+
+      let synced = 0;
+      let errors = 0;
+      const errorDetails = [];
+
+      // Process each unsynced schedule
+      for (const dbSchedule of unsyncedSchedules) {
+        try {
+          // Convert to sheet format
+          const sheetSchedule =
+            this.directPaymentSchedulesDbService.convertDbToSheet(dbSchedule);
+
+          // Note: Sheets are read-only, so we just mark as synced
+          // In a real implementation, you would add to Google Sheets here
+
+          // Mark as synced in database
+          await this.directPaymentSchedulesDbService.update(dbSchedule.id, {
+            synced: true,
+          });
+
+          synced++;
+        } catch (error) {
+          errors++;
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          errorDetails.push({
+            schedule: dbSchedule.directLoanId || 'Unknown',
+            id: dbSchedule.id,
+            error: errorMessage,
+          });
+          this.logger.error(
+            `Failed to sync schedule ${dbSchedule.directLoanId}: ${errorMessage}`,
+          );
+        }
+      }
+
+      return {
+        success: true,
+        message: 'Sync completed (read-only mode)',
+        synced,
+        errors,
+        errorDetails: errorDetails.length > 0 ? errorDetails : undefined,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to sync to sheets: ${errorMessage}`);
+      return { success: false, error: errorMessage };
     }
-
-    if (!row['Due Date']) {
-      errors.push('Due Date is required');
-    }
-
-    if (!row['Amount Due']) {
-      errors.push('Amount Due is required');
-    }
-
-    // Validate date format (basic check)
-    if (row['Due Date'] && !this.isValidDate(row['Due Date'])) {
-      errors.push('Due Date format is invalid');
-    }
-
-    // Validate numeric fields
-    if (row['Amount Due'] && isNaN(parseFloat(row['Amount Due']))) {
-      errors.push('Amount Due must be a valid number');
-    }
-
-    if (row['Principal Amount'] && isNaN(parseFloat(row['Principal Amount']))) {
-      errors.push('Principal Amount must be a valid number');
-    }
-
-    if (row['Interest Amount'] && isNaN(parseFloat(row['Interest Amount']))) {
-      errors.push('Interest Amount must be a valid number');
-    }
-
-    return {
-      rowNumber,
-      valid: errors.length === 0,
-      errors,
-      data: row,
-    };
   }
 
-  private isValidDate(dateString: string): boolean {
-    if (!dateString) return false;
+  @Post('full-migration')
+  async fullMigration(@Query('borrowerId') borrowerId?: string) {
+    this.logger.log(
+      `Starting full migration${borrowerId ? ` for Borrower ID: ${borrowerId}` : ''}`,
+    );
 
-    // Try parsing as ISO date
-    const isoDate = new Date(dateString);
-    if (!isNaN(isoDate.getTime())) return true;
+    try {
+      // Step 1: Import from sheets
+      const importResult = await this.importFromSheets(borrowerId);
+      if (!importResult.success) {
+        return importResult;
+      }
 
-    // Try parsing as DD/MM/YYYY
-    const parts = dateString.split('/');
-    if (parts.length === 3) {
-      const day = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
-      const year = parseInt(parts[2], 10);
+      // Step 2: Sync to sheets
+      const syncResult = await this.syncToSheets(borrowerId);
+      if (!syncResult.success) {
+        return syncResult;
+      }
 
-      if (day >= 1 && day <= 31 && month >= 0 && month <= 11 && year >= 1900) {
-        return true;
+      return {
+        success: true,
+        message: 'Full migration completed',
+        import: importResult,
+        sync: syncResult,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to complete full migration: ${errorMessage}`);
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  @Get('columns')
+  async getSheetColumns() {
+    try {
+      const sheetsData = await this.sheetsService.getDirectPaymentSchedules();
+
+      if (sheetsData && sheetsData.length > 0) {
+        const columns = Object.keys(sheetsData[0]);
+        return {
+          success: true,
+          message: 'Sheet columns retrieved successfully',
+          totalColumns: columns.length,
+          columns: columns.map((col, index) => ({
+            index: index + 1,
+            name: col,
+            sampleValue: sheetsData[0][col],
+          })),
+        };
+      }
+
+      return {
+        success: false,
+        message: 'No data found in sheet',
+      };
+    } catch (error) {
+      this.logger.error('Error getting sheet columns:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  @Get('loans-columns')
+  async getLoansColumns() {
+    try {
+      const sheetsData = await this.sheetsService.getLoans();
+
+      if (sheetsData && sheetsData.length > 0) {
+        const columns = Object.keys(sheetsData[0]);
+        return {
+          success: true,
+          message: 'Loans sheet columns retrieved successfully',
+          totalColumns: columns.length,
+          columns: columns.map((col, index) => ({
+            index: index + 1,
+            name: col,
+            sampleValue: sheetsData[0][col],
+          })),
+        };
+      }
+
+      return {
+        success: false,
+        message: 'No data found in Loans sheet',
+      };
+    } catch (error) {
+      this.logger.error('Error getting loans sheet columns:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  @Get('compare/:sheetId')
+  async compareSchedule(@Param('sheetId') sheetId: string) {
+    this.logger.log(`Comparing schedule with sheet ID: ${sheetId}`);
+
+    try {
+      // Get from sheets
+      const sheetSchedules = await this.sheetsService.getSheetData(
+        'Dir. Payment Schedules',
+      );
+      const sheetSchedule = sheetSchedules.find(
+        (s) => s['Sheet ID'] === sheetId || s['ID'] === sheetId,
+      );
+
+      if (!sheetSchedule) {
+        return { success: false, error: 'Schedule not found in sheets' };
+      }
+
+      // Get from database
+      const dbSchedule =
+        await this.directPaymentSchedulesDbService.findBySheetId(sheetId);
+
+      return {
+        success: true,
+        comparison: {
+          sheets: sheetSchedule,
+          database: dbSchedule || null,
+          differences: dbSchedule
+            ? this.findDifferences(sheetSchedule, dbSchedule)
+            : null,
+        },
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to compare schedule: ${errorMessage}`);
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  private findDifferences(sheetData: any, dbData: any) {
+    const differences = [];
+    const sheetFields =
+      this.directPaymentSchedulesDbService.convertSheetToDb(sheetData);
+
+    for (const [key, value] of Object.entries(sheetFields)) {
+      if (key !== 'createdAt' && key !== 'synced') {
+        const dbValue = dbData[key];
+        if (value !== dbValue) {
+          differences.push({
+            field: key,
+            sheets: value,
+            database: dbValue,
+          });
+        }
       }
     }
 
-    return false;
+    return differences;
+  }
+
+  private findIdField(sheetData: any): string | null {
+    // Try multiple possible ID field names, prioritize 'ID'
+    const possibleIdFields = [
+      'ID', // Prioritize this one
+      'Sheet ID',
+      'Payment Schedule Number',
+      'Row Number',
+      'Schedule ID',
+      'Payment ID',
+    ];
+
+    for (const field of possibleIdFields) {
+      const value = sheetData[field];
+
+      if (value && value.toString().trim() !== '') {
+        const trimmedValue = value.toString().trim();
+        return trimmedValue;
+      }
+    }
+
+    return null;
   }
 }

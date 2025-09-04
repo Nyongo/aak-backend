@@ -189,7 +189,7 @@ export class InvestmentCommitteeDbService {
     'Annual revenue from Banka and M Pesa Statements':
       'annualRevenueFromBankaAndMPesaStatements',
     'Lesser of annual revenue from Banka and M Pesa Statements and 75% collections of school fees':
-      'lesserOfAnnualRevenueFromBankaAndMPesaStatementsAnd75PercentCollections',
+      'lesserOfAnnualRevenueFromBankaAndMPesaStatementsAnd75PercentCol',
     'Collections Rate': 'collectionsRate',
     'Average School Fees Charged': 'averageSchoolFeesCharged',
     'School sits on owned, leased, or rented land':
@@ -205,7 +205,7 @@ export class InvestmentCommitteeDbService {
     'Total of salaries, rent, debt, and owners draw (KES)':
       'totalOfSalariesRentDebtAndOwnersDraw',
     'Annual Expense Estimate Excluding Payroll, Rent, Debt, Owners Draw, Food, and Transport':
-      'annualExpenseEstimateExcludingPayrollRentDebtOwnersDrawFoodAndTransport',
+      'annualExpenseEstimateExcludingPayrollRentDebtOwnersDrawFoodAndT',
     'Total Annual Expenses Excluding Food and Transport (KES)':
       'totalAnnualExpensesExcludingFoodAndTransport',
     'Annual Profit Excluding Food and Transport Expenses (Bank and M Pesa Collections Minus Expenses)':
@@ -275,7 +275,7 @@ export class InvestmentCommitteeDbService {
       'Total annual revenue from fees from student breakdown, Unadjusted',
     annualRevenueFromBankaAndMPesaStatements:
       'Annual revenue from Banka and M Pesa Statements',
-    lesserOfAnnualRevenueFromBankaAndMPesaStatementsAnd75PercentCollections:
+    lesserOfAnnualRevenueFromBankaAndMPesaStatementsAnd75PercentCol:
       'Lesser of annual revenue from Banka and M Pesa Statements and 75% collections of school fees',
     collectionsRate: 'Collections Rate',
     averageSchoolFeesCharged: 'Average School Fees Charged',
@@ -291,7 +291,7 @@ export class InvestmentCommitteeDbService {
       'Total annual debt payment of school and directors (KES)',
     totalOfSalariesRentDebtAndOwnersDraw:
       'Total of salaries, rent, debt, and owners draw (KES)',
-    annualExpenseEstimateExcludingPayrollRentDebtOwnersDrawFoodAndTransport:
+    annualExpenseEstimateExcludingPayrollRentDebtOwnersDrawFoodAndT:
       'Annual Expense Estimate Excluding Payroll, Rent, Debt, Owners Draw, Food, and Transport',
     totalAnnualExpensesExcludingFoodAndTransport:
       'Total Annual Expenses Excluding Food and Transport (KES)',
