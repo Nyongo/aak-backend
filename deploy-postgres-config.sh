@@ -7,7 +7,7 @@ echo "🚀 Deploying PostgreSQL configuration for external access..."
 
 # Stop existing containers
 echo "📦 Stopping existing containers..."
-docker-compose down
+docker compose down
 
 # Pull latest changes from Git
 echo "📥 Pulling latest changes from Git..."
@@ -15,7 +15,7 @@ git pull origin main
 
 # Start containers with new configuration
 echo "🔄 Starting containers with new PostgreSQL configuration..."
-docker-compose up -d
+docker compose up -d
 
 # Wait for PostgreSQL to start
 echo "⏳ Waiting for PostgreSQL to start..."
@@ -23,7 +23,7 @@ sleep 10
 
 # Check if PostgreSQL is running
 echo "🔍 Checking PostgreSQL status..."
-docker-compose ps
+docker compose ps
 
 # Test PostgreSQL connection
 echo "🧪 Testing PostgreSQL connection..."
@@ -31,7 +31,7 @@ docker exec -it postgres_container psql -U postgres -d nest -c "SELECT version()
 
 # Show PostgreSQL logs
 echo "📋 PostgreSQL logs:"
-docker-compose logs postgres
+docker compose logs postgres
 
 echo "✅ Deployment complete!"
 echo ""
