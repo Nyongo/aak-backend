@@ -24,8 +24,8 @@ async function bootstrap() {
   };
   const host = process.env.HOST || 'localhost';
   const port = process.env.PORT || 3000;
-  //const app = await NestFactory.create(AppModule, { httpsOptions });
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create(AppModule, { httpsOptions });
+  //const app = await NestFactory.create<NestExpressApplication>(AppModule);
   // Enable CORS
   app.enableCors({
     origin: [
@@ -35,6 +35,12 @@ async function bootstrap() {
       'https://jackfruit-foundation.org',
       'https://www.jackfruit-foundation.org',
       'https://crm-ochre-pi.vercel.app',
+      'https://foundation.jackfruitnetwork.com',
+      'https://www.foundation.jackfruitnetwork.com',
+      'https://www.jackfruitnetwork.com',
+      'https://jackfruitnetwork.com',
+      'https://www.finance.jackfruitnetwork.com',
+      'https://finance.jackfruitnetwork.com',
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
