@@ -1241,34 +1241,42 @@ enum NewsletterCategory {
   ALL_UPDATES
 }
 
-model ContactMessage {
-  id           String      @id @default(uuid())
-  messageType  MessageType
-  name         String
-  email        String
-  subject      String
-  message      String
-  status       MessageStatus @default(UNREAD)
-  platform     Platform
-  createdAt    DateTime    @default(now())
-  viewedBy     String?
-  viewedAt     DateTime?
-}
-
 enum MessageType {
-  PARTNER
-  NORMAL
-  ENQUIRY
-}
-
-enum MessageStatus {
-  READ
-  UNREAD
+  GENERAL_INQUIRY
+  SUPPORT_REQUEST
+  PARTNERSHIP_INQUIRY
+  FEEDBACK
+  OTHER
 }
 
 enum Platform {
-  JF_NETWORK
-  JF_FOUNDATION
-  JF_FINANCE
-  JF_HUB
+  WEBSITE
+  MOBILE_APP
+  API
+  EMAIL
+  PHONE
+}
+
+enum MessageStatus {
+  NEW
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+model ContactMessage {
+  id          String        @id @default(uuid())
+  messageType MessageType
+  name        String
+  email       String
+  subject     String
+  message     String
+  platform    Platform
+  status      MessageStatus @default(NEW)
+  viewedBy    String?
+  viewedAt    DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@map("contact_messages")
 }
