@@ -1825,7 +1825,7 @@ export class SheetsService {
     try {
       this.logger.log('Fetching fee plans from Google Sheets');
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: 'Fee Plan Documents!A:ZZ',
       });
       const rows = response.data.values;
@@ -2354,7 +2354,7 @@ export class SheetsService {
     try {
       this.logger.log('Fetching mpesa bank statements from Google Sheets');
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: 'Bank Statements!A:ZZ',
       });
       const rows = response.data.values;
@@ -2531,7 +2531,7 @@ export class SheetsService {
     try {
       this.logger.log('Fetching audited financials from Google Sheets');
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: 'Audited Financial Statements!A:ZZ',
       });
       const rows = response.data.values;
@@ -2899,7 +2899,7 @@ export class SheetsService {
     try {
       this.logger.log('Fetching other supporting docs from Google Sheets');
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: 'Other Supporting Documents!A:ZZ',
       });
       const rows = response.data.values;
@@ -3380,7 +3380,7 @@ export class SheetsService {
     try {
       this.logger.log('Fetching home visits from Google Sheets');
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID_2,
+        spreadsheetId: this.BORROWERS_SHEET_ID,
         range: 'Home Visits!A:ZZ',
       });
       const rows = response.data.values;
@@ -3594,7 +3594,7 @@ export class SheetsService {
     try {
       this.logger.debug('Fetching contract details from Google Sheets');
 
-      const rows = await this.getSheetData('Contract Details', true);
+      const rows = await this.getSheetData('Contract Details', false);
       if (!rows || rows.length === 0) {
         return [];
       }
@@ -3698,7 +3698,10 @@ export class SheetsService {
 
   async getCreditApplicationComments(): Promise<any[]> {
     try {
-      const rows = await this.getSheetData('Credit Application Comments', true);
+      const rows = await this.getSheetData(
+        'Credit Application Comments',
+        false,
+      );
       if (!rows || rows.length === 0) {
         return [];
       }
@@ -3812,7 +3815,10 @@ export class SheetsService {
   async getDirectPaymentSchedules(): Promise<any[]> {
     try {
       this.logger.debug('Fetching direct payment schedules from sheets');
-      const schedules = await this.getSheetData('Direct Payment Schedules');
+      const schedules = await this.getSheetData(
+        'Direct Payment Schedules',
+        true,
+      );
       this.logger.debug(
         `Retrieved ${schedules?.length || 0} direct payment schedules`,
       );
@@ -3826,7 +3832,7 @@ export class SheetsService {
   async getLoans(): Promise<any[]> {
     try {
       this.logger.debug('Fetching loans from sheets');
-      const loans = await this.getSheetData('Loans');
+      const loans = await this.getSheetData('Loans', true);
       this.logger.debug(`Retrieved ${loans?.length || 0} loans`);
       return loans;
     } catch (error) {
