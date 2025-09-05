@@ -1147,7 +1147,7 @@ model Loan {
   exciseDuty                                                      String?
   createdAt                                                       DateTime @default(now())
   synced                                                          Boolean  @default(false)
-  totalLiabilityAmountIncludingPenaltiesAndComprehensiveVehicleIn String?
+  totalLiabilityAmountIncludingPenaltiesAndComprehensiveVehicleInsurance String?
 }
 
 model FinancialSurvey {

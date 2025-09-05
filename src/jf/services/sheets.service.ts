@@ -3812,7 +3812,7 @@ export class SheetsService {
   async getDirectPaymentSchedules(): Promise<any[]> {
     try {
       this.logger.debug('Fetching direct payment schedules from sheets');
-      const schedules = await this.getSheetData('Direct Payment Schedules');
+      const schedules = await this.getSheetData('Dir. Payment Schedules');
       this.logger.debug(
         `Retrieved ${schedules?.length || 0} direct payment schedules`,
       );
@@ -3823,14 +3823,45 @@ export class SheetsService {
     }
   }
 
+  // async getLoans(): Promise<any[]> {
+  //   try {
+  //     this.logger.debug('Fetching loans from sheets');
+  //     const loans = await this.getSheetData('Loans');
+  //     this.logger.debug(`Retrieved ${loans?.length || 0} loans`);
+  //     return loans;
+  //   } catch (error) {
+  //     this.logger.error('Error fetching loans:', error);
+  //     throw error;
+  //   }
+  // }
+
   async getLoans(): Promise<any[]> {
     try {
-      this.logger.debug('Fetching loans from sheets');
-      const loans = await this.getSheetData('Loans');
-      this.logger.debug(`Retrieved ${loans?.length || 0} loans`);
+      this.logger.log('Fetching loans from sheets');
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.BORROWERS_SHEET_ID,
+        range: 'Loans!A:ZZ',
+      });
+      const rows = response.data.values;
+      if (!rows || rows.length === 0) {
+        return [];
+      }
+      const headers = rows[0];
+
+      // Log the actual headers from Google Sheets for debugging
+      this.logger.log('Loans sheet headers:', headers);
+
+      const loans = rows.slice(1).map((row) => {
+        const loan = {};
+        headers.forEach((header, index) => {
+          loan[header] = row[index] || '';
+        });
+        return loan;
+      });
+      this.logger.log(`Found ${loans.length} fee plans in Google Sheets`);
       return loans;
     } catch (error) {
-      this.logger.error('Error fetching loans:', error);
+      this.logger.error('Error fetching fee plans:', error);
       throw error;
     }
   }

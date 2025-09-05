@@ -66,6 +66,7 @@ export class LoansMigrationController {
 
       // Process each loan from sheets
       for (const sheetLoan of sheetsData) {
+        console.log('sheetLoan', sheetLoan);
         try {
           // Skip completely empty records
           if (Object.keys(sheetLoan).length === 0) {
@@ -80,7 +81,7 @@ export class LoansMigrationController {
 
           // Find the ID field
           const idValue = this.findIdField(sheetLoan);
-
+          console.log('idValue', idValue);
           // Skip records with empty ID
           if (!idValue) {
             skipped++;
