@@ -22,11 +22,13 @@ async function bootstrap() {
     key: fs.readFileSync('ssl/server.key'),
     cert: fs.readFileSync('ssl/server.cert'),
   };
+
   const host = process.env.HOST || 'localhost';
   const port = process.env.PORT || 3000;
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    httpsOptions,
-  });
+  // const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+  //   httpsOptions,
+  // });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {});
   // Enable CORS
   app.enableCors({
     origin: [

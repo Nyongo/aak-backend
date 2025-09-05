@@ -217,7 +217,7 @@ export class SheetsService {
       );
 
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID_2, // Users sheet
+        spreadsheetId: this.BORROWERS_SHEET_ID, // Users sheet
         range: 'Users!A:AG',
       });
 
