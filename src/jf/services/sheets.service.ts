@@ -3698,10 +3698,7 @@ export class SheetsService {
 
   async getCreditApplicationComments(): Promise<any[]> {
     try {
-      const rows = await this.getSheetData(
-        'Credit Application Comments',
-        false,
-      );
+      const rows = await this.getSheetData('Credit Application Comments', true);
       if (!rows || rows.length === 0) {
         return [];
       }
@@ -3815,10 +3812,7 @@ export class SheetsService {
   async getDirectPaymentSchedules(): Promise<any[]> {
     try {
       this.logger.debug('Fetching direct payment schedules from sheets');
-      const schedules = await this.getSheetData(
-        'Direct Payment Schedules',
-        true,
-      );
+      const schedules = await this.getSheetData('Direct Payment Schedules');
       this.logger.debug(
         `Retrieved ${schedules?.length || 0} direct payment schedules`,
       );
@@ -3832,7 +3826,7 @@ export class SheetsService {
   async getLoans(): Promise<any[]> {
     try {
       this.logger.debug('Fetching loans from sheets');
-      const loans = await this.getSheetData('Loans', true);
+      const loans = await this.getSheetData('Loans');
       this.logger.debug(`Retrieved ${loans?.length || 0} loans`);
       return loans;
     } catch (error) {
