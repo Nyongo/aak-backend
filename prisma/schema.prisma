@@ -1277,6 +1277,4 @@ model ContactMessage {
   viewedAt    DateTime?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
-
-  @@map("contact_messages")
 }
