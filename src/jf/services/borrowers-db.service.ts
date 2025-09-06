@@ -51,6 +51,7 @@ export class BorrowersDbService {
     'National ID Back': 'nationalIdBack',
     'Date of Birth': 'dateOfBirth',
     'Private or APBET': 'privateOrApbet',
+    'Society/CBO/Incorporation Certificate': 'societyCertificate',
   };
 
   private readonly dbToSheetMapping = Object.fromEntries(
