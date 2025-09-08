@@ -83,43 +83,60 @@ export class MpesaBankStatementSyncService {
       );
     }
 
-    // If sheetId exists (from DB), always try to update existing record first
-    if (sheetId) {
-      try {
-        this.logger.debug(
-          `Attempting to update existing mpesa bank statement in sheet by sheetId: ${sheetId}`,
-        );
-        await this.sheetsService.updateMpesaBankStatement(
-          sheetId,
-          mpesaBankStatement,
-        );
-        this.logger.debug(
-          `Updated existing mpesa bank statement in sheet: ${creditApplicationId} (sheetId: ${sheetId})`,
-        );
+    // Check if sheetId exists and is not null - all sheetIds are permanent IDs
+    const isValidSheetId = sheetId && sheetId !== null;
 
-        // Update the Postgres record to mark as synced
-        if (mpesaBankStatement.dbId) {
-          await this.mpesaBankStatementDbService.updateSyncStatus(
-            mpesaBankStatement.dbId,
-            true,
+    // 1. If sheetId exists, check if it exists in sheets before updating
+    if (isValidSheetId) {
+      const sheetIdExists = await this.checkSheetIdExists(sheetId);
+
+      if (sheetIdExists) {
+        try {
+          this.logger.debug(
+            `Updating mpesa bank statement in sheet by sheetId: ${sheetId}`,
+          );
+          await this.sheetsService.updateMpesaBankStatement(
+            sheetId,
+            mpesaBankStatement,
           );
           this.logger.debug(
-            `Marked Postgres record ${mpesaBankStatement.dbId} as synced`,
+            `Updated mpesa bank statement in sheet: ${creditApplicationId} (sheetId: ${sheetId})`,
           );
-        }
 
-        return; // Successfully updated, exit
-      } catch (error) {
+          // Update the Postgres record to mark as synced
+          if (mpesaBankStatement.dbId) {
+            await this.mpesaBankStatementDbService.updateSyncStatus(
+              mpesaBankStatement.dbId,
+              true,
+            );
+            this.logger.debug(
+              `Marked Postgres record ${mpesaBankStatement.dbId} as synced`,
+            );
+          }
+
+          return; // Successfully updated, exit
+        } catch (error) {
+          this.logger.error(
+            `Failed to update by sheetId ${sheetId}: ${error}. This should not happen for valid sheetIds.`,
+          );
+          throw error;
+        }
+      } else {
         this.logger.warn(
-          `Failed to update by sheetId ${sheetId}, will try to add new record: ${error}`,
+          `SheetId ${sheetId} exists in Postgres but not found in Google Sheets. Creating new record.`,
         );
-        // Continue to add new record if update fails
+        // Fall through to create new record
       }
     }
 
-    // If no sheetId or update failed, add new record
+    // 2. If no valid sheetId, this is a new record - create it
     this.logger.debug(
-      `Adding new mpesa bank statement to sheet: ${creditApplicationId}`,
+      `No valid sheetId found, creating new mpesa bank statement:`,
+      {
+        creditApplicationId,
+        sheetId,
+        dbId: mpesaBankStatement.dbId,
+      },
     );
 
     try {
@@ -131,12 +148,14 @@ export class MpesaBankStatementSyncService {
 
       // Update the Postgres record with the new sheetId and mark as synced
       if (mpesaBankStatement.dbId) {
-        await this.mpesaBankStatementDbService.update(
-          sheetId || '', // Use existing sheetId if available, otherwise empty
-          { sheetId: newSheetId, synced: true },
+        // Update both sheetId and synced status in one operation
+        await this.mpesaBankStatementDbService.updateSheetIdAndSyncStatus(
+          mpesaBankStatement.dbId,
+          newSheetId,
+          true,
         );
         this.logger.debug(
-          `Updated Postgres record ${mpesaBankStatement.dbId} with new sheetId: ${newSheetId}`,
+          `Updated Postgres record ${mpesaBankStatement.dbId} with new sheetId: ${newSheetId} and marked as synced`,
         );
       }
 
@@ -203,6 +222,26 @@ export class MpesaBankStatementSyncService {
   }
 
   /**
+   * Check if a sheetId exists in Google Sheets
+   */
+  private async checkSheetIdExists(sheetId: string): Promise<boolean> {
+    try {
+      const mpesaBankStatements =
+        await this.sheetsService.getMpesaBankStatements();
+      const exists = mpesaBankStatements.some(
+        (mpesaBankStatement) => mpesaBankStatement.ID === sheetId,
+      );
+      this.logger.debug(
+        `Checking if sheetId ${sheetId} exists in sheets: ${exists}`,
+      );
+      return exists;
+    } catch (error) {
+      this.logger.error(`Error checking if sheetId ${sheetId} exists:`, error);
+      return false;
+    }
+  }
+
+  /**
    * Sync mpesa bank statements by credit application ID
    */
   async syncByCreditApplicationId(creditApplicationId: string) {
@@ -255,26 +294,6 @@ export class MpesaBankStatementSyncService {
         success: false,
         error: errorMessage,
       };
-    }
-  }
-
-  /**
-   * Check if a sheetId exists in Google Sheets
-   */
-  private async checkSheetIdExists(sheetId: string): Promise<boolean> {
-    try {
-      const mpesaBankStatements =
-        await this.sheetsService.getMpesaBankStatements();
-      const exists = mpesaBankStatements.some(
-        (mpesaBankStatement) => mpesaBankStatement.ID === sheetId,
-      );
-      this.logger.debug(
-        `Checking if sheetId ${sheetId} exists in sheets: ${exists}`,
-      );
-      return exists;
-    } catch (error) {
-      this.logger.error(`Error checking if sheetId exists: ${error}`);
-      return false;
     }
   }
 

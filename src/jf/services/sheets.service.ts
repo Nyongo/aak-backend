@@ -457,7 +457,7 @@ export class SheetsService {
       this.logger.log('Adding new director');
 
       const headerResponse = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID_2, // Users sheet
+        spreadsheetId: this.BORROWERS_SHEET_ID, // Users sheet
         range: 'Users!A1:ZZ1',
       });
 
@@ -486,7 +486,7 @@ export class SheetsService {
       }
 
       const appendResponse = await this.sheets.spreadsheets.values.append({
-        spreadsheetId: this.BORROWERS_SHEET_ID_2, // Users sheet
+        spreadsheetId: this.BORROWERS_SHEET_ID, // Users sheet
         range: 'Users!A2:ZZ2',
         valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS',
@@ -497,7 +497,7 @@ export class SheetsService {
 
       // Get the updated sheet data to find the new row
       const updatedResponse = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID_2, // Users sheet
+        spreadsheetId: this.BORROWERS_SHEET_ID, // Users sheet
         range: 'Users!A:ZZ',
       });
 
@@ -551,7 +551,7 @@ export class SheetsService {
 
       // Get all data to find the row
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID_2, // Users sheet
+        spreadsheetId: this.BORROWERS_SHEET_ID, // Users sheet
         range: 'Users!A:ZZ',
       });
 
@@ -580,7 +580,7 @@ export class SheetsService {
 
       // Update the row
       await this.sheets.spreadsheets.values.update({
-        spreadsheetId: this.BORROWERS_SHEET_ID_2, // Users sheet
+        spreadsheetId: this.BORROWERS_SHEET_ID, // Users sheet
         range: `Users!A${rowIndex + 1}:ZZ${rowIndex + 1}`,
         valueInputOption: 'USER_ENTERED',
         requestBody: {
@@ -1856,7 +1856,7 @@ export class SheetsService {
     try {
       this.logger.log('Adding fee plan to Google Sheets');
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: 'Fee Plan Documents!A:ZZ',
       });
       const rows = response.data.values;
@@ -1893,7 +1893,7 @@ export class SheetsService {
       }
 
       const appendResponse = await this.sheets.spreadsheets.values.append({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: 'Fee Plan Documents!A:ZZ',
         valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS',
@@ -1904,7 +1904,7 @@ export class SheetsService {
 
       // Get the updated sheet data to find the new row
       const updatedResponse = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: 'Fee Plan Documents!A:ZZ',
       });
 
@@ -1957,7 +1957,7 @@ export class SheetsService {
     try {
       this.logger.log(`Updating fee plan ${feePlanId}`);
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: 'Fee Plan Documents!A:ZZ',
       });
       const rows = response.data.values;
@@ -1977,7 +1977,7 @@ export class SheetsService {
           : currentData[index] || '';
       });
       await this.sheets.spreadsheets.values.update({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: `Fee Plan Documents!A${rowIndex + 1}:ZZ${rowIndex + 1}`,
         valueInputOption: 'USER_ENTERED',
         requestBody: {
@@ -2038,10 +2038,15 @@ export class SheetsService {
       const rows = response.data.values;
       const headers = rows[0];
 
-      // Prepare row data with proper column mapping
+      // Log the actual headers from Google Sheets for debugging
+      this.logger.debug('Payroll sheet headers:', headers);
+      this.logger.debug('Payroll data being added:', payrollData);
+
+      // Prepare row data with proper column mapping - only use existing headers
       const rowData = new Array(headers.length).fill('');
       headers.forEach((header: string, index: number) => {
-        if (payrollData[header] !== undefined) {
+        // Only map data that exists in the payrollData and matches an existing header
+        if (payrollData[header] !== undefined && payrollData[header] !== null) {
           rowData[index] = payrollData[header];
         }
       });
@@ -2068,9 +2073,11 @@ export class SheetsService {
         rowData[createdAtIndex] = new Date().toISOString();
       }
 
+      // Ensure we're only sending data for existing columns
+      // This prevents Google Sheets from creating new columns
       const appendResponse = await this.sheets.spreadsheets.values.append({
         spreadsheetId: this.BORROWERS_SHEET_ID,
-        range: 'Payroll!A:ZZ',
+        range: `Payroll!A${rows.length + 1}:${String.fromCharCode(65 + headers.length - 1)}${rows.length + 1}`,
         valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS',
         requestBody: {
@@ -2213,10 +2220,21 @@ export class SheetsService {
       const rows = response.data.values;
       const headers = rows[0];
 
-      // Prepare row data with proper column mapping
+      // Log the actual headers from Google Sheets for debugging
+      this.logger.debug('Enrollment Reports sheet headers:', headers);
+      this.logger.debug(
+        'Enrollment verification data being added:',
+        enrollmentVerificationData,
+      );
+
+      // Prepare row data with proper column mapping - only use existing headers
       const rowData = new Array(headers.length).fill('');
       headers.forEach((header: string, index: number) => {
-        if (enrollmentVerificationData[header] !== undefined) {
+        // Only map data that exists in the enrollmentVerificationData and matches an existing header
+        if (
+          enrollmentVerificationData[header] !== undefined &&
+          enrollmentVerificationData[header] !== null
+        ) {
           rowData[index] = enrollmentVerificationData[header];
         }
       });
@@ -2243,9 +2261,11 @@ export class SheetsService {
         rowData[createdAtIndex] = new Date().toISOString();
       }
 
+      // Ensure we're only sending data for existing columns
+      // This prevents Google Sheets from creating new columns
       const appendResponse = await this.sheets.spreadsheets.values.append({
         spreadsheetId: this.BORROWERS_SHEET_ID,
-        range: 'Enrollment Reports!A:ZZ',
+        range: `Enrollment Reports!A${rows.length + 1}:${String.fromCharCode(65 + headers.length - 1)}${rows.length + 1}`,
         valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS',
         requestBody: {
@@ -2387,7 +2407,7 @@ export class SheetsService {
     try {
       this.logger.log('Adding mpesa bank statement to Google Sheets');
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: 'Bank Statements!A:ZZ',
       });
       const rows = response.data.values;
@@ -2424,7 +2444,7 @@ export class SheetsService {
       }
 
       const appendResponse = await this.sheets.spreadsheets.values.append({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: 'Bank Statements!A:ZZ',
         valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS',
@@ -2435,7 +2455,7 @@ export class SheetsService {
 
       // Get the updated sheet data to find the new row
       const updatedResponse = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: 'Bank Statements!A:ZZ',
       });
 
@@ -2487,7 +2507,7 @@ export class SheetsService {
     try {
       this.logger.log(`Updating mpesa bank statement ${mpesaBankStatementId}`);
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: 'Bank Statements!A:ZZ',
       });
       const rows = response.data.values;
@@ -2509,7 +2529,7 @@ export class SheetsService {
           : currentData[index] || '';
       });
       await this.sheets.spreadsheets.values.update({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: `Bank Statements!A${rowIndex + 1}:ZZ${rowIndex + 1}`,
         valueInputOption: 'USER_ENTERED',
         requestBody: {
@@ -2564,7 +2584,7 @@ export class SheetsService {
     try {
       this.logger.log('Adding audited financial to Google Sheets');
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: 'Audited Financial Statements!A:ZZ',
       });
       const rows = response.data.values;
@@ -2601,7 +2621,7 @@ export class SheetsService {
       }
 
       const appendResponse = await this.sheets.spreadsheets.values.append({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: 'Audited Financial Statements!A:ZZ',
         valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS',
@@ -2612,7 +2632,7 @@ export class SheetsService {
 
       // Get the updated sheet data to find the new row and confirm the ID
       const updatedResponse = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: 'Audited Financial Statements!A:ZZ',
       });
 
@@ -2667,7 +2687,7 @@ export class SheetsService {
     try {
       this.logger.log(`Updating audited financial ${auditedFinancialId}`);
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: 'Audited Financial Statements!A:ZZ',
       });
       const rows = response.data.values;
@@ -2702,7 +2722,7 @@ export class SheetsService {
           : currentData[index] || '';
       });
       await this.sheets.spreadsheets.values.update({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: `Audited Financial Statements!A${rowIndex + 1}:ZZ${rowIndex + 1}`,
         valueInputOption: 'USER_ENTERED',
         requestBody: {
@@ -2932,7 +2952,7 @@ export class SheetsService {
     try {
       this.logger.log('Adding other supporting doc to Google Sheets');
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: 'Other Supporting Documents!A:ZZ',
       });
       const rows = response.data.values;
@@ -2969,7 +2989,7 @@ export class SheetsService {
       }
 
       const appendResponse = await this.sheets.spreadsheets.values.append({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: 'Other Supporting Documents!A:ZZ',
         valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS',
@@ -2980,7 +3000,7 @@ export class SheetsService {
 
       // Get the updated sheet data to find the new row
       const updatedResponse = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: 'Other Supporting Documents!A:ZZ',
       });
 
@@ -3033,7 +3053,7 @@ export class SheetsService {
     try {
       this.logger.log(`Updating other supporting doc ${otherSupportingDocId}`);
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: 'Other Supporting Documents!A:ZZ',
       });
       const rows = response.data.values;
@@ -3055,7 +3075,7 @@ export class SheetsService {
           : currentData[index] || '';
       });
       await this.sheets.spreadsheets.values.update({
-        spreadsheetId: this.BORROWERS_SHEET_ID,
+        spreadsheetId: this.BORROWERS_SHEET_ID_2,
         range: `Other Supporting Documents!A${rowIndex + 1}:ZZ${rowIndex + 1}`,
         valueInputOption: 'USER_ENTERED',
         requestBody: {
@@ -3413,7 +3433,7 @@ export class SheetsService {
     try {
       this.logger.debug('Adding home visit to sheets', homeVisitData);
 
-      await this.appendRow('Home Visits', homeVisitData, true);
+      await this.appendRow('Home Visits', homeVisitData);
 
       // Wait a moment for the sheet to update
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -3468,7 +3488,7 @@ export class SheetsService {
       });
 
       // Update the row
-      await this.updateRow('Home Visits', homeVisitId, updatedRowData, true);
+      await this.updateRow('Home Visits', homeVisitId, updatedRowData);
 
       // Get the updated record
       const updatedRecords = await this.getHomeVisits();
@@ -3627,7 +3647,7 @@ export class SheetsService {
         contractDetailsData,
       );
 
-      await this.appendRow('Contract Details', contractDetailsData, true);
+      await this.appendRow('Contract Details', contractDetailsData);
 
       // Since sheetIds are permanent, return the data we provided
       // Don't try to fetch back the record as it might not be immediately available
@@ -3677,7 +3697,6 @@ export class SheetsService {
         'Contract Details',
         contractDetailsId,
         updatedRowData,
-        true,
       );
 
       // Get the updated record

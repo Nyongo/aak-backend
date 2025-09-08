@@ -112,7 +112,6 @@ export class ActiveDebtsController {
   }
 
   @Post()
-  @Post()
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
   @UseInterceptors(FileInterceptor('Debt Statement'))
   async addActiveDebt(

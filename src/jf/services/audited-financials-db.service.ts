@@ -160,6 +160,20 @@ export class AuditedFinancialsDbService {
   }
 
   /**
+   * Update sheetId and sync status in one operation
+   */
+  async updateSheetIdAndSyncStatus(
+    id: number,
+    sheetId: string,
+    synced: boolean,
+  ) {
+    return this.prisma.auditedFinancial.update({
+      where: { id },
+      data: { sheetId, synced },
+    });
+  }
+
+  /**
    * Delete audited financial by ID
    */
   async delete(id: string) {

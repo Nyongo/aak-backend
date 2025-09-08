@@ -12,6 +12,46 @@ export class EnrollmentVerificationSyncService {
   ) {}
 
   /**
+   * Filter enrollment verification data to only include fields that exist in the Google Sheets headers
+   * This prevents creating new columns in the sheet
+   */
+  private filterEnrollmentVerificationDataForSheet(
+    enrollmentVerificationData: any,
+  ): any {
+    // Define the expected sheet headers for enrollment verification
+    const expectedSheetHeaders = [
+      'ID',
+      'Credit Application ID',
+      'Sub County Enrollment Report',
+      'Enrollment Report',
+      'Number of Students This Year',
+      'Number of students last year',
+      'Number of students two years ago',
+      'Created At',
+      'Synced',
+    ];
+
+    const filteredData: any = {};
+
+    // Only include fields that match the expected sheet headers
+    expectedSheetHeaders.forEach((header) => {
+      if (
+        enrollmentVerificationData[header] !== undefined &&
+        enrollmentVerificationData[header] !== null
+      ) {
+        filteredData[header] = enrollmentVerificationData[header];
+      }
+    });
+
+    this.logger.debug('Filtered enrollment verification data for sheet:', {
+      original: enrollmentVerificationData,
+      filtered: filteredData,
+    });
+
+    return filteredData;
+  }
+
+  /**
    * Sync all enrollment verifications from Postgres to Google Sheets
    */
   async syncAllToSheets() {
@@ -127,14 +167,10 @@ export class EnrollmentVerificationSyncService {
       );
     }
 
-    // Check if sheetId exists and is not null and not a temporary ID
-    const isValidSheetId =
-      sheetId && sheetId !== null && !sheetId.startsWith('ENR-');
+    // Check if sheetId exists and is not null - all sheetIds are permanent IDs
+    const isValidSheetId = sheetId && sheetId !== null;
 
-    // Check if we have a temporary sheetId that needs to be replaced
-    const hasTemporarySheetId = sheetId && sheetId.startsWith('ENR-');
-
-    // 1. If sheetId exists and is valid (not temporary), check if it exists in sheets before updating
+    // 1. If sheetId exists, check if it exists in sheets before updating
     if (isValidSheetId) {
       const sheetIdExists = await this.checkSheetIdExists(sheetId);
 
@@ -147,9 +183,14 @@ export class EnrollmentVerificationSyncService {
             `Enrollment verification data being sent to sheets:`,
             enrollmentVerification,
           );
+          // Filter enrollment verification data to only include fields that exist in the sheet headers
+          const filteredEnrollmentVerification =
+            this.filterEnrollmentVerificationDataForSheet(
+              enrollmentVerification,
+            );
           await this.sheetsService.updateEnrollmentVerification(
             sheetId,
-            enrollmentVerification,
+            filteredEnrollmentVerification,
           );
           this.logger.debug(
             `Updated enrollment verification in sheet: ${creditApplicationId} (sheetId: ${sheetId})`,
@@ -187,86 +228,12 @@ export class EnrollmentVerificationSyncService {
       }
     }
 
-    // 2. If no valid sheetId, check if a record with the same creditApplicationId already exists
-    this.logger.debug(`No valid sheetId found, checking for existing record:`, {
+    // 2. If no valid sheetId, this is a new record - create it
+    this.logger.debug(`No valid sheetId found, creating new record:`, {
       creditApplicationId: creditApplicationId,
       sheetId: sheetId,
       dbId: enrollmentVerification.dbId,
     });
-
-    // First, try to find existing record by sheetId (if we have one, even if temporary)
-    let existingEnrollmentVerification = null;
-    if (sheetId) {
-      existingEnrollmentVerification =
-        await this.findEnrollmentVerificationBySheetId(sheetId);
-      if (existingEnrollmentVerification) {
-        this.logger.debug(
-          `Found existing record by sheetId: ${existingEnrollmentVerification.ID}`,
-        );
-      }
-    }
-
-    // If not found by sheetId, try by creditApplicationId
-    if (!existingEnrollmentVerification) {
-      existingEnrollmentVerification =
-        await this.findExistingEnrollmentVerificationInSheets(
-          creditApplicationId,
-        );
-      if (existingEnrollmentVerification) {
-        this.logger.debug(
-          `Found existing record by creditApplicationId: ${existingEnrollmentVerification.ID}`,
-        );
-      }
-    }
-
-    if (existingEnrollmentVerification) {
-      // Update existing record
-      try {
-        this.logger.debug(
-          `Found existing enrollment verification in sheet, updating: ${existingEnrollmentVerification.ID}`,
-        );
-        await this.sheetsService.updateEnrollmentVerification(
-          existingEnrollmentVerification.ID,
-          enrollmentVerification,
-        );
-        this.logger.debug(
-          `Updated existing enrollment verification in sheet: ${creditApplicationId} (ID: ${existingEnrollmentVerification.ID})`,
-        );
-
-        // Update the Postgres record to mark as synced and update sheetId
-        if (enrollmentVerification.dbId) {
-          try {
-            // First, update the synced status using updateSyncStatus
-            await this.enrollmentVerificationDbService.updateSyncStatus(
-              enrollmentVerification.dbId,
-              true,
-            );
-            this.logger.debug(
-              `Updated Postgres record ${enrollmentVerification.dbId} with synced: true`,
-            );
-
-            // Then, update the sheetId separately to avoid unique constraint violation
-            const originalSheetId =
-              enrollmentVerification.sheetId || enrollmentVerification.ID;
-            await this.enrollmentVerificationDbService.update(originalSheetId, {
-              sheetId: existingEnrollmentVerification.ID, // Update with the real sheet ID
-            });
-            this.logger.debug(
-              `Updated Postgres record ${enrollmentVerification.dbId} with sheetId: ${existingEnrollmentVerification.ID}`,
-            );
-          } catch (error) {
-            this.logger.warn(`Failed to update Postgres record: ${error}`);
-          }
-        }
-
-        return; // Successfully updated, exit
-      } catch (error) {
-        this.logger.error(
-          `Failed to update existing enrollment verification ${existingEnrollmentVerification.ID}: ${error}`,
-        );
-        throw error;
-      }
-    }
 
     // 3. If no existing record found, create new enrollment verification
     this.logger.debug(
@@ -277,8 +244,11 @@ export class EnrollmentVerificationSyncService {
       },
     );
 
+    // Filter enrollment verification data to only include fields that exist in the sheet headers
+    const filteredEnrollmentVerification =
+      this.filterEnrollmentVerificationDataForSheet(enrollmentVerification);
     const result = await this.sheetsService.addEnrollmentVerification(
-      enrollmentVerification,
+      filteredEnrollmentVerification,
     );
     this.logger.debug(
       `Added new enrollment verification to sheet: ${creditApplicationId} (ID: ${result.ID})`,
@@ -452,39 +422,6 @@ export class EnrollmentVerificationSyncService {
     } catch (error) {
       this.logger.error(
         `Error finding enrollment verification by sheetId: ${error}`,
-      );
-      return null;
-    }
-  }
-
-  /**
-   * Find existing enrollment verification in Google Sheets by creditApplicationId
-   * For new records, we should create a new entry instead of updating existing ones
-   * So we'll only look for exact matches by sheetId (for updates) or return null (for new records)
-   */
-  private async findExistingEnrollmentVerificationInSheets(
-    creditApplicationId: string,
-  ): Promise<any> {
-    try {
-      const enrollmentVerifications =
-        await this.sheetsService.getEnrollmentVerifications();
-
-      // Log all enrollment verifications for debugging
-      this.logger.debug(
-        `Searching through ${enrollmentVerifications.length} enrollment verifications in sheets`,
-      );
-
-      // For new records, we don't want to find existing records by creditApplicationId
-      // because multiple enrollment verifications can exist for the same credit application
-      // We'll only return existing records if they have a matching sheetId (for updates)
-      this.logger.debug(
-        `Not looking for existing enrollment verification by creditApplicationId to allow multiple verifications per application. Creating new record.`,
-      );
-      return null;
-    } catch (error) {
-      this.logger.error(
-        `Error finding existing enrollment verification:`,
-        error,
       );
       return null;
     }

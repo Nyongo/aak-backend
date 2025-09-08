@@ -167,6 +167,20 @@ export class MpesaBankStatementDbService {
   }
 
   /**
+   * Update sheetId and sync status in one operation
+   */
+  async updateSheetIdAndSyncStatus(
+    id: number,
+    sheetId: string,
+    synced: boolean,
+  ) {
+    return this.prisma.mpesaBankStatement.update({
+      where: { id },
+      data: { sheetId, synced },
+    });
+  }
+
+  /**
    * Delete mpesa bank statement by ID
    */
   async delete(id: string) {

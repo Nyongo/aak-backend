@@ -91,74 +91,93 @@ export class DirectorsSyncService {
     const name = director.Name;
     const sheetId = director.sheetId || director.ID; // Accept both possible keys
 
+    this.logger.debug(`Syncing director:`, {
+      borrowerId,
+      name,
+      sheetId,
+      isValidSheetId: sheetId && sheetId !== null,
+      dbId: director.dbId,
+    });
+
     if (!borrowerId && !name) {
       throw new Error('Director has no Borrower ID or Name for identification');
     }
 
-    // If sheetId exists, try to update by sheetId (this is the permanent ID)
-    if (sheetId) {
-      try {
-        this.logger.debug(`Updating director in sheet by sheetId: ${sheetId}`);
-        await this.sheetsService.updateDirector(sheetId, director);
-        this.logger.debug(
-          `Updated director in sheet: ${borrowerId || name} (sheetId: ${sheetId})`,
-        );
-      } catch (error) {
-        this.logger.warn(
-          `Failed to update by sheetId ${sheetId}, trying to add as new record: ${error}`,
-        );
-        // If update fails, try to add as new record
+    // Check if sheetId exists and is not null - all sheetIds are permanent IDs
+    const isValidSheetId = sheetId && sheetId !== null;
+
+    // 1. If sheetId exists, check if it exists in sheets before updating
+    if (isValidSheetId) {
+      const sheetIdExists = await this.checkSheetIdExists(sheetId);
+
+      if (sheetIdExists) {
         try {
-          const result = await this.sheetsService.addDirector(director);
           this.logger.debug(
-            `Added new director to sheet: ${borrowerId || name} (ID: ${result.ID})`,
+            `Updating director in sheet by sheetId: ${sheetId}`,
+          );
+          await this.sheetsService.updateDirector(sheetId, director);
+          this.logger.debug(
+            `Updated director in sheet: ${borrowerId || name} (sheetId: ${sheetId})`,
           );
 
-          // Update the Postgres record with the generated sheet ID if we have the database ID
-          if (director.dbId && result.ID) {
+          // Mark as synced in Postgres after successful sync
+          if (director.dbId) {
             try {
-              await this.directorsDbService.update(director.dbId.toString(), {
-                sheetId: result.ID,
-              });
-              this.logger.debug(
-                `Updated Postgres record ${director.dbId} with sheet ID: ${result.ID}`,
+              await this.directorsDbService.updateSyncStatus(
+                director.dbId,
+                true,
               );
-            } catch (updateError) {
+              this.logger.debug(
+                `Marked Postgres record ${director.dbId} as synced`,
+              );
+            } catch (error) {
               this.logger.warn(
-                `Failed to update Postgres record with sheet ID: ${updateError}`,
+                `Failed to mark Postgres record as synced: ${error}`,
               );
             }
           }
-        } catch (addError) {
-          throw new Error(`Failed to add director to sheet: ${addError}`);
-        }
-      }
-    } else {
-      // No sheetId exists, add as new director
-      this.logger.debug(`No sheetId found, creating new director:`, {
-        borrowerId: borrowerId,
-        name: name,
-      });
 
-      const result = await this.sheetsService.addDirector(director);
-      this.logger.debug(
-        `Added new director to sheet: ${borrowerId || name} (ID: ${result.ID})`,
-      );
-
-      // Update the Postgres record with the generated sheet ID if we have the database ID
-      if (director.dbId && result.ID) {
-        try {
-          await this.directorsDbService.update(director.dbId.toString(), {
-            sheetId: result.ID,
-          });
-          this.logger.debug(
-            `Updated Postgres record ${director.dbId} with sheet ID: ${result.ID}`,
-          );
+          return; // Successfully updated, exit
         } catch (error) {
-          this.logger.warn(
-            `Failed to update Postgres record with sheet ID: ${error}`,
+          this.logger.error(
+            `Failed to update by sheetId ${sheetId}: ${error}. This should not happen for valid sheetIds.`,
           );
+          throw error;
         }
+      } else {
+        this.logger.warn(
+          `SheetId ${sheetId} exists in Postgres but not found in Google Sheets. Creating new record.`,
+        );
+        // Fall through to create new record
+      }
+    }
+
+    // 2. If no valid sheetId, this is a new record - create it
+    this.logger.debug(`No valid sheetId found, creating new director:`, {
+      borrowerId: borrowerId,
+      name: name,
+      sheetId: sheetId,
+    });
+
+    // 3. Create new director record
+    const result = await this.sheetsService.addDirector(director);
+    this.logger.debug(
+      `Added new director to sheet: ${borrowerId || name} (ID: ${result.ID})`,
+    );
+
+    // Update the Postgres record with the generated sheet ID if we have the database ID
+    if (director.dbId && result.ID) {
+      try {
+        await this.directorsDbService.update(director.dbId.toString(), {
+          sheetId: result.ID,
+        });
+        this.logger.debug(
+          `Updated Postgres record ${director.dbId} with sheet ID: ${result.ID}`,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Failed to update Postgres record with sheet ID: ${error}`,
+        );
       }
     }
 
@@ -191,6 +210,7 @@ export class DirectorsSyncService {
 
       const directorInSheetFormat =
         this.directorsDbService.convertDbArrayToSheet([director])[0];
+      (directorInSheetFormat as any).dbId = dbId;
 
       try {
         await this.syncDirectorToSheet(directorInSheetFormat);
@@ -237,6 +257,23 @@ export class DirectorsSyncService {
         success: false,
         error: errorMessage,
       };
+    }
+  }
+
+  /**
+   * Check if a sheetId exists in Google Sheets
+   */
+  private async checkSheetIdExists(sheetId: string): Promise<boolean> {
+    try {
+      const directors = await this.sheetsService.getDirectors();
+      const exists = directors.some((director) => director.ID === sheetId);
+      this.logger.debug(
+        `Checking if sheetId ${sheetId} exists in sheets: ${exists}`,
+      );
+      return exists;
+    } catch (error) {
+      this.logger.error(`Error checking if sheetId ${sheetId} exists:`, error);
+      return false;
     }
   }
 

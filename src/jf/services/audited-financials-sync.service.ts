@@ -82,43 +82,60 @@ export class AuditedFinancialsSyncService {
       );
     }
 
-    // If sheetId exists (from DB), always try to update existing record first
-    if (sheetId) {
-      try {
-        this.logger.debug(
-          `Attempting to update existing audited financial in sheet by sheetId: ${sheetId}`,
-        );
-        await this.sheetsService.updateAuditedFinancial(
-          sheetId,
-          auditedFinancial,
-        );
-        this.logger.debug(
-          `Updated existing audited financial in sheet: ${creditApplicationId} (sheetId: ${sheetId})`,
-        );
+    // Check if sheetId exists and is not null - all sheetIds are permanent IDs
+    const isValidSheetId = sheetId && sheetId !== null;
 
-        // Update the Postgres record to mark as synced
-        if (auditedFinancial.dbId) {
-          await this.auditedFinancialsDbService.updateSyncStatus(
-            auditedFinancial.dbId,
-            true,
+    // 1. If sheetId exists, check if it exists in sheets before updating
+    if (isValidSheetId) {
+      const sheetIdExists = await this.checkSheetIdExists(sheetId);
+
+      if (sheetIdExists) {
+        try {
+          this.logger.debug(
+            `Updating audited financial in sheet by sheetId: ${sheetId}`,
+          );
+          await this.sheetsService.updateAuditedFinancial(
+            sheetId,
+            auditedFinancial,
           );
           this.logger.debug(
-            `Marked Postgres record ${auditedFinancial.dbId} as synced`,
+            `Updated audited financial in sheet: ${creditApplicationId} (sheetId: ${sheetId})`,
           );
-        }
 
-        return; // Successfully updated, exit
-      } catch (error) {
+          // Update the Postgres record to mark as synced
+          if (auditedFinancial.dbId) {
+            await this.auditedFinancialsDbService.updateSyncStatus(
+              auditedFinancial.dbId,
+              true,
+            );
+            this.logger.debug(
+              `Marked Postgres record ${auditedFinancial.dbId} as synced`,
+            );
+          }
+
+          return; // Successfully updated, exit
+        } catch (error) {
+          this.logger.error(
+            `Failed to update by sheetId ${sheetId}: ${error}. This should not happen for valid sheetIds.`,
+          );
+          throw error;
+        }
+      } else {
         this.logger.warn(
-          `Failed to update by sheetId ${sheetId}, will try to add new record: ${error}`,
+          `SheetId ${sheetId} exists in Postgres but not found in Google Sheets. Creating new record.`,
         );
-        // Continue to add new record if update fails
+        // Fall through to create new record
       }
     }
 
-    // If no sheetId or update failed, add new record
+    // 2. If no valid sheetId, this is a new record - create it
     this.logger.debug(
-      `Adding new audited financial to sheet: ${creditApplicationId}`,
+      `No valid sheetId found, creating new audited financial:`,
+      {
+        creditApplicationId,
+        sheetId,
+        dbId: auditedFinancial.dbId,
+      },
     );
 
     try {
@@ -128,26 +145,17 @@ export class AuditedFinancialsSyncService {
         `Added new audited financial to sheet: ${creditApplicationId} (new sheetId: ${newSheetId})`,
       );
 
-      // First, save the new sheetId to the database record
+      // Update the Postgres record with the new sheetId and mark as synced
       if (auditedFinancial.dbId) {
-        await this.auditedFinancialsDbService.updateById(
+        await this.auditedFinancialsDbService.updateSheetIdAndSyncStatus(
           auditedFinancial.dbId,
-          { sheetId: newSheetId },
+          newSheetId,
+          true,
         );
-
         this.logger.debug(
-          `Saved new sheetId: ${newSheetId} to database record ${auditedFinancial.dbId}`,
+          `Updated Postgres record ${auditedFinancial.dbId} with new sheetId: ${newSheetId} and marked as synced`,
         );
       }
-
-      // Then, use the new sheetId to update the synced status
-      await this.auditedFinancialsDbService.update(newSheetId, {
-        synced: true,
-      });
-
-      this.logger.debug(
-        `Updated synced status to true for sheetId: ${newSheetId}`,
-      );
 
       return;
     } catch (error) {
@@ -211,6 +219,25 @@ export class AuditedFinancialsSyncService {
   }
 
   /**
+   * Check if a sheetId exists in Google Sheets
+   */
+  private async checkSheetIdExists(sheetId: string): Promise<boolean> {
+    try {
+      const auditedFinancials = await this.sheetsService.getAuditedFinancials();
+      const exists = auditedFinancials.some(
+        (auditedFinancial) => auditedFinancial.ID === sheetId,
+      );
+      this.logger.debug(
+        `Checking if sheetId ${sheetId} exists in sheets: ${exists}`,
+      );
+      return exists;
+    } catch (error) {
+      this.logger.error(`Error checking if sheetId ${sheetId} exists:`, error);
+      return false;
+    }
+  }
+
+  /**
    * Sync audited financials by credit application ID
    */
   async syncByCreditApplicationId(creditApplicationId: string) {
@@ -263,25 +290,6 @@ export class AuditedFinancialsSyncService {
         success: false,
         error: errorMessage,
       };
-    }
-  }
-
-  /**
-   * Check if a sheetId exists in Google Sheets
-   */
-  private async checkSheetIdExists(sheetId: string): Promise<boolean> {
-    try {
-      const auditedFinancials = await this.sheetsService.getAuditedFinancials();
-      const exists = auditedFinancials.some(
-        (auditedFinancial) => auditedFinancial.ID === sheetId,
-      );
-      this.logger.debug(
-        `Checking if sheetId ${sheetId} exists in sheets: ${exists}`,
-      );
-      return exists;
-    } catch (error) {
-      this.logger.error(`Error checking if sheetId exists: ${error}`);
-      return false;
     }
   }
 

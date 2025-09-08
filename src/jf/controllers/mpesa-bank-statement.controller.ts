@@ -179,26 +179,21 @@ export class MpesaBankStatementController {
         );
       }
 
-      // Trigger sync only if no files were uploaded (to avoid duplicate syncs)
-      // If files were uploaded, sync will be triggered by background upload service
-      if (!files.statement?.[0] && !files.convertedExcelFile?.[0]) {
-        this.triggerBackgroundSync(
-          result.id,
-          result.creditApplicationId,
-          'create',
-        );
-      }
+      // Always trigger initial sync to create the record in Google Sheets
+      // If files were uploaded, background upload service will trigger a re-sync with updated file URLs
+      this.triggerBackgroundSync(
+        result.id,
+        result.creditApplicationId,
+        'create',
+      );
 
       return {
         success: true,
         data: result,
         message: 'Statement record created successfully',
         sync: {
-          triggered: !files.statement?.[0] && !files.convertedExcelFile?.[0],
-          status:
-            !files.statement?.[0] && !files.convertedExcelFile?.[0]
-              ? 'immediate'
-              : 'background',
+          triggered: true,
+          status: 'immediate',
         },
       };
     } catch (error: unknown) {

@@ -12,6 +12,42 @@ export class PayrollSyncService {
   ) {}
 
   /**
+   * Filter payroll data to only include fields that exist in the Google Sheets headers
+   * This prevents creating new columns in the sheet
+   */
+  private filterPayrollDataForSheet(payrollData: any): any {
+    // Define the expected sheet headers for payroll
+    const expectedSheetHeaders = [
+      'ID',
+      'Credit Application ID',
+      'Role',
+      'Number of Employees in Role',
+      'Monthly Salary',
+      'Months per Year the Role is Paid',
+      'Notes',
+      'Total Annual Cost',
+      'Created At',
+      'Synced',
+    ];
+
+    const filteredData: any = {};
+
+    // Only include fields that match the expected sheet headers
+    expectedSheetHeaders.forEach((header) => {
+      if (payrollData[header] !== undefined && payrollData[header] !== null) {
+        filteredData[header] = payrollData[header];
+      }
+    });
+
+    this.logger.debug('Filtered payroll data for sheet:', {
+      original: payrollData,
+      filtered: filteredData,
+    });
+
+    return filteredData;
+  }
+
+  /**
    * Sync all payroll records from Postgres to Google Sheets
    */
   async syncAllToSheets() {
@@ -134,7 +170,9 @@ export class PayrollSyncService {
             `Updating payroll record in sheet by sheetId: ${sheetId}`,
           );
           this.logger.debug(`Payroll data being sent to sheets:`, payroll);
-          await this.sheetsService.updatePayroll(sheetId, payroll);
+          // Filter payroll data to only include fields that exist in the sheet headers
+          const filteredPayroll = this.filterPayrollDataForSheet(payroll);
+          await this.sheetsService.updatePayroll(sheetId, filteredPayroll);
           this.logger.debug(
             `Updated payroll record in sheet: ${creditApplicationId || role} (sheetId: ${sheetId})`,
           );
@@ -209,7 +247,12 @@ export class PayrollSyncService {
         this.logger.debug(
           `Found existing payroll record in sheet, updating: ${existingPayroll.ID}`,
         );
-        await this.sheetsService.updatePayroll(existingPayroll.ID, payroll);
+        // Filter payroll data to only include fields that exist in the sheet headers
+        const filteredPayroll = this.filterPayrollDataForSheet(payroll);
+        await this.sheetsService.updatePayroll(
+          existingPayroll.ID,
+          filteredPayroll,
+        );
         this.logger.debug(
           `Updated existing payroll record in sheet: ${creditApplicationId || role} (ID: ${existingPayroll.ID})`,
         );
@@ -255,7 +298,9 @@ export class PayrollSyncService {
       },
     );
 
-    const result = await this.sheetsService.addPayroll(payroll);
+    // Filter payroll data to only include fields that exist in the sheet headers
+    const filteredPayroll = this.filterPayrollDataForSheet(payroll);
+    const result = await this.sheetsService.addPayroll(filteredPayroll);
     this.logger.debug(
       `Added new payroll record to sheet: ${creditApplicationId || role} (ID: ${result.ID})`,
     );

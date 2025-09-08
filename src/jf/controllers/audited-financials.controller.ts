@@ -125,15 +125,13 @@ export class AuditedFinancialsController {
         );
       }
 
-      // Only trigger immediate sync if no files were uploaded
-      // If files were uploaded, the background upload service will handle the sync
-      if (!file) {
-        this.triggerBackgroundSync(
-          result.id,
-          result.creditApplicationId,
-          'create',
-        );
-      }
+      // Always trigger initial sync to create the record in Google Sheets
+      // If files were uploaded, background upload service will trigger a re-sync with updated file URLs
+      this.triggerBackgroundSync(
+        result.id,
+        result.creditApplicationId,
+        'create',
+      );
 
       return {
         success: true,
@@ -141,7 +139,7 @@ export class AuditedFinancialsController {
         message: 'Audited financial added successfully',
         sync: {
           triggered: true,
-          status: file ? 'background' : 'immediate',
+          status: 'immediate',
         },
       };
     } catch (error: unknown) {
