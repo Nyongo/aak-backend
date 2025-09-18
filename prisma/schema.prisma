@@ -1269,17 +1269,19 @@ enum MessageStatus {
 
 model ContactMessage {
   id          String   @id @default(uuid())
-  messageType String
+  messageType String   @map("message_type")
   name        String
   email       String
   subject     String
   message     String
   platform    String
   status      String   @default("NEW")
-  viewedBy    String?
-  viewedAt    DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  viewedBy    String?  @map("viewed_by")
+  viewedAt    DateTime? @map("viewed_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("contact_messages")
 }
 
 model Customer {
