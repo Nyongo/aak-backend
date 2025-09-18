@@ -11,6 +11,18 @@
 -- CreateEnum
 CREATE TYPE "CustomerStatus" AS ENUM ('ACTIVE', 'INACTIVE', 'PENDING', 'SUSPENDED');
 
+-- Normalize existing ContactMessage enum values before altering enums
+-- MessageStatus: map deprecated values to new ones
+UPDATE "ContactMessage" SET "status" = 'NEW' WHERE "status" IN ('UNREAD');
+UPDATE "ContactMessage" SET "status" = 'RESOLVED' WHERE "status" IN ('READ');
+
+-- MessageType: map deprecated values to the new enum variants
+UPDATE "ContactMessage" SET "messageType" = 'GENERAL_INQUIRY' WHERE "messageType" IN ('NORMAL', 'ENQUIRY');
+UPDATE "ContactMessage" SET "messageType" = 'PARTNERSHIP_INQUIRY' WHERE "messageType" = 'PARTNER';
+
+-- Platform: map deprecated values to the new enum variants
+UPDATE "ContactMessage" SET "platform" = 'WEBSITE' WHERE "platform" IN ('JF_NETWORK', 'JF_FOUNDATION', 'JF_FINANCE', 'JF_HUB');
+
 -- AlterEnum
 BEGIN;
 CREATE TYPE "MessageStatus_new" AS ENUM ('NEW', 'IN_PROGRESS', 'RESOLVED', 'CLOSED');
@@ -40,8 +52,8 @@ ALTER TYPE "Platform_new" RENAME TO "Platform";
 DROP TYPE "Platform_old";
 COMMIT;
 
--- AlterTable
-ALTER TABLE "ContactMessage" ADD COLUMN     "updatedAt" TIMESTAMP(3) NOT NULL,
+-- Add updatedAt with a default to satisfy NOT NULL on existing rows
+ALTER TABLE "ContactMessage" ADD COLUMN     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 ALTER COLUMN "status" SET DEFAULT 'NEW';
 
 -- AlterTable
