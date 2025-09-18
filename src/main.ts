@@ -42,6 +42,7 @@ async function bootstrap() {
       'https://www.foundation.jackfruitnetwork.com',
       'https://www.jackfruitnetwork.com',
       'https://jackfruitnetwork.com',
+      'https://www.jackfruitnetwork.com/',
       'https://www.finance.jackfruitnetwork.com',
       'https://finance.jackfruitnetwork.com',
       'http://localhost:8080',
