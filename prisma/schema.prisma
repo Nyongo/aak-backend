@@ -1281,7 +1281,7 @@ model ContactMessage {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@map("contactMessage")
+  @@map("ContactMessage")
 }
 
 model Customer {
