@@ -1268,18 +1268,18 @@ enum MessageStatus {
 
 
 model ContactMessage {
-  id          String        @id @default(uuid())
-  messageType MessageType
+  id          String   @id @default(uuid())
+  messageType String
   name        String
   email       String
   subject     String
   message     String
-  platform    Platform
-  status      MessageStatus @default(NEW)
+  platform    String
+  status      String   @default("NEW")
   viewedBy    String?
   viewedAt    DateTime?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Customer {

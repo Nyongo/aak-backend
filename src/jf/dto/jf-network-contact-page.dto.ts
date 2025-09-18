@@ -1,9 +1,27 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
-import { MessageType, Platform, MessageStatus } from '@prisma/client';
+import {
+  IsEmail,
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class CreateJFNetworkContactPageDto {
-  @IsEnum(MessageType)
-  messageType: MessageType;
+  @IsString()
+  @IsNotEmpty()
+  @IsIn(
+    [
+      'GENERAL_INQUIRY',
+      'SUPPORT_REQUEST',
+      'PARTNERSHIP_INQUIRY',
+      'FEEDBACK',
+      'OTHER',
+    ],
+    {
+      message: 'messageType must be one of the allowed values',
+    },
+  )
+  messageType: string;
 
   @IsString()
   @IsNotEmpty()
@@ -20,14 +38,25 @@ export class CreateJFNetworkContactPageDto {
   @IsNotEmpty()
   message: string;
 
-  @IsEnum(Platform)
-  platform: Platform;
+  @IsString()
+  @IsNotEmpty()
+  @IsIn(['WEBSITE', 'MOBILE_APP', 'API', 'EMAIL', 'PHONE'], {
+    message: 'platform must be one of the allowed values',
+  })
+  platform: string;
 }
 
 export class UpdateJFNetworkContactPageDto {
-  @IsEnum(MessageType)
+  @IsString()
   @IsOptional()
-  messageType?: MessageType;
+  @IsIn([
+    'GENERAL_INQUIRY',
+    'SUPPORT_REQUEST',
+    'PARTNERSHIP_INQUIRY',
+    'FEEDBACK',
+    'OTHER',
+  ])
+  messageType?: string;
 
   @IsString()
   @IsOptional()
@@ -45,13 +74,15 @@ export class UpdateJFNetworkContactPageDto {
   @IsOptional()
   message?: string;
 
-  @IsEnum(Platform)
+  @IsString()
   @IsOptional()
-  platform?: Platform;
+  @IsIn(['WEBSITE', 'MOBILE_APP', 'API', 'EMAIL', 'PHONE'])
+  platform?: string;
 
-  @IsEnum(MessageStatus)
+  @IsString()
   @IsOptional()
-  status?: MessageStatus;
+  @IsIn(['NEW', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'])
+  status?: string;
 
   @IsString()
   @IsOptional()
