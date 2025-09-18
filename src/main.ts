@@ -25,10 +25,10 @@ async function bootstrap() {
 
   const host = process.env.HOST || 'localhost';
   const port = process.env.PORT || 3000;
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    httpsOptions,
-  });
-  //const app = await NestFactory.create<NestExpressApplication>(AppModule, {});
+  // const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+  //   httpsOptions,
+  // });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {});
   // Enable CORS
   app.enableCors({
     origin: [
@@ -44,6 +44,7 @@ async function bootstrap() {
       'https://jackfruitnetwork.com',
       'https://www.finance.jackfruitnetwork.com',
       'https://finance.jackfruitnetwork.com',
+      'http://localhost:8080',
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,

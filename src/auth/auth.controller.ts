@@ -45,6 +45,26 @@ export class AuthController {
     }
   }
 
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async logout(@Request() req) {
+    try {
+      const result = await this.authService.logout(req.user.id);
+      return this.commonFunctions.returnFormattedResponse(
+        200,
+        'Successfully logged out',
+        result,
+      );
+    } catch (error) {
+      return this.commonFunctions.returnFormattedResponse(
+        500,
+        'Logout failed',
+        { error: 'An error occurred during logout' },
+      );
+    }
+  }
+
   @Get('test')
   @UseGuards(JwtAuthGuard)
   @Permissions('can_create_pesticide')

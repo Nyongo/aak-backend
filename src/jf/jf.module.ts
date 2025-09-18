@@ -194,7 +194,7 @@ import { JFNetworkContactPageController } from './controllers/jf-network-contact
     MlDataService,
     FileUploadService,
     BackgroundUploadService,
-    JFNetworkContactPageService
+    JFNetworkContactPageService,
   ],
   controllers: [
     SpreadsheetController,
@@ -256,7 +256,7 @@ import { JFNetworkContactPageController } from './controllers/jf-network-contact
     DirectPaymentSchedulesController,
     DirectPaymentSchedulesMigrationController,
     LoansMigrationController,
-    JFNetworkContactPageController
+    JFNetworkContactPageController,
   ],
   exports: [GoogleDriveService, SheetsService],
 })

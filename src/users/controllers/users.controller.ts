@@ -33,7 +33,8 @@ export class UsersController {
   async findAll(@Request() req) {
     const page = Number(req.query.page) || 1;
     const pageSize = Number(req.query.pageSize) || 10;
-    return this.usersService.findAll(page, pageSize);
+    const search = req.query.search as string;
+    return this.usersService.findAll(page, pageSize, search);
   }
   @Get(':id')
   @Permissions('can_view_users')

@@ -20,6 +20,7 @@ export class AuthService {
         id: true,
         email: true,
         name: true,
+        phoneNumber: true,
         roleId: true,
         password: true,
         role: {
@@ -31,8 +32,7 @@ export class AuthService {
             },
           },
         },
-        sspUser: true,
-        farmerUser: true,
+        customer: true,
       },
     });
     if (!user) {
@@ -51,13 +51,19 @@ export class AuthService {
       email: user.email,
       name: user.name,
       role: user.role,
-      sspUser: user.sspUser,
-      farmerUser: user.farmerUser,
+      phoneNumber: user.phoneNumber,
+      customer: user.customer,
     }; // Access the role name
   }
 
   // Generate JWT token
   async login(user: any) {
+    // Update lastLoggedInOn timestamp
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoggedInOn: new Date() },
+    });
+
     const payload = {
       email: user.email,
       sub: user.id,
@@ -66,6 +72,22 @@ export class AuthService {
     };
     return {
       access_token: this.jwtService.sign(payload), // Generate and return token
+    };
+  }
+
+  // Logout user (for stateless JWT, this is mainly for logging)
+  async logout(userId: number) {
+    // In a stateless JWT system, logout is typically handled client-side
+    // by removing the token from storage. However, we can log the logout event
+    // or perform any cleanup if needed.
+
+    // Optional: Log logout event or update user status
+    // For now, we'll just return a success response
+    // In the future, you could implement token blacklisting if needed
+
+    return {
+      message: 'Successfully logged out',
+      timestamp: new Date().toISOString(),
     };
   }
 }

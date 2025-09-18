@@ -1,12 +1,18 @@
 import { Injectable } from '@nestjs/common';
-import { Client } from 'postmark';
+import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class MailService {
-  private client: Client;
+  private transporter: nodemailer.Transporter;
 
   constructor() {
-    // this.client = new Client(process.env.POSTMARK_API_TOKEN);
+    this.transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_APP_PASSWORD,
+      },
+    });
   }
 
   async sendEmail(options: {
@@ -29,17 +35,18 @@ export class MailService {
     }
 
     const mailOptions = {
-      From: process.env.POSTMARK_FROM_EMAIL,
-      To: Array.isArray(to) ? to.join(',') : to,
-      Subject: subject,
-      HtmlBody: finalHtml || undefined,
-      TextBody: finalText || undefined,
+      from: process.env.GMAIL_USER,
+      to: Array.isArray(to) ? to.join(',') : to,
+      subject: subject,
+      html: finalHtml || undefined,
+      text: finalText || undefined,
     };
     console.log('mail options', mailOptions);
-    try {
-    //   const response = await this.client.sendEmail(mailOptions);
 
-    //   console.log(`Email sent to ${to}:`, response);
+    try {
+      const response = await this.transporter.sendMail(mailOptions);
+
+      console.log(`Email sent to ${to}:`, response.messageId);
       return true;
     } catch (error) {
       console.error('Error sending email:', error);
@@ -54,19 +61,27 @@ export class MailService {
     return template.replace(/\${(\w+)}/g, (_, key) => context[key] || '');
   }
 
-  async sendPasswordEmail(email: string, password: string) {
+  async sendPasswordEmail(
+    email: string,
+    password: string,
+    isResetPassword: boolean = false,
+  ) {
+    let subject = 'Your Account Password';
+    if (isResetPassword) {
+      subject = 'Your Reset Password';
+    }
     const template = `
-      <h1>Welcome to Our Platform</h1>
-      <p>Your account has been created successfully.</p>
+      <h1>${subject}</h1>
+      <p>${isResetPassword ? 'Your password has been reset successfully.' : 'Your account has been created successfully.'}</p>
       <p>Your temporary password is: <strong>${password}</strong></p>
       <p>Please change your password after your first login.</p>
     `;
 
     return this.sendEmail({
       to: email,
-      subject: 'Your Account Password',
+      subject: subject,
       html: template,
-      text: `Your account has been created. Your temporary password is: ${password}`,
+      text: `${isResetPassword ? 'Your password has been reset.' : 'Your account has been created.'} Your temporary password is: ${password}`,
     });
   }
 

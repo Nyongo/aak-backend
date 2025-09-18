@@ -13,6 +13,7 @@ model User {
   createdAt             DateTime    @default(now())
   email                 String      @unique
   name                  String
+  phoneNumber           String?
   roleId                Int?
   isActive              Boolean     @default(true)
   lastLoggedInOn        DateTime?
@@ -23,6 +24,7 @@ model User {
   updatedPesticides     Pesticide[] @relation("LastUpdatedBy")
   sspUser               SspUser?    @relation("UserSspUser")
   role                  Role?       @relation(fields: [roleId], references: [id])
+  customer              Customer?
 }
 
 model Role {
@@ -1264,6 +1266,7 @@ enum MessageStatus {
   CLOSED
 }
 
+
 model ContactMessage {
   id          String        @id @default(uuid())
   messageType MessageType
@@ -1277,4 +1280,19 @@ model ContactMessage {
   viewedAt    DateTime?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+}
+
+model Customer {
+  id              Int      @id @default(autoincrement())
+  companyLogo     String?
+  companyName     String
+  contactPerson   String
+  phoneNumber     String
+  emailAddress    String   @unique
+  numberOfSchools Int      @default(0)
+  isActive        Boolean  @default(true)
+  userId          Int?     @unique
+  user            User?    @relation(fields: [userId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

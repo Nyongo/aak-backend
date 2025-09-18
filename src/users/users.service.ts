@@ -34,6 +34,7 @@ export class UsersService {
         data: {
           email: createUserDto.email,
           name: createUserDto.name,
+          phoneNumber: createUserDto.phoneNumber || null,
           password: hashedPassword,
           roleId: createUserDto.roleId || null,
           isActive: createUserDto.isActive,
@@ -42,6 +43,7 @@ export class UsersService {
           id: true,
           email: true,
           name: true,
+          phoneNumber: true,
           roleId: true,
           role: true,
         },
@@ -82,6 +84,7 @@ export class UsersService {
           id: true,
           email: true,
           name: true,
+          phoneNumber: true,
           roleId: true,
           role: {
             include: {
@@ -134,6 +137,7 @@ export class UsersService {
           id: true,
           email: true,
           name: true,
+          phoneNumber: true,
           roleId: true,
           role: {
             include: {
@@ -171,12 +175,27 @@ export class UsersService {
       },
     });
   }
-  async findAll(page: number = 1, pageSize: number = 10) {
+  async findAll(page: number = 1, pageSize: number = 10, search?: string) {
     try {
       const skip = (page - 1) * pageSize;
       const take = pageSize;
+
+      // Build search conditions
+      const searchConditions = search
+        ? {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' as const } },
+              { email: { contains: search, mode: 'insensitive' as const } },
+              {
+                phoneNumber: { contains: search, mode: 'insensitive' as const },
+              },
+            ],
+          }
+        : {};
+
       const [data, totalItems] = await Promise.all([
         this.prisma.user.findMany({
+          where: searchConditions,
           skip,
           take,
           orderBy: {
@@ -186,6 +205,7 @@ export class UsersService {
             id: true,
             email: true,
             name: true,
+            phoneNumber: true,
             isActive: true,
             lastLoggedInOn: true,
             createdAt: true,
@@ -195,7 +215,7 @@ export class UsersService {
             sspUser: true,
           },
         }),
-        this.prisma.user.count(),
+        this.prisma.user.count({ where: searchConditions }),
       ]);
 
       const totalPages = Math.ceil(totalItems / pageSize);
@@ -292,7 +312,7 @@ export class UsersService {
   async hashPassword() {
     const generatedPassword = crypto.randomBytes(6).toString('hex');
     const hashedPassword = await bcrypt.hash(generatedPassword, 10);
-    return hashedPassword;
+    return { hashedPassword, generatedPassword };
   }
 
   async resetPassword(id: number) {
@@ -306,10 +326,27 @@ export class UsersService {
       },
     });
     console.log(user);
-    const tempPass = await this.hashPassword();
+    const passwordData = await this.hashPassword();
 
-    this.mailService.sendPasswordEmail(user.email, tempPass);
+    this.mailService.sendPasswordEmail(
+      user.email,
+      passwordData.generatedPassword,
+      true,
+    );
 
-    return user;
+    await this.prisma.user.update({
+      where: { id },
+      data: { password: passwordData.hashedPassword },
+    });
+    // await this.prisma.user.update({
+    //   where: { id },
+    //   data: { requirePasswordReset: false },
+    // });
+
+    return this.commonFunctions.returnFormattedResponse(
+      HttpStatus.OK,
+      `Password reset successfully. Password sent via email.`,
+      user,
+    );
   }
 }

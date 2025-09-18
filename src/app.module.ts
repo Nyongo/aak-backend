@@ -10,6 +10,7 @@ import { SspModule } from './ssp/ssp.module';
 import { JfModule } from './jf/jf.module';
 import { SslTrackerModule } from './ssl-tracker/ssl-tracker.module';
 import { FleetModule } from './fleet/fleet.module';
+import { AcademicSuiteModule } from './academic-suite/academic-suite.module';
 import { GoogleDriveModule } from 'nestjs-google-drive';
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { GoogleDriveModule } from 'nestjs-google-drive';
     JfModule,
     SslTrackerModule,
     FleetModule,
+    AcademicSuiteModule,
     GoogleDriveModule.register({
       clientId: 'your_google_client_id',
       clientSecret: 'your_google_client_secret',
