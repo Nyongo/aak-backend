@@ -1298,3 +1298,29 @@ model Customer {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
+
+model JoinUpskillApplication {
+  id                 String   @id @default(uuid())
+  teacherName        String
+  schoolName         String
+  teachingLevel      String
+  numberOfLearners   Int
+  yearsOfExperience  Int
+  email              String
+  phoneNumber        String
+  type               String? 
+  platform           String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model NewsletterSubscription {
+  id          String   @id @default(uuid())
+  name        String
+  email       String   @unique
+  organization String?
+  interests   String?
+  platform    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
