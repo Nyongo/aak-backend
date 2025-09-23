@@ -123,6 +123,10 @@ import { FileUploadService } from './services/file-upload.service';
 import { BackgroundUploadService } from './services/background-upload.service';
 import { JFNetworkContactPageService } from './services/jf-network-contact-page.service';
 import { JFNetworkContactPageController } from './controllers/jf-network-contact-page.controller';
+import { JoinUpskillController } from './controllers/join-upskill.controller';
+import { JoinUpskillService } from './services/join-upskill.service';
+import { NewsletterSubscriptionService } from './services/newsletter-subscription.service';
+import { NewsletterSubscriptionController } from './controllers/newsletter-subscription.controller';
 
 @Module({
   imports: [
@@ -195,6 +199,8 @@ import { JFNetworkContactPageController } from './controllers/jf-network-contact
     FileUploadService,
     BackgroundUploadService,
     JFNetworkContactPageService,
+    JoinUpskillService,
+    NewsletterSubscriptionService,
   ],
   controllers: [
     SpreadsheetController,
@@ -257,6 +263,8 @@ import { JFNetworkContactPageController } from './controllers/jf-network-contact
     DirectPaymentSchedulesMigrationController,
     LoansMigrationController,
     JFNetworkContactPageController,
+    JoinUpskillController,
+    NewsletterSubscriptionController
   ],
   exports: [GoogleDriveService, SheetsService],
 })
