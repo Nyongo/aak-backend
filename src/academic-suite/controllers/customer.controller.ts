@@ -21,7 +21,7 @@ import {
 } from '../dto/create-customer.dto';
 import { CustomerDbService } from '../services/customer-db.service';
 import { FileUploadService } from '../../jf/services/file-upload.service';
-import { GoogleDriveService } from '../../jf/services/google-drive.service';
+// Removed Google Drive dependency; we serve local file URLs
 
 interface ApiError {
   message: string;
@@ -32,15 +32,10 @@ interface ApiError {
 @Controller('academic-suite/customers')
 export class CustomerController {
   private readonly logger = new Logger(CustomerController.name);
-  private readonly GOOGLE_DRIVE_CUSTOMER_LOGOS_FOLDER_ID =
-    process.env.GOOGLE_DRIVE_CUSTOMER_LOGOS_FOLDER_ID;
-  private readonly GOOGLE_DRIVE_CUSTOMER_LOGOS_FOLDER_NAME =
-    process.env.GOOGLE_DRIVE_CUSTOMER_LOGOS_FOLDER_NAME;
 
   constructor(
     private readonly customerDbService: CustomerDbService,
     private readonly fileUploadService: FileUploadService,
-    private readonly googleDriveService: GoogleDriveService,
   ) {}
 
   @Post()
@@ -150,17 +145,14 @@ export class CustomerController {
         result = await this.customerDbService.findAll(pageNum, pageSizeNum);
       }
 
-      // Add Google Drive links for company logos
+      // Map companyLogo to app-hosted URL if present
       const customersWithLinks = await Promise.all(
         result.data.map(async (customer) => {
           const customerWithLinks = { ...customer };
           if (customer.companyLogo) {
-            const filename = customer.companyLogo.split('/').pop();
-            const fileLink = await this.googleDriveService.getFileLink(
-              filename,
-              this.GOOGLE_DRIVE_CUSTOMER_LOGOS_FOLDER_ID,
+            customerWithLinks.companyLogo = this.fileUploadService.getFileUrl(
+              customer.companyLogo,
             );
-            customerWithLinks.companyLogo = fileLink;
           }
           return customerWithLinks;
         }),
@@ -207,15 +199,12 @@ export class CustomerController {
         return { success: false, message: 'Customer not found' };
       }
 
-      // Add Google Drive link for company logo
+      // Map companyLogo to app-hosted URL if present
       const customerWithLinks = { ...customer };
       if (customer.companyLogo) {
-        const filename = customer.companyLogo.split('/').pop();
-        const fileLink = await this.googleDriveService.getFileLink(
-          filename,
-          this.GOOGLE_DRIVE_CUSTOMER_LOGOS_FOLDER_ID,
+        customerWithLinks.companyLogo = this.fileUploadService.getFileUrl(
+          customer.companyLogo,
         );
-        customerWithLinks.companyLogo = fileLink;
       }
 
       return { success: true, data: customerWithLinks };

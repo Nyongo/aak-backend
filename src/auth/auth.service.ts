@@ -39,6 +39,7 @@ export class AuthService {
       return null; // No user found
     }
 
+    console.log(user);
     // Compare hashed password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {

@@ -28,7 +28,7 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     httpsOptions,
   });
-  //const app = await NestFactory.create<NestExpressApplication>(AppModule, {});
+  // const app = await NestFactory.create<NestExpressApplication>(AppModule, {});
   // Enable CORS
   app.enableCors({
     origin: [
@@ -50,8 +50,8 @@ async function bootstrap() {
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
-  // Serve static files
-  app.useStaticAssets(join(__dirname, '..', 'uploads'), {
+  // Serve static files from project root uploads directory
+  app.useStaticAssets(join(process.cwd(), 'uploads'), {
     prefix: '/uploads/',
   });
 

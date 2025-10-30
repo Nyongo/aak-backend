@@ -37,7 +37,7 @@ export class CustomerDbService {
         name: customerData.contactPerson,
         phoneNumber: customerData.phoneNumber,
         password: hashedPassword,
-        roleId: 2, // Default role for customers
+        roleId: null, // No role required for now
         requirePasswordReset: true,
         createdAt: new Date(),
         lastPasswordChangedOn: new Date(),

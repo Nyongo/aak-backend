@@ -123,6 +123,8 @@ import { FileUploadService } from './services/file-upload.service';
 import { BackgroundUploadService } from './services/background-upload.service';
 import { JFNetworkContactPageService } from './services/jf-network-contact-page.service';
 import { JFNetworkContactPageController } from './controllers/jf-network-contact-page.controller';
+import { LeadsController } from './controllers/leads.controller';
+import { ZohoCrmService } from './services/zoho-crm.service';
 
 @Module({
   imports: [
@@ -195,6 +197,7 @@ import { JFNetworkContactPageController } from './controllers/jf-network-contact
     FileUploadService,
     BackgroundUploadService,
     JFNetworkContactPageService,
+    ZohoCrmService,
   ],
   controllers: [
     SpreadsheetController,
@@ -257,6 +260,7 @@ import { JFNetworkContactPageController } from './controllers/jf-network-contact
     DirectPaymentSchedulesMigrationController,
     LoansMigrationController,
     JFNetworkContactPageController,
+    LeadsController,
   ],
   exports: [GoogleDriveService, SheetsService],
 })

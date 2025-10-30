@@ -461,8 +461,128 @@ model School {
   locationPin        String?
   sslId              String?
   dailyWorkPlans     DailyWorkPlan[]
+  // New fields for Academic Suite integration
+  customerId         Int?
+  customer           Customer?       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  logo               String?
+  latitude           String?
+  longitude          String?
+  url                String?
+  // Back relation to buses
+  buses              Bus[]
+  // Back relation to school drivers
+  schoolDrivers      SchoolDriver[]
+  // Back relation to school minders
+  schoolMinders      SchoolMinder[]
+  // Back relation to school parents
+  schoolParents      SchoolParent[]
+  // Back relation to students
+  students           Student[]
+  // Back relation to routes
+  routes             Route[]
 
   @@map("schools")
+}
+
+model SchoolDriver {
+  id                 String   @id @default(uuid())
+  name               String
+  phoneNumber        String
+  schoolId           String
+  school             School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  photo              String?
+  pin                String   @unique
+  status             String   @default("Active")
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  createdById        Int?
+  lastUpdatedById    Int?
+
+  @@map("school_drivers")
+}
+
+model SchoolMinder {
+  id                 String   @id @default(uuid())
+  name               String
+  phoneNumber        String
+  schoolId           String
+  school             School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  photo              String?
+  pin                String   @unique
+  status             String   @default("Active")
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  createdById        Int?
+  lastUpdatedById    Int?
+
+  @@map("school_minders")
+}
+
+model SchoolParent {
+  id               String          @id @default(uuid())
+  name             String
+  parentType       String          // e.g., Mother, Father, Guardian
+  phoneNumber      String
+  email            String?
+  status           String          @default("Active")
+  isActive         Boolean         @default(true)
+  schoolId         String
+  school           School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  createdById      Int?
+  lastUpdatedById  Int?
+  // Back relation to students
+  students         Student[]
+  // Back relation to addresses
+  addresses        ParentAddress[]
+
+  @@map("school_parents")
+}
+
+model Student {
+  id               String         @id @default(uuid())
+  name             String
+  admissionNumber  String         @unique
+  dateOfBirth      String
+  gender           String
+  status           String         @default("Active")
+  specialNeeds     String[]       @default([])
+  medicalInfo      String
+  photo            String?
+  isActive         Boolean        @default(true)
+  schoolId         String
+  school           School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  parentId         String
+  parent           SchoolParent   @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  createdById      Int?
+  lastUpdatedById  Int?
+  // Many-to-many relation with routes
+  routeStudents    RouteStudent[]
+
+  @@map("students")
+}
+
+model ParentAddress {
+  id               String       @id @default(uuid())
+  addressType      String       // e.g., Home, Work, Other
+  location         String       // Full address
+  longitude        Float?
+  latitude         Float?
+  status           String       @default("Active")
+  isPrimary        Boolean      @default(false)
+  parentId         String
+  parent           SchoolParent @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  createdById      Int?
+  lastUpdatedById  Int?
+
+  @@map("parent_addresses")
 }
 
 model Vehicle {
@@ -1266,6 +1386,19 @@ enum MessageStatus {
   CLOSED
 }
 
+enum TripType {
+  MORNING_PICKUP
+  EVENING_DROPOFF
+  FIELD_TRIP
+  EXTRA_CURRICULUM
+  EMERGENCY
+}
+
+enum RiderType {
+  DAILY
+  OCCASIONAL
+}
+
 
 model ContactMessage {
   id          String   @id @default(uuid())
@@ -1297,4 +1430,63 @@ model Customer {
   user            User?    @relation(fields: [userId], references: [id])
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  // Back relation to schools
+  schools         School[]
+}
+
+model Bus {
+  id               String   @id @default(uuid())
+  registrationNumber String @unique
+  schoolId         String
+  school           School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  make             String
+  model            String
+  seatsCapacity    Int
+  type             String
+  status           String   @default("Active")
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  createdById      Int?
+  lastUpdatedById  Int?
+  // Relations to routes
+  routes           Route[]
+
+  @@map("buses")
+}
+
+model Route {
+  id            String        @id @default(uuid())
+  name          String
+  schoolId      String
+  school        School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  tripType      TripType
+  description   String?
+  status        String        @default("Active")
+  isActive      Boolean       @default(true)
+  busId         String?
+  bus           Bus?          @relation(fields: [busId], references: [id], onDelete: SetNull)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  createdById   Int?
+  lastUpdatedById Int?
+  // Many-to-many relation with students
+  routeStudents RouteStudent[]
+
+  @@map("routes")
+}
+
+model RouteStudent {
+  id         String     @id @default(uuid())
+  routeId    String
+  route      Route      @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  studentId  String
+  student    Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  riderType  RiderType  @default(DAILY)
+  isActive   Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@unique([routeId, studentId])
+  @@map("route_students")
 }

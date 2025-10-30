@@ -11,17 +11,11 @@
 -- CreateEnum
 CREATE TYPE "CustomerStatus" AS ENUM ('ACTIVE', 'INACTIVE', 'PENDING', 'SUSPENDED');
 
--- Normalize existing ContactMessage enum values before altering enums
--- MessageStatus: map deprecated values to new ones
-UPDATE "ContactMessage" SET "status" = 'NEW' WHERE "status" IN ('UNREAD');
-UPDATE "ContactMessage" SET "status" = 'RESOLVED' WHERE "status" IN ('READ');
+-- NOTE: We cannot set 'NEW' before the enum supports it. Perform mapping AFTER enum alteration.
 
--- MessageType: map deprecated values to the new enum variants
-UPDATE "ContactMessage" SET "messageType" = 'GENERAL_INQUIRY' WHERE "messageType" IN ('NORMAL', 'ENQUIRY');
-UPDATE "ContactMessage" SET "messageType" = 'PARTNERSHIP_INQUIRY' WHERE "messageType" = 'PARTNER';
+-- MessageType value remapping must occur after the enum is altered below
 
--- Platform: map deprecated values to the new enum variants
-UPDATE "ContactMessage" SET "platform" = 'WEBSITE' WHERE "platform" IN ('JF_NETWORK', 'JF_FOUNDATION', 'JF_FINANCE', 'JF_HUB');
+-- Platform value remapping must occur after the enum is altered below
 
 -- AlterEnum
 BEGIN;
@@ -34,6 +28,10 @@ DROP TYPE "MessageStatus_old";
 ALTER TABLE "ContactMessage" ALTER COLUMN "status" SET DEFAULT 'NEW';
 COMMIT;
 
+-- Now that the enum has 'NEW' and 'RESOLVED', perform the value migrations safely
+UPDATE "ContactMessage" SET "status" = 'NEW' WHERE "status"::text IN ('UNREAD');
+UPDATE "ContactMessage" SET "status" = 'RESOLVED' WHERE "status"::text IN ('READ');
+
 -- AlterEnum
 BEGIN;
 CREATE TYPE "MessageType_new" AS ENUM ('GENERAL_INQUIRY', 'SUPPORT_REQUEST', 'PARTNERSHIP_INQUIRY', 'FEEDBACK', 'OTHER');
@@ -43,6 +41,10 @@ ALTER TYPE "MessageType_new" RENAME TO "MessageType";
 DROP TYPE "MessageType_old";
 COMMIT;
 
+-- Now map MessageType old values to the new enum variants
+UPDATE "ContactMessage" SET "messageType" = 'GENERAL_INQUIRY' WHERE "messageType"::text IN ('NORMAL', 'ENQUIRY');
+UPDATE "ContactMessage" SET "messageType" = 'PARTNERSHIP_INQUIRY' WHERE "messageType"::text = 'PARTNER';
+
 -- AlterEnum
 BEGIN;
 CREATE TYPE "Platform_new" AS ENUM ('WEBSITE', 'MOBILE_APP', 'API', 'EMAIL', 'PHONE');
@@ -51,6 +53,9 @@ ALTER TYPE "Platform" RENAME TO "Platform_old";
 ALTER TYPE "Platform_new" RENAME TO "Platform";
 DROP TYPE "Platform_old";
 COMMIT;
+
+-- Now map Platform old values to the new enum variants
+UPDATE "ContactMessage" SET "platform" = 'WEBSITE' WHERE "platform"::text IN ('JF_NETWORK', 'JF_FOUNDATION', 'JF_FINANCE', 'JF_HUB');
 
 -- Add updatedAt with a default to satisfy NOT NULL on existing rows
 ALTER TABLE "ContactMessage" ADD COLUMN     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

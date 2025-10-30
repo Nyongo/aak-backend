@@ -27,7 +27,7 @@ export class UsersService {
       }
 
       const generatedPassword = crypto.randomBytes(6).toString('hex');
-
+      console.log(generatedPassword);
       const hashedPassword = await bcrypt.hash(generatedPassword, 10);
 
       const newUser = await this.prisma.user.create({
