@@ -16,6 +16,7 @@ import * as fs from 'fs';
 import * as bodyParser from 'body-parser';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
+import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const httpsOptions = {
@@ -28,7 +29,7 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     httpsOptions,
   });
-  // const app = await NestFactory.create<NestExpressApplication>(AppModule, {});
+  //const app = await NestFactory.create<NestExpressApplication>(AppModule, {});
   // Enable CORS
   app.enableCors({
     origin: [
@@ -69,6 +70,16 @@ async function bootstrap() {
   // Apply global filters
   app.useGlobalFilters(new ValidationExceptionFilter());
   app.useGlobalFilters(new PrismaExceptionFilter());
+
+  // Apply global validation pipe with transformation so numeric strings become numbers
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
 
   await app.listen(port, host);
   console.log(`🚀 Server is running on https://${host}:${port}`);

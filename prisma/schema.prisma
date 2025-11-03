@@ -1490,3 +1490,84 @@ model RouteStudent {
   @@unique([routeId, studentId])
   @@map("route_students")
 }
+
+model ProductCategory {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  status      String    @default("Active")
+  description String?
+  imageUrl    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  suppliers   Supplier[]
+  products    Product[]
+  
+  @@map("product_categories")
+}
+
+model Supplier {
+  id           Int       @id @default(autoincrement())
+  company      String    @unique
+  contactPerson String
+  email        String    @unique
+  phone        String?
+  logoUrl      String?
+  categoryId   Int?
+  category     ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  notes        String?
+  status       String    @default("Active")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  products     Product[]
+  
+  @@map("suppliers")
+}
+
+model Product {
+  id            Int       @id @default(autoincrement())
+  name          String
+  supplierId    Int?
+  categoryId    Int?
+  price         Float?
+  stock         Int       @default(0)
+  imageUrl      String?
+  description   String?
+  status        String    @default("Active")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  supplier      Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  category      ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  orderItems    SalesOrderItem[]
+  
+  @@map("products")
+}
+
+model SalesOrder {
+  id              Int               @id @default(autoincrement())
+  customerName    String
+  customerEmail   String
+  customerPhone   String
+  totalAmount     Float
+  status          String            @default("Pending")
+  notes           String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  orderItems      SalesOrderItem[]
+  
+  @@map("sales_orders")
+}
+
+model SalesOrderItem {
+  id            Int         @id @default(autoincrement())
+  orderId       Int
+  productId     Int
+  quantity      Int
+  unitPrice     Float
+  totalPrice    Float
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  order         SalesOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product       Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  @@map("sales_order_items")
+}

@@ -12,6 +12,7 @@ import { SslTrackerModule } from './ssl-tracker/ssl-tracker.module';
 import { FleetModule } from './fleet/fleet.module';
 import { AcademicSuiteModule } from './academic-suite/academic-suite.module';
 import { GoogleDriveModule } from 'nestjs-google-drive';
+import { EcommerceModule } from './ecommerce/ecommerce.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -26,6 +27,7 @@ import { GoogleDriveModule } from 'nestjs-google-drive';
     SslTrackerModule,
     FleetModule,
     AcademicSuiteModule,
+    EcommerceModule,
     GoogleDriveModule.register({
       clientId: 'your_google_client_id',
       clientSecret: 'your_google_client_secret',
