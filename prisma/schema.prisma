@@ -428,6 +428,11 @@ model DailyWorkPlan {
   taskOfTheDay             String?
   teamLeaderId             String?
   schoolId                 String?
+  transportCost            Float?
+  isVerified               Boolean  @default(false)
+  verifiedOn               DateTime?
+  verifiedBy               String?
+  isPaid                   Boolean  @default(false)
   school                   School?  @relation(fields: [schoolId], references: [id])
   sslStaff                 SslStaff @relation(fields: [sslStaffId], references: [id], onDelete: Cascade)
 

@@ -8,9 +8,13 @@ import {
   Param,
   Logger,
   Query,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CommonFunctionsService } from '../../common/services/common-functions.service';
+import { CreateDailyWorkPlanDto } from '../dtos/create-daily-work-plan.dto';
+import { UpdateDailyWorkPlanDto } from '../dtos/update-daily-work-plan.dto';
 
 interface ApiError {
   message: string;
@@ -233,27 +237,8 @@ export class DailyWorkPlanController {
   // }
 
   @Post()
-  async createDailyWorkPlan(
-    @Body()
-    createDto: {
-      date: string;
-      plannedVisit: string;
-      actualGpsCoordinates?: string;
-      callsMadeDescription: string;
-      notes?: string;
-      supervisorReview?: string;
-      status?: string;
-      sslStaffId: string; // Changed from number to string
-      schoolId?: string; // New field for school reference
-      teamLeaderId?: string;
-      schoolName?: string;
-      region?: string;
-      taskOfTheDay?: string;
-      pinnedLocation?: string;
-      locationIsVerified?: boolean;
-      marketingOfficerComments?: string;
-    },
-  ) {
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
+  async createDailyWorkPlan(@Body() createDto: CreateDailyWorkPlanDto) {
     try {
       this.logger.debug('Creating new daily work plan', createDto);
 
@@ -302,6 +287,11 @@ export class DailyWorkPlanController {
       // TODO: Get the actual user ID from the authenticated session
       const createdById = 1; // This should come from the authenticated user
 
+      // Set verifiedOn and verifiedBy when isVerified is true
+      const isVerified = createDto.isVerified;
+      const verifiedOn = isVerified ? new Date() : null;
+      const verifiedBy = isVerified ? createDto.verifiedBy || null : null;
+
       const newRecord = await this.prisma.dailyWorkPlan.create({
         data: {
           date: new Date(createDto.date),
@@ -320,6 +310,11 @@ export class DailyWorkPlanController {
           pinnedLocation: createDto.pinnedLocation || null,
           locationIsVerified: createDto.locationIsVerified || false,
           marketingOfficerComments: createDto.marketingOfficerComments || null,
+          transportCost: createDto.transportCost,
+          isVerified: isVerified,
+          verifiedOn: verifiedOn,
+          verifiedBy: verifiedBy,
+          isPaid: createDto.isPaid,
           createdById,
         },
         include: {
@@ -359,27 +354,10 @@ export class DailyWorkPlanController {
   }
 
   @Put(':id')
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
   async updateDailyWorkPlan(
     @Param('id') id: string,
-    @Body()
-    updateDto: {
-      date?: string;
-      plannedVisit?: string;
-      actualGpsCoordinates?: string;
-      callsMadeDescription?: string;
-      notes?: string;
-      supervisorReview?: string;
-      status?: string;
-      sslStaffId?: string; // Changed from number to string
-      schoolId?: string; // New field for school reference
-      teamLeaderId?: string;
-      schoolName?: string;
-      region?: string;
-      taskOfTheDay?: string;
-      pinnedLocation?: string;
-      locationIsVerified?: boolean;
-      marketingOfficerComments?: string;
-    },
+    @Body() updateDto: UpdateDailyWorkPlanDto,
   ) {
     try {
       this.logger.debug(`Updating daily work plan with ID: ${id}`, updateDto);
@@ -449,6 +427,24 @@ export class DailyWorkPlanController {
         updateData.teamLeaderId =
           updateDto.teamLeaderId || sslStaff.teamLeader || null;
         updateData.region = updateDto.region || sslStaff.sslArea || null;
+      }
+
+      // Handle verifiedOn and verifiedBy when isVerified changes
+      if (updateDto.hasOwnProperty('isVerified')) {
+        if (updateDto.isVerified === true) {
+          // Set verifiedOn to current date and verifiedBy if provided
+          updateData.verifiedOn = new Date();
+          if (updateDto.verifiedBy) {
+            updateData.verifiedBy = updateDto.verifiedBy;
+          }
+        } else if (updateDto.isVerified === false) {
+          // Clear verifiedOn and verifiedBy when unverified
+          updateData.verifiedOn = null;
+          updateData.verifiedBy = null;
+        }
+      } else if (updateDto.verifiedBy && existingRecord.isVerified) {
+        // If only verifiedBy is being updated and record is already verified
+        updateData.verifiedBy = updateDto.verifiedBy;
       }
 
       updateData.lastUpdatedById = lastUpdatedById;
