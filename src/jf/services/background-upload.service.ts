@@ -388,23 +388,43 @@ export class BackgroundUploadService {
       try {
         const googleDriveUrl = `${process.env.GOOGLE_DRIVE_CREDIT_APPLICATIONS_IMAGES_FOLDER_NAME}/${task.fileName}`;
 
-        await this.creditApplicationsDbService.update(
-          task.creditApplicationId.toString(),
+        // Update the database with Google Drive URL using numeric ID
+        await this.creditApplicationsDbService.updateById(
+          task.creditApplicationId,
           {
             [task.creditApplicationFieldName]: googleDriveUrl,
           },
         );
 
         this.logger.log(
-          `Updated database for credit application ${task.creditApplicationId}, field ${task.creditApplicationFieldName} with Google Drive URL`,
+          `Updated database for credit application ${task.creditApplicationId}, field ${task.creditApplicationFieldName} with Google Drive URL: ${googleDriveUrl}`,
         );
 
         // Database updated with Google Drive URL
         // Trigger automatic sync after a delay to update Google Sheets
+        // Fetch the updated credit application to get the sheetId for syncing
         setTimeout(async () => {
           try {
+            // Fetch the latest data including the updated Google Drive URL and sheetId
+            const updatedCreditApplication = await this.creditApplicationsDbService.findById(
+              task.creditApplicationId.toString(),
+            );
+
+            if (!updatedCreditApplication) {
+              this.logger.error(
+                `Credit application ${task.creditApplicationId} not found after database update`,
+              );
+              return;
+            }
+
+            const sheetId = updatedCreditApplication.sheetId;
+            this.logger.log(
+              `Syncing credit application ${task.creditApplicationId} to Google Sheets with sheetId: ${sheetId}, photoOfCheck: ${updatedCreditApplication.photoOfCheck}`,
+            );
+
             await this.creditApplicationsSyncService.syncCreditApplicationById(
               task.creditApplicationId,
+              sheetId,
             );
             this.logger.log(
               `Automatically synced credit application ${task.creditApplicationId} to Google Sheets with updated file URL`,

@@ -372,6 +372,15 @@ export class CreditApplicationsSyncService {
       // Add the database ID to the credit application data for sync service
       (creditApplicationInSheetFormat as any).dbId = creditApplication.id;
 
+      // Log the converted sheet format to verify "Photo of Check" is included
+      this.logger.debug(
+        `Credit application in sheet format - Photo of Check: ${creditApplicationInSheetFormat['Photo of Check']}`,
+      );
+      this.logger.debug(
+        `Full credit application in sheet format:`,
+        creditApplicationInSheetFormat,
+      );
+
       // If a sheetId is provided, use it as the permanent ID
       if (sheetId) {
         creditApplicationInSheetFormat.sheetId = sheetId;

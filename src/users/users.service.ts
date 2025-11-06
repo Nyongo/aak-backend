@@ -118,6 +118,70 @@ export class UsersService {
     }
   }
 
+  async findOneByEmail(email: string): Promise<any> {
+    try {
+      //ssl staff table
+      const user = await this.prisma.sslStaff.findFirst({
+        where: { email },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          phoneNumber: true,
+          type: true,
+          borrowerId: true,
+          sslId: true,
+          nationalIdNumber: true,
+          nationalIdFront: true,
+          nationalIdBack: true,
+          kraPinNumber: true,
+          kraPinPhoto: true,
+          passportPhoto: true,
+          sslLevel: true,
+          sslArea: true,
+          isActive: true,
+          createdAt: true,
+          lastUpdatedAt: true,
+          createdById: true,
+          lastUpdatedById: true,
+          roleInSchool: true,
+          dateOfBirth: true,
+          address: true,
+          gender: true,
+          postalAddress: true,
+          startDate: true,
+          insuredForCreditLife: true,
+          paymentThisMonth: true,
+          terminationDate: true,
+          educationLevel: true,
+          sslEmail: true,
+          secondaryRole: true,
+          monthlyTarget: true,
+          creditLifeHelper: true,
+          teamLeader: true,
+        },
+      });
+      if (!user) {
+        return this.commonFunctions.returnFormattedResponse(
+          HttpStatus.NOT_FOUND,
+          'No record found',
+          null,
+        );
+      }
+      return this.commonFunctions.returnFormattedResponse(
+        HttpStatus.OK,
+        'Retrieved Successfully',
+        user,
+      );
+    } catch (error) {
+      if (error instanceof PrismaClientKnownRequestError) {
+        return this.commonFunctions.handlePrismaError(error);
+      }
+      console.error('Unknown error in find one by email:', error);
+      return this.commonFunctions.handleUnknownError(error);
+    }
+  }
+
   async update(id: number, updateUserDto: any): Promise<any> {
     try {
       const { email, password, ...updateData } = updateUserDto;

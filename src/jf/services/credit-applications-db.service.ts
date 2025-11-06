@@ -153,6 +153,22 @@ export class CreditApplicationsDbService {
   }
 
   /**
+   * Update credit application by database ID
+   */
+  async updateById(id: number, data: any) {
+    const convertedData = this.convertDataTypes(data);
+    this.logger.log('Updating credit application by ID with data:', {
+      id,
+      allConvertedData: convertedData,
+    });
+
+    return this.prisma.creditApplication.update({
+      where: { id },
+      data: convertedData,
+    });
+  }
+
+  /**
    * Update sync status
    */
   async updateSyncStatus(id: number, synced: boolean) {

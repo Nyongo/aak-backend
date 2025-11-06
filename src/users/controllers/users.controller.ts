@@ -42,6 +42,12 @@ export class UsersController {
     return this.usersService.findOne(Number(id));
   }
 
+  @Get('by-email/:email')
+  // @Permissions('can_view_users')
+  async findUserByEmail(@Param('email') email: string) {
+    return this.usersService.findOneByEmail(email);
+  }
+
   @Put(':id')
   async update(@Param('id') id: string, @Body() data: Prisma.UserUpdateInput) {
     return this.usersService.update(Number(id), data);

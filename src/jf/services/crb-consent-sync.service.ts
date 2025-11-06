@@ -95,7 +95,8 @@ export class CrbConsentSyncService {
   async syncConsentToSheet(consent: any) {
     const borrowerId = consent['Borrower ID'];
     const signedByName = consent['Signed By Name'];
-    const sheetId = consent.sheetId || consent.ID;
+    // Handle both 'ID' and 'id' column names
+    const sheetId = consent.sheetId || consent.ID || consent.id || consent.Id;
 
     this.logger.debug(`Syncing CRB consent:`, {
       borrowerId,
@@ -160,11 +161,12 @@ export class CrbConsentSyncService {
       }
     }
 
-    // 2. If we have a temporary sheetId, always create a new record
+    // 2. If we have a sheetId starting with 'CRB-', create a new record with this ID
     // This allows multiple CRB consents for the same director
+    // The sheetId is permanent from creation and will be saved in the sheet's "id" column
     if (sheetId && sheetId.startsWith('CRB-')) {
       this.logger.debug(
-        `Temporary sheetId detected, creating new CRB consent:`,
+        `Creating new CRB consent with permanent sheetId:`,
         {
           borrowerId: borrowerId,
           signedByName: signedByName,
@@ -173,9 +175,9 @@ export class CrbConsentSyncService {
       );
 
       let result;
-      // Use our temporary sheetId as the permanent ID in the sheet
+      // Save the permanent sheetId in the sheet's "id" column
       this.logger.debug(
-        `Creating new CRB consent with temporary sheetId as permanent ID: ${sheetId}`,
+        `Creating new CRB consent with permanent ID: ${sheetId}`,
       );
       result = await this.sheetsService.addCrbConsentWithId(consent, sheetId);
 
@@ -183,19 +185,20 @@ export class CrbConsentSyncService {
         `Added new CRB consent to sheet: ${borrowerId || signedByName} (ID: ${result.ID})`,
       );
 
-      // Update the Postgres record with the final sheet ID if we have the database ID
+      // Update the Postgres record to ensure sheetId matches the ID in the sheet
       if (consent.dbId && result.ID) {
         try {
-          // If we used a temporary sheetId, it should now be the permanent ID
-          if (result.ID !== sheetId) {
-            await this.crbConsentDbService.updateSheetId(
-              consent.dbId,
-              result.ID,
-            );
-            this.logger.debug(
-              `Updated sheetId in database from ${sheetId} to ${result.ID}`,
-            );
-          }
+          // The sheetId saved in the database should match the ID value in the sheet's "id" column
+          const sheetIdValue = result.ID; // This should be the same as sheetId we passed
+          
+          // Update database to ensure consistency - sheetId in PG should match id in sheet
+          await this.crbConsentDbService.updateSheetId(
+            consent.dbId,
+            sheetIdValue,
+          );
+          this.logger.debug(
+            `Updated sheetId in database to match sheet ID column value: ${sheetIdValue}`,
+          );
 
           // Mark as synced
           await this.crbConsentDbService.updateSyncStatus(consent.dbId, true);
@@ -225,12 +228,14 @@ export class CrbConsentSyncService {
     if (existingConsent) {
       // Update existing record
       try {
+        // Get ID regardless of case (ID, id, or Id)
+        const existingId = existingConsent.ID || existingConsent.id || existingConsent.Id;
         this.logger.debug(
-          `Found existing CRB consent in sheet, updating: ${existingConsent.ID}`,
+          `Found existing CRB consent in sheet, updating: ${existingId}`,
         );
-        await this.sheetsService.updateCrbConsent(existingConsent.ID, consent);
+        await this.sheetsService.updateCrbConsent(existingId, consent);
         this.logger.debug(
-          `Updated existing CRB consent in sheet: ${borrowerId || signedByName} (ID: ${existingConsent.ID})`,
+          `Updated existing CRB consent in sheet: ${borrowerId || signedByName} (ID: ${existingId})`,
         );
 
         // Update the Postgres record to mark as synced
@@ -249,8 +254,9 @@ export class CrbConsentSyncService {
 
         return; // Successfully updated, exit
       } catch (error) {
+        const existingId = existingConsent.ID || existingConsent.id || existingConsent.Id;
         this.logger.error(
-          `Failed to update existing consent ${existingConsent.ID}: ${error}`,
+          `Failed to update existing consent ${existingId}: ${error}`,
         );
         throw error;
       }
@@ -380,7 +386,13 @@ export class CrbConsentSyncService {
   private async checkSheetIdExists(sheetId: string): Promise<boolean> {
     try {
       const consents = await this.sheetsService.getCrbConsents();
-      const exists = consents.some((consent) => consent.ID === sheetId);
+      // Check for both 'ID' and 'id' column names (case-insensitive)
+      const exists = consents.some(
+        (consent) =>
+          consent.ID === sheetId ||
+          consent.id === sheetId ||
+          consent.Id === sheetId,
+      );
       this.logger.debug(
         `Checking if sheetId ${sheetId} exists in sheets: ${exists}`,
       );
@@ -407,7 +419,7 @@ export class CrbConsentSyncService {
       });
 
       this.logger.debug(
-        `Looking for existing consent with borrowerId: ${borrowerId}, signedByName: ${signedByName}, found: ${existingConsent ? existingConsent.ID : 'none'}`,
+        `Looking for existing consent with borrowerId: ${borrowerId}, signedByName: ${signedByName}, found: ${existingConsent ? (existingConsent.ID || existingConsent.id || existingConsent.Id) : 'none'}`,
       );
       return existingConsent || null;
     } catch (error) {

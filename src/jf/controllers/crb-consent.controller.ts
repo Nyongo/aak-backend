@@ -111,12 +111,13 @@ export class CrbConsentController {
         );
       }
 
-      // Generate a temporary sheetId for new consent
-      const temporarySheetId = `CRB-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+      // Generate a permanent sheetId for new consent
+      // This ID will be saved in the sheet's "id" column and used as the permanent identifier
+      const permanentSheetId = `CRB-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
 
       // Prepare consent data for database
       const consentDataForDb = {
-        sheetId: temporarySheetId,
+        sheetId: permanentSheetId,
         borrowerId: consentData['Borrower ID'],
         agreement: consentData['Agreement'] || '',
         signedByName: consentData['Signed By Name'],
@@ -129,7 +130,7 @@ export class CrbConsentController {
       // Save to database first
       const result = await this.crbConsentDbService.create(consentDataForDb);
       this.logger.log(
-        `CRB consent added successfully via Postgres with temporary sheetId: ${temporarySheetId}`,
+        `CRB consent added successfully via Postgres with permanent sheetId: ${permanentSheetId}`,
       );
 
       // Queue signature upload to Google Drive if provided
@@ -148,12 +149,12 @@ export class CrbConsentController {
       }
 
       // Trigger automatic sync to Google Sheets (non-blocking)
-      // Pass the temporary sheetId to ensure it becomes the permanent ID
+      // Pass the permanent sheetId to be saved in the sheet's "id" column
       this.triggerBackgroundSync(
         result.id,
         result.borrowerId,
         'create',
-        temporarySheetId,
+        permanentSheetId,
       );
 
       return {

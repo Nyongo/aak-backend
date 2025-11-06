@@ -1144,10 +1144,31 @@ export class SheetsService {
         }
       });
 
-      // Set the ID column with our specific ID
-      const idIndex = headers.findIndex((header) => header === 'ID');
+      // Set the ID column with our specific ID (permanent sheetId)
+      // Check for 'id' column with case-insensitive comparison
+      const idIndex = headers.findIndex(
+        (header) => header && header.toLowerCase().trim() === 'id',
+      );
       if (idIndex !== -1) {
         rowData[idIndex] = specificId;
+        this.logger.debug(
+          `Setting ID column (index ${idIndex}, header: "${headers[idIndex]}") with permanent ID: ${specificId}`,
+        );
+      } else {
+        this.logger.warn(
+          'ID column not found in sheet headers. Available headers:',
+          headers,
+        );
+        // Try to find it with exact match as fallback
+        const exactIdIndex = headers.findIndex(
+          (header) => header === 'ID' || header === 'id' || header === 'Id',
+        );
+        if (exactIdIndex !== -1) {
+          rowData[exactIdIndex] = specificId;
+          this.logger.debug(
+            `Setting ID column (fallback, index ${exactIdIndex}, header: "${headers[exactIdIndex]}") with permanent ID: ${specificId}`,
+          );
+        }
       }
 
       // Add Created At if exists
@@ -1195,10 +1216,18 @@ export class SheetsService {
       const rows = response.data.values;
       const headers = rows[0];
 
-      // Find ID column index
-      const idIndex = headers.findIndex((header) => header === 'ID');
+      // Find ID column index (case-insensitive - handles 'ID', 'id', 'Id')
+      let idIndex = headers.findIndex(
+        (header) => header && header.toLowerCase().trim() === 'id',
+      );
       if (idIndex === -1) {
-        throw new Error('ID column not found');
+        // Fallback to exact match
+        idIndex = headers.findIndex(
+          (header) => header === 'ID' || header === 'id' || header === 'Id',
+        );
+        if (idIndex === -1) {
+          throw new Error('ID column not found in sheet headers');
+        }
       }
 
       // Find the row for this consent
@@ -1602,11 +1631,28 @@ export class SheetsService {
         throw new Error('Credit application not found');
       }
       const currentData = rows[rowIndex];
+      
+      // Find the "Photo of Check" column index for logging
+      const photoOfCheckIndex = headers.findIndex(
+        (header) => header && header.toLowerCase().trim() === 'photo of check',
+      );
+      
+      // Log the update data to verify "Photo of Check" is included
+      this.logger.debug(
+        `Updating credit application in sheet - Photo of Check value: ${updateData['Photo of Check']}`,
+      );
+      if (photoOfCheckIndex !== -1) {
+        this.logger.debug(
+          `Photo of Check column found at index ${photoOfCheckIndex}, current value: ${currentData[photoOfCheckIndex]}, new value: ${updateData['Photo of Check']}`,
+        );
+      }
+      
       const updatedRowData = headers.map((header, index) => {
         return updateData[header] !== undefined
           ? updateData[header]
           : currentData[index] || '';
       });
+      
       await this.sheets.spreadsheets.values.update({
         spreadsheetId: this.BORROWERS_SHEET_ID,
         range: `Credit Applications!A${rowIndex + 1}:ZZ${rowIndex + 1}`,
@@ -1615,6 +1661,10 @@ export class SheetsService {
           values: [updatedRowData],
         },
       });
+      
+      this.logger.debug(
+        `Successfully updated credit application ${creditApplicationId} in sheet`,
+      );
       return {
         ...updateData,
         ID: creditApplicationId,
