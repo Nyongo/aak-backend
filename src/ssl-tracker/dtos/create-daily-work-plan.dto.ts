@@ -21,7 +21,6 @@ export class CreateDailyWorkPlanDto {
   actualGpsCoordinates?: string;
 
   @IsString()
-  @IsNotEmpty()
   callsMadeDescription: string;
 
   @IsString()
@@ -92,4 +91,3 @@ export class CreateDailyWorkPlanDto {
   @Type(() => Boolean)
   isPaid: boolean;
 }
-
