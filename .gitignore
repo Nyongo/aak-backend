@@ -61,7 +61,7 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 keys/
 
-#uploads
+#uploads - completely ignore uploads folder and all its contents
 /uploads
 uploads/
 **/uploads/
