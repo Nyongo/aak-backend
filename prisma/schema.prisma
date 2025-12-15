@@ -749,6 +749,8 @@ model Borrower {
   relatedDirPaymentSchedules  String?
   relatedCollateralsByLoanId  String?
   synced                      Boolean   @default(false)
+  cbsClientId                 Int?
+  cbsResourceId               Int?
 }
 
 model Director {

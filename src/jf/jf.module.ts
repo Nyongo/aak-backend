@@ -125,6 +125,7 @@ import { JFNetworkContactPageService } from './services/jf-network-contact-page.
 import { JFNetworkContactPageController } from './controllers/jf-network-contact-page.controller';
 import { LeadsController } from './controllers/leads.controller';
 import { ZohoCrmService } from './services/zoho-crm.service';
+import { CbsService } from './services/cbs.service';
 
 @Module({
   imports: [
@@ -198,6 +199,7 @@ import { ZohoCrmService } from './services/zoho-crm.service';
     BackgroundUploadService,
     JFNetworkContactPageService,
     ZohoCrmService,
+    CbsService,
   ],
   controllers: [
     SpreadsheetController,

@@ -17,6 +17,7 @@ import { BorrowersSyncService } from '../services/borrowers-sync.service';
 import { GoogleDriveService } from '../services/google-drive.service';
 import { BackgroundUploadService } from '../services/background-upload.service';
 import { FileUploadService } from '../services/file-upload.service';
+import { CbsService } from '../services/cbs.service';
 
 @Controller('jf/borrowers')
 export class BorrowersController {
@@ -50,6 +51,7 @@ export class BorrowersController {
     private readonly googleDriveService: GoogleDriveService,
     private readonly backgroundUploadService: BackgroundUploadService,
     private readonly fileUploadService: FileUploadService,
+    private readonly cbsService: CbsService,
   ) {}
 
   @Get('/')
@@ -279,6 +281,13 @@ export class BorrowersController {
       const result = await this.borrowersDbService.create(borrowerData);
 
       this.logger.log(`Borrower added successfully via Postgres`);
+
+      // Call CBS API to create client (non-blocking, don't fail if it fails)
+      this.createCbsClient(result).catch((error) => {
+        this.logger.error(
+          `Failed to create CBS client for borrower ${result.id}: ${error.message}`,
+        );
+      });
 
       // Trigger automatic sync to Google Sheets (non-blocking)
       this.triggerBackgroundSync(result.id, result.sslId, 'create');
@@ -863,6 +872,64 @@ export class BorrowersController {
       this.logger.error(
         `Background sync failed for ID: ${id}, SSL ID: ${sslId}, Action: ${action}: ${syncError}`,
       );
+    }
+  }
+
+  /**
+   * Creates a client in the CBS system for a borrower
+   * @param borrower - The borrower object
+   */
+  private async createCbsClient(borrower: any): Promise<void> {
+    try {
+      if (!borrower.name) {
+        this.logger.warn(
+          `Cannot create CBS client for borrower ${borrower.id}: name is missing`,
+        );
+        return;
+      }
+
+      this.logger.log(
+        `Creating CBS client for borrower: ${borrower.name} (ID: ${borrower.id})`,
+      );
+
+      // Format the submission date (use current date if not provided)
+      const submittedOnDate = this.cbsService.formatDateForCbs(
+        borrower.createdAt ? new Date(borrower.createdAt) : new Date(),
+      );
+
+      // Prepare CBS client request
+      const cbsRequest = {
+        officeId: 1, // Default office ID, can be made configurable
+        fullname: borrower.name,
+        externalId: borrower.sslId || borrower.sheetId || '',
+        dateFormat: 'dd MMMM yyyy',
+        locale: 'en',
+        active: false,
+        activationDate: '',
+        submittedOnDate: submittedOnDate,
+        savingsProductId: '',
+      };
+
+      // Call CBS API
+      const cbsResponse = await this.cbsService.createClient(cbsRequest);
+
+      // Update borrower with CBS client ID and resource ID
+      await this.borrowersDbService.update(borrower.id.toString(), {
+        cbsClientId: cbsResponse.clientId,
+        cbsResourceId: cbsResponse.resourceId,
+      });
+
+      this.logger.log(
+        `Successfully created CBS client for borrower ${borrower.id}. ClientId: ${cbsResponse.clientId}, ResourceId: ${cbsResponse.resourceId}`,
+      );
+    } catch (error) {
+      // Log error but don't throw - we don't want to fail the borrower creation if CBS fails
+      this.logger.error(
+        `Failed to create CBS client for borrower ${borrower.id}: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`,
+      );
+      throw error; // Re-throw to be caught by the caller
     }
   }
 }

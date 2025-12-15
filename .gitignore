@@ -63,3 +63,5 @@ keys/
 
 #uploads
 /uploads
+uploads/
+**/uploads/
