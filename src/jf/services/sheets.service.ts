@@ -3904,6 +3904,39 @@ export class SheetsService {
   //   }
   // }
 
+  async getPrincipalTranches(): Promise<any[]> {
+    try {
+      this.logger.debug('Fetching principal tranches from sheets');
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.BORROWERS_SHEET_ID,
+        range: 'Principal Tranches!A:ZZ',
+      });
+      const rows = response.data.values;
+      if (!rows || rows.length === 0) {
+        return [];
+      }
+      const headers = rows[0];
+
+      // Log the actual headers from Google Sheets for debugging
+      this.logger.log('Principal Tranches sheet headers:', headers);
+
+      const tranches = rows.slice(1).map((row) => {
+        const tranche = {};
+        headers.forEach((header, index) => {
+          tranche[header] = row[index] || '';
+        });
+        return tranche;
+      });
+      this.logger.log(
+        `Found ${tranches.length} principal tranches in Google Sheets`,
+      );
+      return tranches;
+    } catch (error) {
+      this.logger.error('Error fetching principal tranches:', error);
+      throw error;
+    }
+  }
+
   async getLoans(): Promise<any[]> {
     try {
       this.logger.log('Fetching loans from sheets');

@@ -1578,3 +1578,24 @@ model SalesOrderItem {
   
   @@map("sales_order_items")
 }
+
+model PrincipalTranche {
+  id                                  Int       @id @default(autoincrement())
+  sheetId                             String?   @unique
+  directLoanId                        String?
+  contractSigningDate                 String?
+  amount                              String?
+  sslId                               String?
+  initialDisbursementDateInContract   String?
+  dateTrancheHasGonePar30             String?
+  createdAt                           DateTime? @default(now())
+  createdBy                           String?
+  hasFemaleDirector                   String?
+  loanType                            String?
+  reassigned                          String?
+  teamLeader                          String?
+  region                              String?
+  synced                              Boolean   @default(false)
+  
+  @@map("principal_tranches")
+}

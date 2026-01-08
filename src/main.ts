@@ -12,13 +12,14 @@ import { ValidationExceptionFilter } from './common/filters/validation-exception
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 import { CommonFunctionsService } from './common/services/common-functions.service';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
-import * as fs from 'fs';
+import * as fs from 'fs'; // Not needed for local development (SSL disabled)
 import * as bodyParser from 'body-parser';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
+  // SSL configuration commented out for local development
   const httpsOptions = {
     key: fs.readFileSync('ssl/server.key'),
     cert: fs.readFileSync('ssl/server.cert'),
@@ -29,7 +30,7 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     httpsOptions,
   });
-  // const app = await NestFactory.create<NestExpressApplication>(AppModule, {});
+  //  const app = await NestFactory.create<NestExpressApplication>(AppModule, {});
   // Enable CORS
   app.enableCors({
     origin: [
@@ -84,6 +85,6 @@ async function bootstrap() {
   );
 
   await app.listen(port, host);
-  console.log(`🚀 Server is running on https://${host}:${port}`);
+  console.log(`🚀 Server is running on http://${host}:${port}`);
 }
 bootstrap();

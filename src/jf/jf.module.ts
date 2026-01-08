@@ -112,8 +112,12 @@ import { ContractDetailsMigrationController } from './controllers/contract-detai
 import { CreditApplicationCommentsMigrationController } from './controllers/credit-application-comments-migration.controller';
 import { DirectPaymentSchedulesController } from './controllers/direct-payment-schedules.controller';
 import { DirectPaymentSchedulesMigrationController } from './controllers/direct-payment-schedules-migration.controller';
+import { PrincipalTranchesController } from './controllers/principal-tranches.controller';
+import { PrincipalTranchesMigrationController } from './controllers/principal-tranches-migration.controller';
 import { DirectPaymentSchedulesDbService } from './services/direct-payment-schedules-db.service';
 import { DirectPaymentSchedulesSyncService } from './services/direct-payment-schedules-sync.service';
+import { PrincipalTranchesDbService } from './services/principal-tranches-db.service';
+import { PrincipalTranchesSyncService } from './services/principal-tranches-sync.service';
 import { LoansService } from './services/loans.service';
 import { LoansMigrationController } from './controllers/loans-migration.controller';
 
@@ -191,6 +195,8 @@ import { CbsService } from './services/cbs.service';
     CreditApplicationCommentsSyncService,
     DirectPaymentSchedulesDbService,
     DirectPaymentSchedulesSyncService,
+    PrincipalTranchesDbService,
+    PrincipalTranchesSyncService,
     LoansService,
     FinancialSurveysDbService,
     FinancialSurveysSyncService,
@@ -260,6 +266,8 @@ import { CbsService } from './services/cbs.service';
     CreditApplicationCommentsMigrationController,
     DirectPaymentSchedulesController,
     DirectPaymentSchedulesMigrationController,
+    PrincipalTranchesController,
+    PrincipalTranchesMigrationController,
     LoansMigrationController,
     JFNetworkContactPageController,
     LeadsController,
