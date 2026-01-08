@@ -235,62 +235,113 @@ export class DirectPaymentSchedulesDbService {
     };
   }
 
-  // Convert sheet record to database format
-  convertSheetToDb(sheetRecord: any) {
-    // Map the actual column names from the sheet to database fields
-    return {
-      sheetId: sheetRecord['ID'] || null, // The ID column becomes sheetId
+  // Mapping from Google Sheets column names to database field names
+  private sheetToDbMapping: Record<string, string> = {
+    ID: 'sheetId',
+    'Direct Loan ID': 'directLoanId',
+    'Borrower Type ': 'borrowerType', // Note: space at the end
+    'Borrower ID': 'borrowerId',
+    'Due Date': 'dueDate',
+    'Holiday Forgiveness?': 'holidayForgiveness',
+    'Amount Still Unpaid': 'amountStillUnpaid',
+    'Days Late': 'daysLate',
+    'Date Fully Paid': 'dateFullyPaid',
+    'Payment Overdue?': 'paymentOverdue',
+    'PAR 14': 'par14',
+    'PAR 30': 'par30',
+    'Check Cashing Status': 'checkCashingStatus',
+    'Debt Type': 'debtType',
+    'Notes on Payment': 'notesOnPayment',
+    'Adjusted Month': 'adjustedMonth',
+    'Credit Life Insurance Fees Charged': 'creditLifeInsuranceFeesCharged',
+    'Interest Charged without Forgiveness':
+      'interestChargedWithoutForgiveness',
+    'Principal Repayment without Forgiveness':
+      'principalRepaymentWithoutForgiveness',
+    'Vehicle Insurance Payment Due, without Forgiveness':
+      'vehicleInsurancePaymentDueWithoutForgiveness',
+    'Vehicle Insurance Payment Due': 'vehicleInsurancePaymentDue',
+    'Interest Repayment Due': 'interestRepaymentDue',
+    'Principal Repayment Due': 'principalRepaymentDue',
+    'Amount Due': 'amountDue',
+    'Amount Paid': 'amountPaid',
+    'Vehicle Insurance Premium Due without Forgiveness':
+      'vehicleInsurancePremiumDueWithoutForgiveness',
+    'Vehicle Insurance Surcharge Due without Forgiveness':
+      'vehicleInsuranceSurchargeDueWithoutForgiveness',
+    'Vehicle Insurance Premium Due with Forgiveness':
+      'vehicleInsurancePremiumDueWithForgiveness',
+    'Vehicle Insurance Surcharge Due with Forgiveness':
+      'vehicleInsuranceSurchargeDueWithForgiveness',
+    'Credit Life Insurance Fees Owed to Insurer':
+      'creditLifeInsuranceFeesOwedToInsurer',
+    'Credit Life Insurance Fee Payments Utilized':
+      'creditLifeInsuranceFeePaymentsUtilized',
+    'Credit Life Insurance Fee Insurance Expense':
+      'creditLifeInsuranceFeeInsuranceExpense',
+    'Vehicle Insurance Fees Owed to Insurer':
+      'vehicleInsuranceFeesOwedToInsurer',
+    'Vehicle Insurance Fees Utilized': 'vehicleInsuranceFeesUtilized',
+    'Created By': 'createdBy',
+    'Created At': 'createdAt', // Stored as string from sheet
+    'PAR 60': 'par60',
+    'PAR 90': 'par90',
+    'PAR 120': 'par120',
+    'SSL ID': 'sslId',
+    'Date to Bank Check': 'dateToBankCheck',
+    'Loan Category': 'loanCategory',
+    'Write Off Date': 'writeOffDate',
+    'Interest Suspended?': 'interestSuspended',
+    Region: 'region',
+    'Date for MPESA / Bank Transfer': 'dateForMpesaBankTransfer',
+  };
 
-      // Core fields from the sheet - exact column names
-      directLoanId: sheetRecord['Direct Loan ID'] || null,
-      borrowerType: sheetRecord['Borrower Type '] || null, // Note the space at the end
-      borrowerId: sheetRecord['Borrower ID'] || null,
-      dueDate: sheetRecord['Due Date'] || null,
-      holidayForgiveness: sheetRecord['Holiday Forgiveness?'] || null,
-      amountStillUnpaid: sheetRecord['Amount Still Unpaid'] || null,
-      daysLate: sheetRecord['Days Late'] || null,
-      dateFullyPaid: sheetRecord['Date Fully Paid'] || null,
-      paymentOverdue: sheetRecord['Payment Overdue?'] || null,
-      par14: sheetRecord['PAR 14'] || null,
-      par30: sheetRecord['PAR 30'] || null,
-      checkCashingStatus: sheetRecord['Check Cashing Status'] || null,
-      debtType: sheetRecord['Debt Type'] || null,
-      notesOnPayment: sheetRecord['Notes on Payment'] || null,
-      adjustedMonth: sheetRecord['Adjusted Month'] || null,
-      creditLifeInsuranceFeesCharged:
-        sheetRecord['Credit Life Insurance Fees Charged'] || null,
-      interestChargedWithoutForgiveness:
-        sheetRecord['Interest Charged without Forgiveness'] || null,
-      principalRepaymentWithoutForgiveness:
-        sheetRecord['Principal Repayment without Forgiveness'] || null,
-      vehicleInsurancePaymentDueWithoutForgiveness:
-        sheetRecord['Vehicle Insurance Payment Due, without Forgiveness'] ||
-        null,
-      vehicleInsurancePaymentDue:
-        sheetRecord['Vehicle Insurance Payment Due'] || null,
-      interestRepaymentDue: sheetRecord['Interest Repayment Due'] || null,
-      principalRepaymentDue: sheetRecord['Principal Repayment Due'] || null,
-      amountDue: sheetRecord['Amount Due'] || null,
-      amountPaid: sheetRecord['Amount Paid'] || null,
-      vehicleInsurancePremiumDueWithoutForgiveness:
-        sheetRecord['Vehicle Insurance Premium Due without Forgiveness'] ||
-        null,
-      vehicleInsuranceSurchargeDueWithoutForgiveness:
-        sheetRecord['Vehicle Insurance Surcharge Due without Forgiveness'] ||
-        null,
-      vehicleInsurancePremiumDueWithForgiveness:
-        sheetRecord['Vehicle Insurance Premium Due with Forgiveness'] || null,
-      vehicleInsuranceSurchargeDueWithForgiveness:
-        sheetRecord['Vehicle Insurance Surcharge Due with Forgiveness'] || null,
-      creditLifeInsuranceFeesOwedToInsurer:
-        sheetRecord['Credit Life Insurance Fees Owed to Insurer'] || null,
-      creditLifeInsuranceFeePaymentsUtilized:
-        sheetRecord['Credit Life Insurance Fee Payments Utilized'] || null,
-      creditLifeInsuranceFeeInsuranceExpense:
-        sheetRecord['Credit Life Insurance Fee Insurance Expense'] || null,
-      vehicleInsuranceFeesOwedToInsurer:
-        sheetRecord['Vehicle Insurance Fees Owed to Insurer'] || null,
-    };
+  // Helper method to safely get a value from sheet record
+  private getSheetValue(sheetRecord: any, columnName: string): string | null {
+    const value = sheetRecord[columnName];
+    if (value !== undefined && value !== null && value !== '') {
+      // Convert to string and trim
+      const stringValue = String(value).trim();
+      if (stringValue !== '') {
+        return stringValue;
+      }
+    }
+    return null;
+  }
+
+  // Convert sheet record to database format
+  convertSheetToDb(sheetRecord: any): CreateDirectPaymentScheduleDto {
+    // Log all available keys in the sheet record for debugging
+    const availableKeys = Object.keys(sheetRecord).filter(
+      (key) =>
+        sheetRecord[key] !== undefined &&
+        sheetRecord[key] !== null &&
+        sheetRecord[key] !== '',
+    );
+    if (availableKeys.length > 0) {
+      this.logger.debug(
+        `Converting sheet record. Available non-empty keys: ${availableKeys.join(', ')}`,
+      );
+    }
+
+    // Map all columns from sheet to database fields using the mapping
+    const dbRecord: any = {};
+
+    for (const [sheetColumn, dbField] of Object.entries(this.sheetToDbMapping)) {
+      const value = this.getSheetValue(sheetRecord, sheetColumn);
+      if (value !== null) {
+        dbRecord[dbField] = value;
+      }
+    }
+
+    // Remove null/undefined values to keep the record clean
+    Object.keys(dbRecord).forEach((key) => {
+      if (dbRecord[key] === null || dbRecord[key] === undefined) {
+        delete dbRecord[key];
+      }
+    });
+
+    return dbRecord as CreateDirectPaymentScheduleDto;
   }
 
   // Convert database array to sheet format

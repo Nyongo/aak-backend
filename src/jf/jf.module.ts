@@ -114,10 +114,17 @@ import { DirectPaymentSchedulesController } from './controllers/direct-payment-s
 import { DirectPaymentSchedulesMigrationController } from './controllers/direct-payment-schedules-migration.controller';
 import { PrincipalTranchesController } from './controllers/principal-tranches.controller';
 import { PrincipalTranchesMigrationController } from './controllers/principal-tranches-migration.controller';
+import { DirectLendingProcessingController } from './controllers/direct-lending-processing.controller';
+import { DirectLendingProcessingMigrationController } from './controllers/direct-lending-processing-migration.controller';
+import { ImpactSurveyMigrationController } from './controllers/impact-survey-migration.controller';
 import { DirectPaymentSchedulesDbService } from './services/direct-payment-schedules-db.service';
 import { DirectPaymentSchedulesSyncService } from './services/direct-payment-schedules-sync.service';
 import { PrincipalTranchesDbService } from './services/principal-tranches-db.service';
 import { PrincipalTranchesSyncService } from './services/principal-tranches-sync.service';
+import { DirectLendingProcessingDbService } from './services/direct-lending-processing-db.service';
+import { DirectLendingProcessingSyncService } from './services/direct-lending-processing-sync.service';
+import { ImpactSurveyDbService } from './services/impact-survey-db.service';
+import { ImpactSurveySyncService } from './services/impact-survey-sync.service';
 import { LoansService } from './services/loans.service';
 import { LoansMigrationController } from './controllers/loans-migration.controller';
 
@@ -197,6 +204,10 @@ import { CbsService } from './services/cbs.service';
     DirectPaymentSchedulesSyncService,
     PrincipalTranchesDbService,
     PrincipalTranchesSyncService,
+    DirectLendingProcessingDbService,
+    DirectLendingProcessingSyncService,
+    ImpactSurveyDbService,
+    ImpactSurveySyncService,
     LoansService,
     FinancialSurveysDbService,
     FinancialSurveysSyncService,
@@ -268,6 +279,9 @@ import { CbsService } from './services/cbs.service';
     DirectPaymentSchedulesMigrationController,
     PrincipalTranchesController,
     PrincipalTranchesMigrationController,
+    DirectLendingProcessingController,
+    DirectLendingProcessingMigrationController,
+    ImpactSurveyMigrationController,
     LoansMigrationController,
     JFNetworkContactPageController,
     LeadsController,

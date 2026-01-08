@@ -1119,7 +1119,7 @@ model DirectPaymentSchedule {
   dueDate                                        String?
   amountDue                                      String?
   amountPaid                                     String?
-  createdAt                                      DateTime @default(now())
+  createdAt                                      String?
   synced                                         Boolean  @default(false)
   adjustedMonth                                  String?
   amountStillUnpaid                              String?
@@ -1149,6 +1149,18 @@ model DirectPaymentSchedule {
   vehicleInsurancePremiumDueWithoutForgiveness   String?
   vehicleInsuranceSurchargeDueWithForgiveness    String?
   vehicleInsuranceSurchargeDueWithoutForgiveness String?
+  vehicleInsuranceFeesUtilized                   String?
+  par60                                          String?
+  par90                                          String?
+  par120                                         String?
+  sslId                                          String?
+  dateToBankCheck                                String?
+  loanCategory                                   String?
+  writeOffDate                                   String?
+  interestSuspended                              String?
+  region                                         String?
+  dateForMpesaBankTransfer                       String?
+  createdBy                                      String?
 }
 
 model Loan {
@@ -1598,4 +1610,155 @@ model PrincipalTranche {
   synced                              Boolean   @default(false)
   
   @@map("principal_tranches")
+}
+
+model DirectLendingProcessing {
+  id                                           Int       @id @default(autoincrement())
+  sheetId                                      String?   @unique
+  paymentType                                  String?
+  paymentSource                                String?
+  borrowerType                                 String?
+  borrowerId                                   String?
+  directLoanId                                 String?
+  paymentScheduleId                            String?
+  paymentDate                                  String?
+  amountPaid                                   String?
+  paymentReferenceOrTransactionCode            String?
+  installmentPaymentAmount                     String?
+  installmentVehicleInsurancePremiumAmount     String?
+  installmentVehicleInsuranceSurchargeAmount   String?
+  installmentInterestAmount                    String?
+  installmentPrincipalAmount                   String?
+  vehicleInsurancePremiumPaid                  String?
+  vehicleInsuranceSurchargePaid                String?
+  interestPaid                                 String?
+  principalPaid                                String?
+  createdBy                                    String?
+  sslId                                        String?
+  region                                       String?
+  synced                                       Boolean   @default(false)
+  createdAt                                    DateTime? @default(now())
+  
+  @@map("direct_lending_processing")
+}
+
+model ImpactSurvey {
+  id                                                                                Int       @id @default(autoincrement())
+  sheetId                                                                           String?   @unique
+  creditApplicationId                                                               String?
+  surveyDate                                                                        String?
+  directorId                                                                        String?
+  createdBy                                                                         String?
+  isSchoolAPBETOrPrivate                                                            String?
+  whatKindOfAreaIsTheSchoolIn                                                       String?
+  whatGradeLevelsDoesTheSchoolServe                                                 String?
+  howManyStudentsDoesTheSchoolHave                                                  String?
+  whatPercentageOfChildrenTransitionedLastSchoolYearFromSecondarySchoolToTertiaryOrVocationalSchool String? @map("whatPercentageOfChildrenTransitionedLastSchoolYearFromSecondary")
+  thePreviousSchoolYearWhatPercentageOfChildrenPassedTheKCSE                        String?
+  howManyClassroomsDoesTheSchoolHave                                                String?
+  howManyAdministrativeRoomsDoesTheSchoolHave                                       String?
+  howManyTeachersDoesTheSchoolHave                                                  String?
+  doesTheSchoolHaveADedicatedAssemblyHall                                           String?
+  howManyPeopleCanTheAssemblyHallSit                                                String?
+  doesTheSchoolHaveRunningWater                                                     String?
+  describeTheRunningWaterFacilities                                                 String?
+  isTherePurifiedDrinkingWaterAvailableToStudents                                   String?
+  describeThePurifiedWaterFacilities                                                String?
+  doesTheSchoolHaveElectricity                                                      String?
+  describeTheElectricalSystem                                                       String?
+  doesTheSchoolHaveFireExtinguishers                                                String?
+  howManyFireExtinguishers                                                          String?
+  doesTheSchoolProvideMeals                                                         String?
+  doesTheSchoolHaveItsOwnKitchen                                                    String?
+  whatCookingEquipmentDoesTheSchoolHave                                             String?
+  doesTheSchoolUseCharcoalFirewoodOrGas                                             String?
+  howManyStudentsEatBreakfastAtTheSchool                                            String?
+  howManyStudentsEatLunchAtTheSchool                                                String?
+  describeTheMealsTheSchoolProvides                                                 String?
+  doesTheSchoolOwnVehiclesToTransportStudentsToSchool                               String?
+  howManyVehiclesDoesTheSchoolOwn                                                   String?
+  howManyTotalChildrenCanAllOfTheVehiclesFit                                        String?
+  howManyChildrenAreTransportedEachDay                                              String?
+  doesTheSchoolHaveItsOwnFields                                                     String?
+  describeTheFacilities                                                             String?
+  howDoesItProvideAccessToFieldsForItsStudents                                      String?
+  doesTheSchoolHaveADedicatedScienceLab                                             String?
+  whatDoesTheScienceLabContain                                                      String?
+  doesTheSchoolHaveALibrary                                                         String?
+  howManyBooksDoesTheLibraryContain                                                 String?
+  describeTheLibrary                                                                String?
+  doesTheSchoolHaveAComputerLab                                                     String?
+  howManyWorkingComputersDoesTheComputerLabHave                                     String?
+  whatIsTheSchoolMadeOf                                                             String?
+  whatAreTheSchoolSFloorsMadeOf                                                     String?
+  isTheSchoolBuildingSingleOrMultistory                                             String?
+  isTheSchoolBuildingPainted                                                        String?
+  doesTheSchoolHaveAfterSchoolPrograms                                              String?
+  whatAfterSchoolProgramsDoesTheSchoolHave                                          String?
+  describeTheSchoolSWashroomFacilities                                              String?
+  howManyGirlsToiletsDoesTheSchoolHave                                              String?
+  howManyBoysToiletsDoesTheSchoolHave                                               String?
+  howManySharedToiletsDoesTheSchoolHave                                             String?
+  byPercentageOfChildrenHowManyChildrenGetSentHomeAtLeastOncePerTermBecauseOfSchoolFees String? @map("byPercentageOfChildrenHowManyChildrenGetSentHomeAtLeastOncePerT")
+  whenYouWalkedIntoTheSchoolDescribeWhatYouSaw                                      String?
+  doAnyOfTheTeachersAndAdministrationHaveSmartphones                                String?
+  howManyTeachersAndAdminsHaveSmartphones                                           String?
+  doTheTeachersAndAdministrationHaveComputersPersonallyOrForSchoolWork              String? @map("doTheTeachersAndAdministrationHaveComputersPersonallyOrForSchoo")
+  howManyComputersAreThereForTeachersToUseForWorkOrPersonally                       String?
+  howManyFemaleChildrenAttendTheSchool                                              String?
+  howManyMaleChildrenAttendTheSchool                                                String?
+  doesTheSchoolHaveTextbooksForStudents                                             String?
+  howManyStudentsShareEachTextbook                                                  String?
+  isTheSchoolConnectedToASewerLine                                                  String?
+  howManyAdditionalStudentsDoesTheDirectorExpectAnyProjectFinancedOrAssetPurchasedUsingTheLoanProvidedByJackfruitWillAddToTheSchoolIfAny String? @map("howManyAdditionalStudentsDoesTheDirectorExpectAnyProjectFinance")
+  anyOtherNotesOnTheSchool                                                          String?
+  photosAdded                                                                       String?
+  isTheSchoolAPartOfASchoolAssociation                                              String?
+  whichSchoolAssociation                                                            String?
+  doesTheSchoolTakeDailyAttendanceRecords                                           String?
+  howManyMaleTeachersDoesTheSchoolsHave                                             String?
+  howManyFemaleTeachersDoesTheSchoolsHave                                           String?
+  howManyTeachersDidTheSchoolHaveLastYear                                           String?
+  howManyTeachersDidTheSchoolHaveTwoYearsAgo                                        String?
+  whatPercentageOfChildrenTransitionedLastSchoolYearFromPrimarySchoolToSecondarySchool String? @map("whatPercentageOfChildrenTransitionedLastSchoolYearFromPrimarySc")
+  whatPercentageOfTeachersFromLastYearCameBackToTeachAgainThisYear                  String? @map("whatPercentageOfTeachersFromLastYearCameBackToTeachAgainThisYea")
+  howManyGirlsAttendPlaygroupAtTheSchool                                            String?
+  howManyBoysAttendPlaygroupAtTheSchool                                             String?
+  howManyGirlsAttendPP1OrPP2AtTheSchool                                             String?
+  howManyBoysAttendPP1OrPP2AtTheSchool                                              String?
+  howManyGirlsAttendPrimarySchoolAtTheSchool                                        String?
+  howManyBoysAttendPrimarySchoolAtTheSchool                                         String?
+  howManyGirlsAttendSecondarySchoolAtTheSchool                                      String?
+  howManyBoysAttendSecondarySchoolAtTheSchool                                       String?
+  howManySpecialNeedsBoysAttendTheSchool                                            String?
+  howManySpecialNeedsGirlsAttendTheSchool                                           String?
+  howManyClassroomsDidTheSchoolHaveLastYear                                         String?
+  howManyClasroomsDidTheSchoolHaveTwoYearsAgo                                       String?
+  ifTheSchoolIsAPrimarySchoolDoesItHaveAJuniorSecondarySchool                       String?
+  doesTheSchoolServeOnlySpecialNeedsStudents                                        String?
+  howManyMaleEmployeesWhoAreNotTeachersDoesTheSchoolHave                            String?
+  howManyFemaleEmployeesWhoAreNotTeachersDoesTheSchoolHave                          String?
+  howManyPlayschoolPP1AndPP2TeachersDoesTheSchoolHave                               String?
+  howManyPrimaryTeachersDoesTheSchoolHave                                           String?
+  howManySecondaryTeachersDoesTheSchoolHave                                         String?
+  approximatelyHowManyTimesAYearDoesTheSchoolTestStudentsInAcademicSubjectsExcludingKPSEAAndKCPE String? @map("approximatelyHowManyTimesAYearDoesTheSchoolTestStudentsInAcadem")
+  doesTheSchoolMaintainRecordsOfIndividualPupilTestScores                           String?
+  howAreRecordsOfPupilTestScoresStored                                              String?
+  doesTheSchoolMaintainRecordsOfStudentAbsences                                     String?
+  howAreRecordsOfAbsencesStoredForStudents                                          String?
+  doesTheSchoolConductMonitoringOfTeachers                                          String?
+  whenTheSchoolConductsMonitoringOfTeachersIsAFormFilledOut                         String?
+  howManyTimesAYearDoesTheSchoolConductMonitoringOfAGivenTeacher                    String?
+  doesTheSchoolEvaluateThePerformanceOfTeachers                                     String?
+  howHowManyTimesPerYearDoesSchoolEvaluateTeachers                                  String?
+  whatInformationDoesTheSchoolCollectAndUseToEvaluateThePerformanceOfYourTeachers   String? @map("whatInformationDoesTheSchoolCollectAndUseToEvaluateThePerforman")
+  howManyTeachersHaveBeenRemovedForUnsatisfactoryPerformanceInThePast5Years          String? @map("howManyTeachersHaveBeenRemovedForUnsatisfactoryPerformanceInThe")
+  doTeachersReceiveMonetaryRewardsForExceptionalPerformanceYesNo                    String?
+  isTheSchoolAMemberOfTheKenyaPrivateSchoolAssociation                              String?
+  doYouHaveAChildSafeguardingPolicy                                                 String?
+  whatDoesYourSchoolDoToObserveChildSafeguarding                                    String?
+  synced                                                                             Boolean   @default(false)
+  createdAt                                                                          DateTime? @default(now())
+  
+  @@map("impact_survey")
 }

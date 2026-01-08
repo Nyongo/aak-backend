@@ -3881,9 +3881,28 @@ export class SheetsService {
   async getDirectPaymentSchedules(): Promise<any[]> {
     try {
       this.logger.debug('Fetching direct payment schedules from sheets');
-      const schedules = await this.getSheetData('Dir. Payment Schedules');
-      this.logger.debug(
-        `Retrieved ${schedules?.length || 0} direct payment schedules`,
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.BORROWERS_SHEET_ID,
+        range: 'Dir. Payment Schedules!A:ZZ',
+      });
+      const rows = response.data.values;
+      if (!rows || rows.length === 0) {
+        return [];
+      }
+      const headers = rows[0];
+
+      // Log the actual headers from Google Sheets for debugging
+      this.logger.log('Direct Payment Schedules sheet headers:', headers);
+
+      const schedules = rows.slice(1).map((row) => {
+        const schedule = {};
+        headers.forEach((header, index) => {
+          schedule[header] = row[index] || '';
+        });
+        return schedule;
+      });
+      this.logger.log(
+        `Found ${schedules.length} direct payment schedules in Google Sheets`,
       );
       return schedules;
     } catch (error) {
@@ -3933,6 +3952,75 @@ export class SheetsService {
       return tranches;
     } catch (error) {
       this.logger.error('Error fetching principal tranches:', error);
+      throw error;
+    }
+  }
+
+  async getDirectLendingProcessing(): Promise<any[]> {
+    try {
+      this.logger.debug('Fetching direct lending processing from sheets');
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.BORROWERS_SHEET_ID,
+        range: 'Direct Lending Processing!A:ZZ',
+      });
+      const rows = response.data.values;
+      if (!rows || rows.length === 0) {
+        return [];
+      }
+      const headers = rows[0];
+
+      // Log the actual headers from Google Sheets for debugging
+      this.logger.log('Direct Lending Processing sheet headers:', headers);
+
+      const records = rows.slice(1).map((row) => {
+        const record = {};
+        headers.forEach((header, index) => {
+          record[header] = row[index] || '';
+        });
+        return record;
+      });
+      this.logger.log(
+        `Found ${records.length} direct lending processing records in Google Sheets`,
+      );
+      return records;
+    } catch (error) {
+      this.logger.error(
+        'Error fetching direct lending processing:',
+        error,
+      );
+      throw error;
+    }
+  }
+
+  async getImpactSurvey(): Promise<any[]> {
+    try {
+      this.logger.debug('Fetching impact survey from sheets');
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.BORROWERS_SHEET_ID,
+        range: 'Impact Survey!A:ZZ',
+      });
+      const rows = response.data.values;
+      if (!rows || rows.length === 0) {
+        return [];
+      }
+      const headers = rows[0];
+
+      // Log the actual headers from Google Sheets for debugging
+      this.logger.log('Impact Survey sheet headers:', headers);
+
+      const records = rows.slice(1).map((row) => {
+        const record = {};
+        headers.forEach((header, index) => {
+          record[header] = row[index] || '';
+        });
+        return record;
+      });
+      this.logger.log(
+        `Found ${records.length} impact survey records in Google Sheets`,
+      );
+      return records;
+    } catch (error) {
+      this.logger.error('Error fetching impact survey:', error);
       throw error;
     }
   }

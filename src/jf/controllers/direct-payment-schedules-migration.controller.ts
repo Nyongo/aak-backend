@@ -107,14 +107,15 @@ export class DirectPaymentSchedulesMigrationController {
           // Skip records with empty ID
           if (!idValue) {
             this.logger.debug(
-              `Skipping record with empty ID: ${JSON.stringify(sheetSchedule)}`,
+              `Skipping record with empty ID. Available keys: ${Object.keys(sheetSchedule).join(', ')}`,
             );
             skipped++;
             skippedDetails.push({
-              schedule: sheetSchedule['Payment Schedule Number'] || 'Unknown',
+              schedule: sheetSchedule['Direct Loan ID'] || 'Unknown',
               sheetId: 'Empty ID',
               reason:
-                'Empty ID in Google Sheets - tried fields: Sheet ID, ID, Payment Schedule Number, Row Number',
+                'Empty ID in Google Sheets - tried fields: ID, Sheet ID, Payment Schedule Number, Row Number, Schedule ID, Payment ID',
+              availableKeys: Object.keys(sheetSchedule).slice(0, 10), // First 10 keys for debugging
             });
             continue;
           }
@@ -138,6 +139,11 @@ export class DirectPaymentSchedulesMigrationController {
             this.directPaymentSchedulesDbService.convertSheetToDb(
               sheetSchedule,
             );
+
+          // Ensure sheetId is set (it should be from the conversion, but double-check)
+          if (!dbSchedule.sheetId) {
+            dbSchedule.sheetId = idValue;
+          }
 
           // Import to database with synced = true
           await this.directPaymentSchedulesDbService.create({
@@ -295,15 +301,25 @@ export class DirectPaymentSchedulesMigrationController {
 
       if (sheetsData && sheetsData.length > 0) {
         const columns = Object.keys(sheetsData[0]);
+        const sampleRecords = sheetsData.slice(0, 3).map((record, idx) => {
+          const sample: any = { row: idx + 1 };
+          columns.forEach((col) => {
+            const value = record[col];
+            sample[col] =
+              value === undefined || value === null || value === ''
+                ? '(empty)'
+                : value;
+          });
+          return sample;
+        });
+
         return {
           success: true,
-          message: 'Sheet columns retrieved successfully',
+          columns: columns,
           totalColumns: columns.length,
-          columns: columns.map((col, index) => ({
-            index: index + 1,
-            name: col,
-            sampleValue: sheetsData[0][col],
-          })),
+          totalRecords: sheetsData.length,
+          sampleRecords: sampleRecords,
+          columnNamesList: columns,
         };
       }
 
