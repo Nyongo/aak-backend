@@ -32,7 +32,6 @@ export class AuthService {
             },
           },
         },
-        customer: true,
       },
     });
     if (!user) {
@@ -53,7 +52,6 @@ export class AuthService {
       name: user.name,
       role: user.role,
       phoneNumber: user.phoneNumber,
-      customer: user.customer,
     }; // Access the role name
   }
 

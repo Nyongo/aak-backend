@@ -276,7 +276,6 @@ export class UsersService {
             requirePasswordReset: true,
             roleId: true,
             role: true,
-            sspUser: true,
           },
         }),
         this.prisma.user.count({ where: searchConditions }),
