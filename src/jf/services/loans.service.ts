@@ -11,57 +11,78 @@ export class LoansService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createLoanDto: CreateLoanDto) {
-    // Clean the data to ensure types match Prisma schema
-    // Declare outside try block so it's accessible in catch block for error logging
+      // Clean the data to ensure types match Prisma schema
+      // Declare outside try block so it's accessible in catch block for error logging
     let data: any = {};
     
     try {
       // Initialize data object
       data = {};
       
+      // Define numeric and integer field lists for type checking
+      const floatFields = ['principalAmount', 'outstandingPrincipalBalance', 'outstandingInterestBalance'];
+      const intFields = ['numberOfMonths', 'daysLate', 'hasFemaleDirector'];
+      
       // Copy all fields and convert types as needed
       for (const [key, value] of Object.entries(createLoanDto)) {
         if (value === undefined) {
-          // Skip undefined values
+          // Skip undefined values - Prisma doesn't like undefined
           continue;
         }
         
         // Handle numeric fields (Float)
-        if (['principalAmount', 'outstandingPrincipalBalance', 'outstandingInterestBalance'].includes(key)) {
-          if (value === null || value === '') {
+        if (floatFields.includes(key)) {
+          if (value === null || value === '' || value === '(empty)') {
             data[key] = null;
           } else if (typeof value === 'string') {
-            // Clean string: remove currency symbols, commas, etc.
-            const cleaned = value.replace(/[^0-9.-]/g, '');
-            const parsed = parseFloat(cleaned);
-            data[key] = isNaN(parsed) || !isFinite(parsed) ? null : parsed;
+            // Clean string: remove currency symbols, commas, spaces, etc.
+            const cleaned = String(value).replace(/[^0-9.-]/g, '').trim();
+            if (cleaned === '' || cleaned === '-') {
+              data[key] = null;
+            } else {
+              const parsed = parseFloat(cleaned);
+              data[key] = isNaN(parsed) || !isFinite(parsed) ? null : parsed;
+            }
           } else if (typeof value === 'number') {
             data[key] = isNaN(value) || !isFinite(value) ? null : value;
           } else {
-            // Skip invalid types
-            continue;
+            // Invalid type - set to null
+            data[key] = null;
           }
         }
         // Handle integer fields (Int)
-        else if (['numberOfMonths', 'daysLate', 'hasFemaleDirector'].includes(key)) {
-          if (value === null || value === '') {
+        else if (intFields.includes(key)) {
+          if (value === null || value === '' || value === '(empty)') {
             data[key] = null;
           } else if (typeof value === 'string') {
-            // Clean string: remove non-numeric characters
-            const cleaned = value.replace(/[^0-9-]/g, '');
-            const parsed = parseInt(cleaned, 10);
-            data[key] = isNaN(parsed) || !isFinite(parsed) ? null : parsed;
+            // Clean string: remove non-numeric characters except minus
+            const cleaned = String(value).replace(/[^0-9-]/g, '').trim();
+            if (cleaned === '' || cleaned === '-') {
+              data[key] = null;
+            } else {
+              const parsed = parseInt(cleaned, 10);
+              data[key] = isNaN(parsed) || !isFinite(parsed) ? null : parsed;
+            }
           } else if (typeof value === 'number') {
-            const intValue = Math.floor(value);
+            const intValue = Number.isInteger(value) ? value : Math.floor(value);
             data[key] = isNaN(intValue) || !isFinite(intValue) ? null : intValue;
+          } else if (typeof value === 'boolean') {
+            // Convert boolean to int (0 or 1)
+            data[key] = value ? 1 : 0;
           } else {
-            // Skip invalid types
-            continue;
+            // Invalid type - set to null
+            data[key] = null;
           }
         }
         // Handle all other fields (strings, etc.)
         else {
-          data[key] = value === null || value === '' ? null : value;
+          // Convert to string or null
+          if (value === null || value === '' || value === '(empty)') {
+            data[key] = null;
+          } else {
+            // Ensure string fields are actually strings
+            data[key] = String(value);
+          }
         }
       }
 
@@ -72,16 +93,44 @@ export class LoansService {
       }, {} as any);
       this.logger.debug(`Creating loan with cleaned data (sample):`, sampleData);
 
+      // Final validation: Ensure numeric and integer fields are correct types
+      // This is a safety check to catch any remaining type issues
+      if (data.principalAmount !== null && data.principalAmount !== undefined) {
+        data.principalAmount = typeof data.principalAmount === 'number' ? data.principalAmount : null;
+      }
+      if (data.outstandingPrincipalBalance !== null && data.outstandingPrincipalBalance !== undefined) {
+        data.outstandingPrincipalBalance = typeof data.outstandingPrincipalBalance === 'number' ? data.outstandingPrincipalBalance : null;
+      }
+      if (data.outstandingInterestBalance !== null && data.outstandingInterestBalance !== undefined) {
+        data.outstandingInterestBalance = typeof data.outstandingInterestBalance === 'number' ? data.outstandingInterestBalance : null;
+      }
+      if (data.numberOfMonths !== null && data.numberOfMonths !== undefined) {
+        data.numberOfMonths = typeof data.numberOfMonths === 'number' && Number.isInteger(data.numberOfMonths) ? data.numberOfMonths : null;
+      }
+      if (data.daysLate !== null && data.daysLate !== undefined) {
+        data.daysLate = typeof data.daysLate === 'number' && Number.isInteger(data.daysLate) ? data.daysLate : null;
+      }
+      if (data.hasFemaleDirector !== null && data.hasFemaleDirector !== undefined) {
+        data.hasFemaleDirector = typeof data.hasFemaleDirector === 'number' && Number.isInteger(data.hasFemaleDirector) ? data.hasFemaleDirector : null;
+      }
+
       // Log all numeric fields specifically to catch type issues
       const numericFields = {
-        principalAmount: { value: data.principalAmount, type: typeof data.principalAmount },
-        outstandingPrincipalBalance: { value: data.outstandingPrincipalBalance, type: typeof data.outstandingPrincipalBalance },
-        outstandingInterestBalance: { value: data.outstandingInterestBalance, type: typeof data.outstandingInterestBalance },
-        numberOfMonths: { value: data.numberOfMonths, type: typeof data.numberOfMonths },
-        daysLate: { value: data.daysLate, type: typeof data.daysLate },
-        hasFemaleDirector: { value: data.hasFemaleDirector, type: typeof data.hasFemaleDirector },
+        principalAmount: { value: data.principalAmount, type: typeof data.principalAmount, isNumber: typeof data.principalAmount === 'number' },
+        outstandingPrincipalBalance: { value: data.outstandingPrincipalBalance, type: typeof data.outstandingPrincipalBalance, isNumber: typeof data.outstandingPrincipalBalance === 'number' },
+        outstandingInterestBalance: { value: data.outstandingInterestBalance, type: typeof data.outstandingInterestBalance, isNumber: typeof data.outstandingInterestBalance === 'number' },
+        numberOfMonths: { value: data.numberOfMonths, type: typeof data.numberOfMonths, isInteger: typeof data.numberOfMonths === 'number' && Number.isInteger(data.numberOfMonths) },
+        daysLate: { value: data.daysLate, type: typeof data.daysLate, isInteger: typeof data.daysLate === 'number' && Number.isInteger(data.daysLate) },
+        hasFemaleDirector: { value: data.hasFemaleDirector, type: typeof data.hasFemaleDirector, isInteger: typeof data.hasFemaleDirector === 'number' && Number.isInteger(data.hasFemaleDirector) },
       };
-      this.logger.debug(`Numeric fields check:`, JSON.stringify(numericFields, null, 2));
+      this.logger.debug(`Numeric fields check (after final validation):`, JSON.stringify(numericFields, null, 2));
+
+      // Remove any undefined values one more time (safety check)
+      Object.keys(data).forEach(key => {
+        if (data[key] === undefined) {
+          delete data[key];
+        }
+      });
 
       const result = await this.prisma.loan.create({
         data,
