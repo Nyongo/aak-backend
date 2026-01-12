@@ -36,6 +36,8 @@ RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma  
 COPY --from=builder /app/.env ./.env
+COPY --from=builder /app/start-production.sh ./start-production.sh
+RUN chmod +x ./start-production.sh
 
 # ✅ Create directory for SSL certs
 RUN mkdir -p /app/ssl
