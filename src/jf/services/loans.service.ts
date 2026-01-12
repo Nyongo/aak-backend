@@ -154,6 +154,11 @@ export class LoansService {
         }
       });
 
+      // DEBUG: Log synced field type before Prisma call
+      if ('synced' in data) {
+        this.logger.debug(`DEBUG synced - type: ${typeof data.synced}, value: ${data.synced}, isBoolean: ${typeof data.synced === 'boolean'}`);
+      }
+
       const result = await this.prisma.loan.create({
         data,
       });
