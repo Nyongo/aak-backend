@@ -11,9 +11,13 @@ export class LoansService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createLoanDto: CreateLoanDto) {
+    // Clean the data to ensure types match Prisma schema
+    // Declare outside try block so it's accessible in catch block for error logging
+    let data: any = {};
+    
     try {
-      // Clean the data to ensure types match Prisma schema
-      const data: any = {};
+      // Initialize data object
+      data = {};
       
       // Copy all fields and convert types as needed
       for (const [key, value] of Object.entries(createLoanDto)) {
@@ -87,27 +91,45 @@ export class LoansService {
     } catch (error) {
       this.logger.error(`Error creating loan:`, error);
       
-      // Log the cleaned data that was sent to Prisma
-      this.logger.error(`Cleaned data sent to Prisma (first 60 fields):`, 
-        JSON.stringify(
-          Object.keys(data).slice(0, 60).reduce((obj, key) => {
-            obj[key] = {
-              value: data[key],
-              type: typeof data[key],
-              isNull: data[key] === null,
-              isUndefined: data[key] === undefined
-            };
-            return obj;
-          }, {} as any),
-          null,
-          2
-        )
-      );
-      
-      // Count fields to help identify parameter 57
-      const fieldCount = Object.keys(data).length;
-      this.logger.error(`Total fields being sent to Prisma: ${fieldCount}`);
-      this.logger.error(`Parameter 57 would be field at index 56 (0-based): ${Object.keys(data)[56]} = ${data[Object.keys(data)[56]]}`);
+      // Log the cleaned data that was sent to Prisma (if data was populated)
+      if (data && Object.keys(data).length > 0) {
+        this.logger.error(`Cleaned data sent to Prisma (first 60 fields):`, 
+          JSON.stringify(
+            Object.keys(data).slice(0, 60).reduce((obj, key) => {
+              obj[key] = {
+                value: data[key],
+                type: typeof data[key],
+                isNull: data[key] === null,
+                isUndefined: data[key] === undefined
+              };
+              return obj;
+            }, {} as any),
+            null,
+            2
+          )
+        );
+        
+        // Count fields to help identify parameter 57
+        const fieldCount = Object.keys(data).length;
+        this.logger.error(`Total fields being sent to Prisma: ${fieldCount}`);
+        if (fieldCount > 56) {
+          this.logger.error(`Parameter 57 would be field at index 56 (0-based): ${Object.keys(data)[56]} = ${data[Object.keys(data)[56]]}`);
+        }
+      } else {
+        this.logger.error(`Data was not populated when error occurred. Original DTO (first 20 fields):`, 
+          JSON.stringify(
+            Object.keys(createLoanDto).slice(0, 20).reduce((obj, key) => {
+              obj[key] = {
+                value: (createLoanDto as any)[key],
+                type: typeof (createLoanDto as any)[key]
+              };
+              return obj;
+            }, {} as any),
+            null,
+            2
+          )
+        );
+      }
       
       throw error;
     }
