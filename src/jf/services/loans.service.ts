@@ -19,9 +19,10 @@ export class LoansService {
       // Initialize data object
       data = {};
       
-      // Define numeric and integer field lists for type checking
+      // Define numeric, integer, and boolean field lists for type checking
       const floatFields = ['principalAmount', 'outstandingPrincipalBalance', 'outstandingInterestBalance'];
       const intFields = ['numberOfMonths', 'daysLate', 'hasFemaleDirector'];
+      const booleanFields = ['synced'];
       
       // Copy all fields and convert types as needed
       for (const [key, value] of Object.entries(createLoanDto)) {
@@ -71,6 +72,27 @@ export class LoansService {
             data[key] = value ? 1 : 0;
           } else {
             // Invalid type - set to null
+            data[key] = null;
+          }
+        }
+        // Handle boolean fields (Boolean)
+        else if (booleanFields.includes(key)) {
+          if (value === null || value === undefined) {
+            data[key] = null;
+          } else if (typeof value === 'boolean') {
+            data[key] = value;
+          } else if (typeof value === 'string') {
+            const lowerValue = value.toLowerCase().trim();
+            if (lowerValue === 'true' || lowerValue === '1') {
+              data[key] = true;
+            } else if (lowerValue === 'false' || lowerValue === '0') {
+              data[key] = false;
+            } else {
+              data[key] = null;
+            }
+          } else if (typeof value === 'number') {
+            data[key] = value !== 0;
+          } else {
             data[key] = null;
           }
         }
