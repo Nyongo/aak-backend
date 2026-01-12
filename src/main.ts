@@ -35,7 +35,11 @@ async function bootstrap() {
     });
   } catch (error) {
     console.log('⚠️  SSL certificates not found or invalid, using HTTP');
-    console.log('   Error:', error.message);
+    if (error instanceof Error) {
+      console.log('   Error:', error.message);
+    } else {
+      console.log('   Error:', String(error));
+    }
     app = await NestFactory.create<NestExpressApplication>(AppModule, {});
   }
   // Enable CORS
