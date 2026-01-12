@@ -11,8 +11,18 @@ export class PrincipalTranchesDbService {
 
   async create(createPrincipalTrancheDto: CreatePrincipalTrancheDto) {
     try {
+      // Convert string dates to Date objects for Prisma
+      const data = {
+        ...createPrincipalTrancheDto,
+        initialDisbursementDateInContract: createPrincipalTrancheDto.initialDisbursementDateInContract
+          ? typeof createPrincipalTrancheDto.initialDisbursementDateInContract === 'string'
+            ? new Date(createPrincipalTrancheDto.initialDisbursementDateInContract)
+            : createPrincipalTrancheDto.initialDisbursementDateInContract
+          : undefined,
+      };
+
       const result = await this.prisma.principalTranche.create({
-        data: createPrincipalTrancheDto,
+        data,
       });
       this.logger.log(`Created principal tranche with ID: ${result.id}`);
       return result;
@@ -111,9 +121,19 @@ export class PrincipalTranchesDbService {
     updatePrincipalTrancheDto: UpdatePrincipalTrancheDto,
   ) {
     try {
+      // Convert string dates to Date objects for Prisma
+      const data: any = { ...updatePrincipalTrancheDto };
+      
+      if (updatePrincipalTrancheDto.initialDisbursementDateInContract !== undefined) {
+        data.initialDisbursementDateInContract = 
+          typeof updatePrincipalTrancheDto.initialDisbursementDateInContract === 'string'
+            ? new Date(updatePrincipalTrancheDto.initialDisbursementDateInContract)
+            : updatePrincipalTrancheDto.initialDisbursementDateInContract;
+      }
+
       const result = await this.prisma.principalTranche.update({
         where: { id },
-        data: updatePrincipalTrancheDto,
+        data,
       });
       this.logger.log(`Updated principal tranche with ID: ${id}`);
       return result;
