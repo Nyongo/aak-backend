@@ -154,10 +154,16 @@ export class LoansService {
         }
       });
 
-      // DEBUG: Log synced field type before Prisma call
-      if ('synced' in data) {
-        this.logger.debug(`DEBUG synced - type: ${typeof data.synced}, value: ${data.synced}, isBoolean: ${typeof data.synced === 'boolean'}`);
-      }
+      // DEBUG: Log ALL field types before Prisma call
+      const fieldTypes = {};
+      Object.keys(data).forEach(key => {
+        const val = data[key];
+        fieldTypes[key] = {
+          type: typeof val,
+          value: val === null ? 'null' : (typeof val === 'string' ? (val.length > 20 ? val.substring(0, 20) + '...' : val) : val)
+        };
+      });
+      this.logger.debug(`DEBUG - All field types being sent to Prisma:`, JSON.stringify(fieldTypes, null, 2));
 
       const result = await this.prisma.loan.create({
         data,
