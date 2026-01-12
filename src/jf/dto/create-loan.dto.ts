@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsInt } from 'class-validator';
 
 export class CreateLoanDto {
   @IsOptional()
@@ -27,8 +27,8 @@ export class CreateLoanDto {
   borrowerName?: string;
 
   @IsOptional()
-  @IsString()
-  principalAmount?: string;
+  @IsNumber()
+  principalAmount?: number;
 
   @IsOptional()
   @IsString()
@@ -63,8 +63,8 @@ export class CreateLoanDto {
   creditLifeInsuranceFee?: string;
 
   @IsOptional()
-  @IsString()
-  numberOfMonths?: string;
+  @IsInt()
+  numberOfMonths?: number;
 
   @IsOptional()
   @IsString()
@@ -179,8 +179,8 @@ export class CreateLoanDto {
   principalPaidToDate?: string;
 
   @IsOptional()
-  @IsString()
-  outstandingPrincipalBalance?: string;
+  @IsNumber()
+  outstandingPrincipalBalance?: number;
 
   @IsOptional()
   @IsString()
@@ -215,8 +215,8 @@ export class CreateLoanDto {
   percentDisbursed?: string;
 
   @IsOptional()
-  @IsString()
-  daysLate?: string;
+  @IsInt()
+  daysLate?: number;
 
   @IsOptional()
   @IsString()
@@ -231,8 +231,8 @@ export class CreateLoanDto {
   collateralCheckedByLegalTeam?: string;
 
   @IsOptional()
-  @IsString()
-  hasFemaleDirector?: string;
+  @IsInt()
+  hasFemaleDirector?: number;
 
   @IsOptional()
   @IsString()
@@ -347,8 +347,8 @@ export class CreateLoanDto {
   totalInterestPaid?: string;
 
   @IsOptional()
-  @IsString()
-  outstandingInterestBalance?: string;
+  @IsNumber()
+  outstandingInterestBalance?: number;
 
   @IsOptional()
   @IsString()

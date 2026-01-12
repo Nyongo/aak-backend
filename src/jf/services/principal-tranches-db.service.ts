@@ -268,13 +268,15 @@ export class PrincipalTranchesDbService {
         'contract_signing_date',
       ),
 
-      // Amount - exact column name from sheet
-      amount: this.getSheetValue(
-        sheetRecord,
-        'Amount',
-        'amount',
-        'Principal Amount',
-        'principalAmount',
+      // Amount - exact column name from sheet, parse as currency
+      amount: this.parseCurrency(
+        this.getSheetValue(
+          sheetRecord,
+          'Amount',
+          'amount',
+          'Principal Amount',
+          'principalAmount',
+        ),
       ),
 
       // SSL ID - exact column name from sheet
@@ -286,14 +288,16 @@ export class PrincipalTranchesDbService {
         'ssl_id',
       ),
 
-      // Initial Disbursement Date in Contract - exact column name from sheet
-      initialDisbursementDateInContract: this.getSheetValue(
-        sheetRecord,
-        'Initial Disbursement Date in Contract',
-        'initialDisbursementDateInContract',
-        'Initial Disbursement Date',
-        'initial_disbursement_date_in_contract',
-        'Disbursement Date',
+      // Initial Disbursement Date in Contract - exact column name from sheet, format to Month DD, YYYY
+      initialDisbursementDateInContract: this.formatDateToMonthDDYYYY(
+        this.getSheetValue(
+          sheetRecord,
+          'Initial Disbursement Date in Contract',
+          'initialDisbursementDateInContract',
+          'Initial Disbursement Date',
+          'initial_disbursement_date_in_contract',
+          'Disbursement Date',
+        ),
       ),
 
       // Date Tranche Has Gone Par 30 - exact column name from sheet
@@ -368,5 +372,69 @@ export class PrincipalTranchesDbService {
     });
 
     return dbRecord;
+  }
+
+  /**
+   * Parse currency value from Google Sheets format to number
+   * Handles formats like: "1,234.56", "KSh 1,234.56", "1,234", "$1,234.56", etc.
+   */
+  private parseCurrency(value: string | null): number | null {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      // Handle "#VALUE!" and other Excel errors
+      if (value.includes('#') || value.includes('VALUE') || value.includes('ERROR')) {
+        return null;
+      }
+      // Remove currency symbols, spaces, and common prefixes
+      let cleaned = value
+        .replace(/[KSh$€£¥,\s]/g, '') // Remove currency symbols and commas
+        .trim();
+      
+      // Handle empty strings after cleaning
+      if (cleaned === '' || cleaned === '(empty)') return null;
+      
+      // Parse to float
+      const parsed = parseFloat(cleaned);
+      return isNaN(parsed) ? null : parsed;
+    }
+    return null;
+  }
+
+  /**
+   * Format date to "Month DD, YYYY" format (e.g., "May 5, 2022")
+   * Handles various input formats and converts to Month DD, YYYY
+   */
+  private formatDateToMonthDDYYYY(value: string | null): string | null {
+    if (value === null || value === undefined || value === '' || value === '(empty)') {
+      return null;
+    }
+    
+    if (typeof value === 'string') {
+      // If already in "Month DD, YYYY" format, return as is
+      if (/^[A-Za-z]+\s+\d{1,2},\s+\d{4}$/.test(value.trim())) {
+        return value.trim();
+      }
+      
+      // Try to parse various date formats
+      try {
+        const date = new Date(value);
+        if (!isNaN(date.getTime())) {
+          const months = [
+            'January', 'February', 'March', 'April', 'May', 'June',
+            'July', 'August', 'September', 'October', 'November', 'December'
+          ];
+          const month = months[date.getMonth()];
+          const day = date.getDate();
+          const year = date.getFullYear();
+          return `${month} ${day}, ${year}`;
+        }
+      } catch (e) {
+        // If parsing fails, return the original value
+        return value;
+      }
+    }
+    
+    return value;
   }
 }

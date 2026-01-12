@@ -105,7 +105,7 @@ export class SslStaffController {
       educationLevel?: string;
       sslEmail?: string;
       secondaryRole?: string;
-      monthlyTarget?: string;
+      monthlyTarget?: number;
       creditLifeHelper?: string;
       teamLeader?: string;
       sslLevel?: string;
@@ -171,7 +171,7 @@ export class SslStaffController {
       educationLevel?: string;
       sslEmail?: string;
       secondaryRole?: string;
-      monthlyTarget?: string;
+      monthlyTarget?: number;
       creditLifeHelper?: string;
       teamLeader?: string;
       sslLevel?: string;

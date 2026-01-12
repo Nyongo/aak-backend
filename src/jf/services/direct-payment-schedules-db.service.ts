@@ -327,10 +327,33 @@ export class DirectPaymentSchedulesDbService {
     // Map all columns from sheet to database fields using the mapping
     const dbRecord: any = {};
 
+    // Fields that should be parsed as currency (Float)
+    const currencyFields = ['amountDue', 'amountPaid'];
+    
+    // Fields that should be parsed as dates (DateTime)
+    const dateFields = ['dueDate'];
+    
+    // Fields that should be parsed as integers
+    const integerFields = ['daysLate'];
+
     for (const [sheetColumn, dbField] of Object.entries(this.sheetToDbMapping)) {
       const value = this.getSheetValue(sheetRecord, sheetColumn);
       if (value !== null) {
-        dbRecord[dbField] = value;
+        // Parse as currency if it's a currency field
+        if (currencyFields.includes(dbField)) {
+          dbRecord[dbField] = this.parseCurrency(value);
+        }
+        // Parse as date if it's a date field
+        else if (dateFields.includes(dbField)) {
+          dbRecord[dbField] = this.parseDate(value);
+        }
+        // Parse as integer if it's an integer field
+        else if (integerFields.includes(dbField)) {
+          dbRecord[dbField] = this.parseInt(value);
+        }
+        else {
+          dbRecord[dbField] = value;
+        }
       }
     }
 
@@ -342,6 +365,82 @@ export class DirectPaymentSchedulesDbService {
     });
 
     return dbRecord as CreateDirectPaymentScheduleDto;
+  }
+
+  /**
+   * Parse currency value from Google Sheets format to number
+   * Handles formats like: "1,234.56", "KSh 1,234.56", "1,234", "$1,234.56", etc.
+   */
+  private parseCurrency(value: string | null): number | null {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      // Handle "#VALUE!" and other Excel errors
+      if (value.includes('#') || value.includes('VALUE') || value.includes('ERROR')) {
+        return null;
+      }
+      // Remove currency symbols, spaces, and common prefixes
+      let cleaned = value
+        .replace(/[KSh$€£¥,\s]/g, '') // Remove currency symbols and commas
+        .trim();
+      
+      // Handle empty strings after cleaning
+      if (cleaned === '' || cleaned === '(empty)') return null;
+      
+      // Parse to float
+      const parsed = parseFloat(cleaned);
+      return isNaN(parsed) ? null : parsed;
+    }
+    return null;
+  }
+
+  /**
+   * Parse date value from Google Sheets format to DateTime
+   * Handles various date formats and converts to ISO string for Prisma
+   */
+  private parseDate(value: string | null): Date | null {
+    if (value === null || value === undefined || value === '' || value === '(empty)') {
+      return null;
+    }
+    
+    if (typeof value === 'string') {
+      try {
+        // Try to parse various date formats
+        const date = new Date(value);
+        if (!isNaN(date.getTime())) {
+          return date;
+        }
+      } catch (e) {
+        // If parsing fails, return null
+        return null;
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Parse integer value from Google Sheets format
+   */
+  private parseInt(value: string | null): number | null {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') return Math.floor(value);
+    if (typeof value === 'string') {
+      // Handle "#VALUE!" and other Excel errors
+      if (value.includes('#') || value.includes('VALUE') || value.includes('ERROR')) {
+        return null;
+      }
+      // Remove commas and spaces
+      let cleaned = value.replace(/[,\s]/g, '').trim();
+      
+      // Handle empty strings after cleaning
+      if (cleaned === '' || cleaned === '(empty)') return null;
+      
+      // Parse to integer
+      const parsed = parseInt(cleaned, 10);
+      return isNaN(parsed) ? null : parsed;
+    }
+    return null;
   }
 
   // Convert database array to sheet format

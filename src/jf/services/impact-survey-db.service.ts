@@ -355,10 +355,25 @@ export class ImpactSurveyDbService {
     // Map all columns from sheet to database fields using the mapping
     const dbRecord: any = {};
 
+    // Fields that should be parsed as integers
+    const integerFields = [
+      'howManyFemaleChildrenAttendTheSchool',
+      'howManyMaleChildrenAttendTheSchool',
+      'howManySpecialNeedsGirlsAttendTheSchool',
+      'howManySpecialNeedsBoysAttendTheSchool',
+      'howManyMaleTeachersDoesTheSchoolsHave',
+      'howManyFemaleTeachersDoesTheSchoolsHave',
+    ];
+
     for (const [sheetColumn, dbField] of Object.entries(this.sheetToDbMapping)) {
       const value = this.getSheetValue(sheetRecord, sheetColumn);
       if (value !== null) {
-        dbRecord[dbField] = value;
+        // Parse as integer if it's one of the numeric fields
+        if (integerFields.includes(dbField)) {
+          dbRecord[dbField] = this.parseInt(value);
+        } else {
+          dbRecord[dbField] = value;
+        }
       }
     }
 
@@ -370,5 +385,29 @@ export class ImpactSurveyDbService {
     });
 
     return dbRecord as CreateImpactSurveyDto;
+  }
+
+  /**
+   * Parse integer value from Google Sheets format
+   */
+  private parseInt(value: string | null): number | null {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') return Math.floor(value);
+    if (typeof value === 'string') {
+      // Handle "#VALUE!" and other Excel errors
+      if (value.includes('#') || value.includes('VALUE') || value.includes('ERROR')) {
+        return null;
+      }
+      // Remove commas and spaces
+      let cleaned = value.replace(/[,\s]/g, '').trim();
+      
+      // Handle empty strings after cleaning
+      if (cleaned === '' || cleaned === '(empty)') return null;
+      
+      // Parse to integer
+      const parsed = parseInt(cleaned, 10);
+      return isNaN(parsed) ? null : parsed;
+    }
+    return null;
   }
 }

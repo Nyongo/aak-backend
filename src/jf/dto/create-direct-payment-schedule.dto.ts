@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsDateString, IsInt } from 'class-validator';
 
 export class CreateDirectPaymentScheduleDto {
   @IsOptional()
@@ -30,12 +30,12 @@ export class CreateDirectPaymentScheduleDto {
   installmentNumber?: string;
 
   @IsOptional()
-  @IsString()
-  dueDate?: string;
+  @IsDateString()
+  dueDate?: Date | string;
 
   @IsOptional()
-  @IsString()
-  amountDue?: string;
+  @IsNumber()
+  amountDue?: number;
 
   @IsOptional()
   @IsString()
@@ -70,8 +70,8 @@ export class CreateDirectPaymentScheduleDto {
   paymentDate?: string;
 
   @IsOptional()
-  @IsString()
-  amountPaid?: string;
+  @IsNumber()
+  amountPaid?: number;
 
   @IsOptional()
   @IsString()
@@ -99,8 +99,8 @@ export class CreateDirectPaymentScheduleDto {
   amountStillUnpaid?: string;
 
   @IsOptional()
-  @IsString()
-  daysLate?: string;
+  @IsInt()
+  daysLate?: number;
 
   @IsOptional()
   @IsString()

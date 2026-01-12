@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsBoolean } from 'class-validator';
+import { IsOptional, IsString, IsBoolean, IsNumber } from 'class-validator';
 
 export class CreatePrincipalTrancheDto {
   @IsOptional()
@@ -14,8 +14,8 @@ export class CreatePrincipalTrancheDto {
   contractSigningDate?: string;
 
   @IsOptional()
-  @IsString()
-  amount?: string;
+  @IsNumber()
+  amount?: number;
 
   @IsOptional()
   @IsString()

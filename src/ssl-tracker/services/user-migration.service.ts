@@ -190,8 +190,9 @@ export class UserMigrationService {
       sslEmail: sheetData['SSL Email'] || sheetData['sslEmail'] || null,
       secondaryRole:
         sheetData['Secondary Role'] || sheetData['secondaryRole'] || null,
-      monthlyTarget:
+      monthlyTarget: this.parseCurrency(
         sheetData['Monthly Target'] || sheetData['monthlyTarget'] || null,
+      ),
       creditLifeHelper:
         sheetData['Credit Life Helper'] ||
         sheetData['creditLifeHelper'] ||
@@ -235,6 +236,29 @@ export class UserMigrationService {
       );
     }
     return false; // Default to false for boolean fields
+  }
+
+  /**
+   * Parse currency value from Google Sheets format to number
+   * Handles formats like: "1,234.56", "KSh 1,234.56", "1,234", "$1,234.56", etc.
+   */
+  private parseCurrency(value: any): number | null {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      // Remove currency symbols, spaces, and common prefixes
+      let cleaned = value
+        .replace(/[KSh$€£¥,\s]/g, '') // Remove currency symbols and commas
+        .trim();
+      
+      // Handle empty strings after cleaning
+      if (cleaned === '' || cleaned === '(empty)') return null;
+      
+      // Parse to float
+      const parsed = parseFloat(cleaned);
+      return isNaN(parsed) ? null : parsed;
+    }
+    return null;
   }
 
   private async createSslStaff(staffData: any) {

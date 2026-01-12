@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsBoolean } from 'class-validator';
+import { IsOptional, IsString, IsBoolean, IsInt } from 'class-validator';
 
 export class CreateImpactSurveyDto {
   @IsOptional()
@@ -246,12 +246,12 @@ export class CreateImpactSurveyDto {
   howManyComputersAreThereForTeachersToUseForWorkOrPersonally?: string;
 
   @IsOptional()
-  @IsString()
-  howManyFemaleChildrenAttendTheSchool?: string;
+  @IsInt()
+  howManyFemaleChildrenAttendTheSchool?: number;
 
   @IsOptional()
-  @IsString()
-  howManyMaleChildrenAttendTheSchool?: string;
+  @IsInt()
+  howManyMaleChildrenAttendTheSchool?: number;
 
   @IsOptional()
   @IsString()
@@ -290,12 +290,12 @@ export class CreateImpactSurveyDto {
   doesTheSchoolTakeDailyAttendanceRecords?: string;
 
   @IsOptional()
-  @IsString()
-  howManyMaleTeachersDoesTheSchoolsHave?: string;
+  @IsInt()
+  howManyMaleTeachersDoesTheSchoolsHave?: number;
 
   @IsOptional()
-  @IsString()
-  howManyFemaleTeachersDoesTheSchoolsHave?: string;
+  @IsInt()
+  howManyFemaleTeachersDoesTheSchoolsHave?: number;
 
   @IsOptional()
   @IsString()
@@ -346,12 +346,12 @@ export class CreateImpactSurveyDto {
   howManyBoysAttendSecondarySchoolAtTheSchool?: string;
 
   @IsOptional()
-  @IsString()
-  howManySpecialNeedsBoysAttendTheSchool?: string;
+  @IsInt()
+  howManySpecialNeedsBoysAttendTheSchool?: number;
 
   @IsOptional()
-  @IsString()
-  howManySpecialNeedsGirlsAttendTheSchool?: string;
+  @IsInt()
+  howManySpecialNeedsGirlsAttendTheSchool?: number;
 
   @IsOptional()
   @IsString()

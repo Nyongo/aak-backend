@@ -154,7 +154,7 @@ model SslStaff {
   educationLevel       String?
   sslEmail             String?
   secondaryRole        String?
-  monthlyTarget        String?
+  monthlyTarget        Float?
   creditLifeHelper     String?
   teamLeader           String?
   passportPhoto        String?
@@ -661,9 +661,9 @@ model DirectPaymentSchedule {
   id                                             Int      @id @default(autoincrement())
   sheetId                                        String?  @unique
   borrowerId                                     String?
-  dueDate                                        String?
-  amountDue                                      String?
-  amountPaid                                     String?
+  dueDate                                        DateTime?
+  amountDue                                      Float?
+  amountPaid                                     Float?
   createdAt                                      String?
   synced                                         Boolean  @default(false)
   adjustedMonth                                  String?
@@ -675,7 +675,7 @@ model DirectPaymentSchedule {
   creditLifeInsuranceFeesCharged                 String?
   creditLifeInsuranceFeesOwedToInsurer           String?
   dateFullyPaid                                  String?
-  daysLate                                       String?
+  daysLate                                       Int?
   debtType                                       String?
   directLoanId                                   String?
   holidayForgiveness                             String?
@@ -716,7 +716,7 @@ model Loan {
   borrowerType                                                    String?
   borrowerId                                                      String?
   borrowerName                                                    String?
-  principalAmount                                                 String?
+  principalAmount                                                 Float?
   interestType                                                    String?
   annualDecliningInterest                                         String?
   annualFlatInterest                                              String?
@@ -725,7 +725,7 @@ model Loan {
   securitizationFee                                               String?
   processingFee                                                   String?
   creditLifeInsuranceFee                                          String?
-  numberOfMonths                                                  String?
+  numberOfMonths                                                  Int?
   dailyPenalty                                                    String?
   amountToDisburse                                                String?
   totalComprehensiveVehicleInsurancePaymentsToPay                 String?
@@ -753,7 +753,7 @@ model Loan {
   amountDisbursedToDateIncludingFees                              String?
   balanceOfDisbursementsOwed                                      String?
   principalPaidToDate                                             String?
-  outstandingPrincipalBalance                                     String?
+  outstandingPrincipalBalance                                     Float?
   numberOfAssetsUsedAsCollateral                                  String?
   numberOfAssetsRecorded                                          String?
   allCollateralRecorded                                           String?
@@ -762,11 +762,11 @@ model Loan {
   directorHasCompletedCreditLifeHealthExamination                 String?
   recordOfReceiptForCreditLifeInsurance                           String?
   percentDisbursed                                                String?
-  daysLate                                                        String?
+  daysLate                                                        Int?
   totalUnpaidLiability                                            String?
   restructured                                                    String?
   collateralCheckedByLegalTeam                                    String?
-  hasFemaleDirector                                               String?
+  hasFemaleDirector                                               Int?
   reportsGenerated                                                String?
   contractUploaded                                                String?
   percentChargeOnVehicleInsuranceFinancing                        String?
@@ -795,7 +795,7 @@ model Loan {
   differenceBetweenCalculatedAndRecordedDisbursement              String?
   teachers                                                        String?
   totalInterestPaid                                               String?
-  outstandingInterestBalance                                      String?
+  outstandingInterestBalance                                      Float?
   totalVehicleInsuranceDue                                        String?
   totalVehicleInsurancePaid                                       String?
   outstandingVehicleInsuranceBalance                              String?
@@ -1039,7 +1039,7 @@ model PrincipalTranche {
   sheetId                             String?   @unique
   directLoanId                        String?
   contractSigningDate                 String?
-  amount                              String?
+  amount                              Float?
   sslId                               String?
   initialDisbursementDateInContract   String?
   dateTrancheHasGonePar30             String?
@@ -1148,8 +1148,8 @@ model ImpactSurvey {
   howManyTeachersAndAdminsHaveSmartphones                                           String?
   doTheTeachersAndAdministrationHaveComputersPersonallyOrForSchoolWork              String? @map("doTheTeachersAndAdministrationHaveComputersPersonallyOrForSchoo")
   howManyComputersAreThereForTeachersToUseForWorkOrPersonally                       String?
-  howManyFemaleChildrenAttendTheSchool                                              String?
-  howManyMaleChildrenAttendTheSchool                                                String?
+  howManyFemaleChildrenAttendTheSchool                                              Int?
+  howManyMaleChildrenAttendTheSchool                                                Int?
   doesTheSchoolHaveTextbooksForStudents                                             String?
   howManyStudentsShareEachTextbook                                                  String?
   isTheSchoolConnectedToASewerLine                                                  String?
@@ -1159,8 +1159,8 @@ model ImpactSurvey {
   isTheSchoolAPartOfASchoolAssociation                                              String?
   whichSchoolAssociation                                                            String?
   doesTheSchoolTakeDailyAttendanceRecords                                           String?
-  howManyMaleTeachersDoesTheSchoolsHave                                             String?
-  howManyFemaleTeachersDoesTheSchoolsHave                                           String?
+  howManyMaleTeachersDoesTheSchoolsHave                                             Int?
+  howManyFemaleTeachersDoesTheSchoolsHave                                           Int?
   howManyTeachersDidTheSchoolHaveLastYear                                           String?
   howManyTeachersDidTheSchoolHaveTwoYearsAgo                                        String?
   whatPercentageOfChildrenTransitionedLastSchoolYearFromPrimarySchoolToSecondarySchool String? @map("whatPercentageOfChildrenTransitionedLastSchoolYearFromPrimarySc")
@@ -1173,8 +1173,8 @@ model ImpactSurvey {
   howManyBoysAttendPrimarySchoolAtTheSchool                                         String?
   howManyGirlsAttendSecondarySchoolAtTheSchool                                      String?
   howManyBoysAttendSecondarySchoolAtTheSchool                                       String?
-  howManySpecialNeedsBoysAttendTheSchool                                            String?
-  howManySpecialNeedsGirlsAttendTheSchool                                           String?
+  howManySpecialNeedsBoysAttendTheSchool                                            Int?
+  howManySpecialNeedsGirlsAttendTheSchool                                           Int?
   howManyClassroomsDidTheSchoolHaveLastYear                                         String?
   howManyClasroomsDidTheSchoolHaveTwoYearsAgo                                       String?
   ifTheSchoolIsAPrimarySchoolDoesItHaveAJuniorSecondarySchool                       String?

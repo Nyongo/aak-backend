@@ -304,7 +304,9 @@ export class LoansMigrationController {
       borrowerType: sheetRecord['Borrower Type'] || null,
       borrowerId: sheetRecord['Borrower ID'] || null,
       borrowerName: sheetRecord['Borrower Name'] || null,
-      principalAmount: sheetRecord['Principal Amount'] || null,
+      principalAmount: this.parseCurrency(
+        sheetRecord['Principal Amount'] || null,
+      ),
       interestType: sheetRecord['Interest Type'] || null,
       annualDecliningInterest:
         sheetRecord['Annual Declining Interest '] || null,
@@ -315,7 +317,7 @@ export class LoansMigrationController {
       securitizationFee: sheetRecord['Securitization Fee'] || null,
       processingFee: sheetRecord['Processing Fee'] || null,
       creditLifeInsuranceFee: sheetRecord['Credit Life Insurance Fee'] || null,
-      numberOfMonths: sheetRecord['Number of Months'] || null,
+      numberOfMonths: this.parseInt(sheetRecord['Number of Months'] || null),
       dailyPenalty: sheetRecord['Daily Penalty'] || null,
       amountToDisburse: sheetRecord['Amount to Disburse'] || null,
       totalComprehensiveVehicleInsurancePaymentsToPay:
@@ -354,8 +356,9 @@ export class LoansMigrationController {
       balanceOfDisbursementsOwed:
         sheetRecord['Balance of Disbursements Owed'] || null,
       principalPaidToDate: sheetRecord['Principal Paid to Date'] || null,
-      outstandingPrincipalBalance:
+      outstandingPrincipalBalance: this.parseCurrency(
         sheetRecord['Outstanding Principal Balance'] || null,
+      ),
       numberOfAssetsUsedAsCollateral:
         sheetRecord['Number of Assets used as Collateral'] || null,
       numberOfAssetsRecorded: sheetRecord['Number of Assets Recorded'] || null,
@@ -369,12 +372,14 @@ export class LoansMigrationController {
       recordOfReceiptForCreditLifeInsurance:
         sheetRecord['Record of Receipt for Credit Life Insurance'] || null,
       percentDisbursed: sheetRecord['% Disbursed'] || null,
-      daysLate: sheetRecord['Days Late'] || null,
+      daysLate: this.parseInt(sheetRecord['Days Late'] || null),
       totalUnpaidLiability: sheetRecord['Total Unpaid Liability'] || null,
       restructured: sheetRecord['Restructured?'] || null,
       collateralCheckedByLegalTeam:
         sheetRecord['Collateral Checked by Legal Team?'] || null,
-      hasFemaleDirector: sheetRecord['Has Female Director?'] || null,
+      hasFemaleDirector: this.parseBooleanToInt(
+        sheetRecord['Has Female Director?'] || null,
+      ),
       reportsGenerated: sheetRecord['Reports Generated'] || null,
       contractUploaded: sheetRecord['Contract Uploaded?'] || null,
       percentChargeOnVehicleInsuranceFinancing:
@@ -419,8 +424,9 @@ export class LoansMigrationController {
         ] || null,
       teachers: sheetRecord['Teachers'] || null,
       totalInterestPaid: sheetRecord['Total Interest Paid'] || null,
-      outstandingInterestBalance:
+      outstandingInterestBalance: this.parseCurrency(
         sheetRecord['Oustanding Interest Balance'] || null,
+      ),
       totalVehicleInsuranceDue:
         sheetRecord['Total Vehicle Insurance Due'] || null,
       totalVehicleInsurancePaid:
@@ -435,7 +441,9 @@ export class LoansMigrationController {
       loanHasGonePAR30: sheetRecord['Loan has Gone PAR30'] || null,
       hasMaleDirector: sheetRecord['Has Male Director?'] || null,
       schoolArea: sheetRecord['School Area'] || null,
-      firstDisbursement: sheetRecord['First Disbursement'] || null,
+      firstDisbursement: this.formatDateToDDMMYYYY(
+        sheetRecord['First Disbursement'] || null,
+      ),
       totalAdditionalFeesNotWithheldFromDisbursement:
         sheetRecord['Total Additional Fees not Withheld from Disbursement'] ||
         null,
@@ -476,5 +484,121 @@ export class LoansMigrationController {
       region: sheetRecord['Region'] || null,
       exciseDuty: sheetRecord['Excise Duty'] || null,
     };
+  }
+
+  /**
+   * Parse currency value from Google Sheets format to number
+   * Handles formats like: "1,234.56", "KSh 1,234.56", "1,234", "$1,234.56", etc.
+   */
+  private parseCurrency(value: any): number | null {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      // Handle "#VALUE!" and other Excel errors
+      if (value.includes('#') || value.includes('VALUE') || value.includes('ERROR')) {
+        return null;
+      }
+      // Remove currency symbols, spaces, and common prefixes
+      let cleaned = value
+        .replace(/[KSh$€£¥,\s]/g, '') // Remove currency symbols and commas
+        .trim();
+      
+      // Handle empty strings after cleaning
+      if (cleaned === '' || cleaned === '(empty)') return null;
+      
+      // Parse to float
+      const parsed = parseFloat(cleaned);
+      return isNaN(parsed) ? null : parsed;
+    }
+    return null;
+  }
+
+  /**
+   * Parse integer value from Google Sheets format
+   */
+  private parseInt(value: any): number | null {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') return Math.floor(value);
+    if (typeof value === 'string') {
+      // Handle "#VALUE!" and other Excel errors
+      if (value.includes('#') || value.includes('VALUE') || value.includes('ERROR')) {
+        return null;
+      }
+      // Remove commas and spaces
+      let cleaned = value.replace(/[,\s]/g, '').trim();
+      
+      // Handle empty strings after cleaning
+      if (cleaned === '' || cleaned === '(empty)') return null;
+      
+      // Parse to integer
+      const parsed = parseInt(cleaned, 10);
+      return isNaN(parsed) ? null : parsed;
+    }
+    return null;
+  }
+
+  /**
+   * Parse boolean value to integer (0 or 1)
+   * Handles: TRUE/FALSE, Yes/No, 1/0, true/false
+   */
+  private parseBooleanToInt(value: any): number | null {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') return value === 0 ? 0 : 1;
+    if (typeof value === 'boolean') return value ? 1 : 0;
+    if (typeof value === 'string') {
+      const lowerValue = value.toLowerCase().trim();
+      if (lowerValue === 'true' || lowerValue === 'yes' || lowerValue === '1') {
+        return 1;
+      }
+      if (lowerValue === 'false' || lowerValue === 'no' || lowerValue === '0' || lowerValue === '(empty)') {
+        return 0;
+      }
+      // Try to parse as number
+      const parsed = parseInt(lowerValue, 10);
+      return isNaN(parsed) ? null : parsed;
+    }
+    return null;
+  }
+
+  /**
+   * Format date to DD/MM/YYYY format
+   * Handles various input formats and converts to DD/MM/YYYY
+   */
+  private formatDateToDDMMYYYY(value: any): string | null {
+    if (value === null || value === undefined || value === '' || value === '(empty)') {
+      return null;
+    }
+    
+    if (typeof value === 'string') {
+      // If already in DD/MM/YYYY format, return as is
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(value.trim())) {
+        return value.trim();
+      }
+      
+      // Try to parse various date formats
+      try {
+        // Handle formats like "May 5, 2022", "2022-05-05", "05/05/2022", etc.
+        const date = new Date(value);
+        if (!isNaN(date.getTime())) {
+          const day = String(date.getDate()).padStart(2, '0');
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const year = date.getFullYear();
+          return `${day}/${month}/${year}`;
+        }
+      } catch (e) {
+        // If parsing fails, return the original value
+        return value;
+      }
+    }
+    
+    // If it's already a Date object
+    if (value instanceof Date) {
+      const day = String(value.getDate()).padStart(2, '0');
+      const month = String(value.getMonth() + 1).padStart(2, '0');
+      const year = value.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+    
+    return value;
   }
 }
