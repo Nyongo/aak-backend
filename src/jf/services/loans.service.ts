@@ -27,12 +27,15 @@ export class LoansService {
           if (value === null || value === '') {
             data[key] = null;
           } else if (typeof value === 'string') {
-            const parsed = parseFloat(value);
-            data[key] = isNaN(parsed) ? null : parsed;
+            // Clean string: remove currency symbols, commas, etc.
+            const cleaned = value.replace(/[^0-9.-]/g, '');
+            const parsed = parseFloat(cleaned);
+            data[key] = isNaN(parsed) || !isFinite(parsed) ? null : parsed;
           } else if (typeof value === 'number') {
-            data[key] = value;
+            data[key] = isNaN(value) || !isFinite(value) ? null : value;
           } else {
-            data[key] = null;
+            // Skip invalid types
+            continue;
           }
         }
         // Handle integer fields (Int)
@@ -40,12 +43,16 @@ export class LoansService {
           if (value === null || value === '') {
             data[key] = null;
           } else if (typeof value === 'string') {
-            const parsed = parseInt(value, 10);
-            data[key] = isNaN(parsed) ? null : parsed;
+            // Clean string: remove non-numeric characters
+            const cleaned = value.replace(/[^0-9-]/g, '');
+            const parsed = parseInt(cleaned, 10);
+            data[key] = isNaN(parsed) || !isFinite(parsed) ? null : parsed;
           } else if (typeof value === 'number') {
-            data[key] = Math.floor(value);
+            const intValue = Math.floor(value);
+            data[key] = isNaN(intValue) || !isFinite(intValue) ? null : intValue;
           } else {
-            data[key] = null;
+            // Skip invalid types
+            continue;
           }
         }
         // Handle all other fields (strings, etc.)
@@ -61,6 +68,17 @@ export class LoansService {
       }, {} as any);
       this.logger.debug(`Creating loan with cleaned data (sample):`, sampleData);
 
+      // Log all numeric fields specifically to catch type issues
+      const numericFields = {
+        principalAmount: { value: data.principalAmount, type: typeof data.principalAmount },
+        outstandingPrincipalBalance: { value: data.outstandingPrincipalBalance, type: typeof data.outstandingPrincipalBalance },
+        outstandingInterestBalance: { value: data.outstandingInterestBalance, type: typeof data.outstandingInterestBalance },
+        numberOfMonths: { value: data.numberOfMonths, type: typeof data.numberOfMonths },
+        daysLate: { value: data.daysLate, type: typeof data.daysLate },
+        hasFemaleDirector: { value: data.hasFemaleDirector, type: typeof data.hasFemaleDirector },
+      };
+      this.logger.debug(`Numeric fields check:`, JSON.stringify(numericFields, null, 2));
+
       const result = await this.prisma.loan.create({
         data,
       });
@@ -68,10 +86,17 @@ export class LoansService {
       return result;
     } catch (error) {
       this.logger.error(`Error creating loan:`, error);
-      this.logger.error(`Loan data that failed (first 20 fields):`, 
+      
+      // Log the cleaned data that was sent to Prisma
+      this.logger.error(`Cleaned data sent to Prisma (first 60 fields):`, 
         JSON.stringify(
-          Object.keys(createLoanDto).slice(0, 20).reduce((obj, key) => {
-            obj[key] = createLoanDto[key];
+          Object.keys(data).slice(0, 60).reduce((obj, key) => {
+            obj[key] = {
+              value: data[key],
+              type: typeof data[key],
+              isNull: data[key] === null,
+              isUndefined: data[key] === undefined
+            };
             return obj;
           }, {} as any),
           null,
@@ -79,13 +104,10 @@ export class LoansService {
         )
       );
       
-      // Log field types to help identify the issue
-      const fieldTypes = Object.entries(createLoanDto).slice(0, 20).map(([key, value]) => ({
-        field: key,
-        type: typeof value,
-        value: value === null ? 'null' : String(value).substring(0, 50)
-      }));
-      this.logger.error(`Field types (first 20):`, JSON.stringify(fieldTypes, null, 2));
+      // Count fields to help identify parameter 57
+      const fieldCount = Object.keys(data).length;
+      this.logger.error(`Total fields being sent to Prisma: ${fieldCount}`);
+      this.logger.error(`Parameter 57 would be field at index 56 (0-based): ${Object.keys(data)[56]} = ${data[Object.keys(data)[56]]}`);
       
       throw error;
     }
