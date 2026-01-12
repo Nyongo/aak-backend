@@ -23,10 +23,12 @@ FROM node:18-alpine AS runner
 
 WORKDIR /app
 
-# Copy Prisma schema before running `npm ci`
+# Copy Prisma schema and migrations before running `npm ci`
+# This includes schema.prisma and the migrations/ directory
 COPY --from=builder /app/prisma ./prisma
 
 # Install only production dependencies
+# Note: prisma should be in dependencies (not devDependencies) for migrations to work
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
