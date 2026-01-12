@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsBoolean, IsNumber } from 'class-validator';
+import { IsOptional, IsString, IsBoolean, IsNumber, IsDateString } from 'class-validator';
 
 export class CreatePrincipalTrancheDto {
   @IsOptional()
@@ -22,8 +22,8 @@ export class CreatePrincipalTrancheDto {
   sslId?: string;
 
   @IsOptional()
-  @IsString()
-  initialDisbursementDateInContract?: string;
+  @IsDateString()
+  initialDisbursementDateInContract?: Date | string;
 
   @IsOptional()
   @IsString()

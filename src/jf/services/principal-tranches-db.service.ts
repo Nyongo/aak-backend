@@ -288,8 +288,8 @@ export class PrincipalTranchesDbService {
         'ssl_id',
       ),
 
-      // Initial Disbursement Date in Contract - exact column name from sheet, format to Month DD, YYYY
-      initialDisbursementDateInContract: this.formatDateToMonthDDYYYY(
+      // Initial Disbursement Date in Contract - exact column name from sheet, parse as Date
+      initialDisbursementDateInContract: this.parseDate(
         this.getSheetValue(
           sheetRecord,
           'Initial Disbursement Date in Contract',
@@ -405,36 +405,28 @@ export class PrincipalTranchesDbService {
    * Format date to "Month DD, YYYY" format (e.g., "May 5, 2022")
    * Handles various input formats and converts to Month DD, YYYY
    */
-  private formatDateToMonthDDYYYY(value: string | null): string | null {
+  /**
+   * Parse date value from Google Sheets format to DateTime
+   * Handles various date formats and converts to Date object for Prisma
+   */
+  private parseDate(value: string | null): Date | null {
     if (value === null || value === undefined || value === '' || value === '(empty)') {
       return null;
     }
     
     if (typeof value === 'string') {
-      // If already in "Month DD, YYYY" format, return as is
-      if (/^[A-Za-z]+\s+\d{1,2},\s+\d{4}$/.test(value.trim())) {
-        return value.trim();
-      }
-      
-      // Try to parse various date formats
       try {
+        // Try to parse various date formats
         const date = new Date(value);
         if (!isNaN(date.getTime())) {
-          const months = [
-            'January', 'February', 'March', 'April', 'May', 'June',
-            'July', 'August', 'September', 'October', 'November', 'December'
-          ];
-          const month = months[date.getMonth()];
-          const day = date.getDate();
-          const year = date.getFullYear();
-          return `${month} ${day}, ${year}`;
+          return date;
         }
       } catch (e) {
-        // If parsing fails, return the original value
-        return value;
+        // If parsing fails, return null
+        return null;
       }
     }
     
-    return value;
+    return null;
   }
 }

@@ -1041,7 +1041,7 @@ model PrincipalTranche {
   contractSigningDate                 String?
   amount                              Float?
   sslId                               String?
-  initialDisbursementDateInContract   String?
+  initialDisbursementDateInContract   DateTime?
   dateTrancheHasGonePar30             String?
   createdAt                           DateTime? @default(now())
   createdBy                           String?
