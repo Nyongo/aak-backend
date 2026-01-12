@@ -10,6 +10,9 @@ RUN npm ci
 # Copy application files, including the Prisma schema
 COPY . .
 
+# Ensure SSL directory exists (create if missing)
+RUN mkdir -p ssl
+
 # Ensure Prisma Schema is available before generating the client
 RUN ls -la prisma/  # Debugging step (optional)
 RUN npx prisma generate
@@ -39,12 +42,10 @@ COPY --from=builder /app/.env ./.env
 COPY --from=builder /app/start-production.sh ./start-production.sh
 RUN chmod +x ./start-production.sh
 
-# ✅ Create directory for SSL certs
-RUN mkdir -p /app/ssl
-
-# ✅ Copy SSL certificates into the container
-COPY ssl/server.key /app/ssl/server.key
-COPY ssl/server.cert /app/ssl/server.cert
+# ✅ Copy SSL certificates from builder stage
+# Directory will exist (created in builder), but may be empty
+# The app will gracefully fall back to HTTP if certificates are missing
+COPY --from=builder /app/ssl/ /app/ssl/
 
 # ✅ Expose both HTTP (3000) and HTTPS (443)
 EXPOSE 3000

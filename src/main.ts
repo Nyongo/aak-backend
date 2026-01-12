@@ -19,18 +19,25 @@ import { join } from 'path';
 import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
-  // SSL configuration commented out for local development
-  const httpsOptions = {
-    key: fs.readFileSync('ssl/server.key'),
-    cert: fs.readFileSync('ssl/server.cert'),
-  };
-
   const host = process.env.HOST || 'localhost';
   const port = process.env.PORT || 3000;
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    httpsOptions,
-  });
-  //const app = await NestFactory.create<NestExpressApplication>(AppModule, {});
+
+  // SSL configuration - only use if certificates exist
+  let app: NestExpressApplication;
+  try {
+    const httpsOptions = {
+      key: fs.readFileSync('ssl/server.key'),
+      cert: fs.readFileSync('ssl/server.cert'),
+    };
+    console.log('🔒 Using HTTPS with SSL certificates');
+    app = await NestFactory.create<NestExpressApplication>(AppModule, {
+      httpsOptions,
+    });
+  } catch (error) {
+    console.log('⚠️  SSL certificates not found or invalid, using HTTP');
+    console.log('   Error:', error.message);
+    app = await NestFactory.create<NestExpressApplication>(AppModule, {});
+  }
   // Enable CORS
   app.enableCors({
     origin: [
