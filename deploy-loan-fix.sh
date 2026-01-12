@@ -1,4 +1,5 @@
 #!/bin/bash
+# Don't exit on error for backup step
 set -e
 
 echo "🚀 Starting Loan firstDisbursement fix deployment..."
@@ -7,11 +8,23 @@ echo "🚀 Starting Loan firstDisbursement fix deployment..."
 echo "📥 Pulling latest code..."
 git pull origin main
 
-# Step 2: Backup
-echo "💾 Creating backup..."
+# Step 2: Backup (optional - you mentioned you'll manually truncate)
+echo "💾 Creating backup (optional)..."
 mkdir -p backups
-docker compose exec postgres pg_dump -U postgres -d nest -t "Loan" --data-only > backups/loan_backup_$(date +%Y%m%d_%H%M%S).sql
-echo "✅ Backup created in backups/ directory"
+
+# Temporarily disable exit on error for backup
+set +e
+# Try to backup with quoted table name (case-sensitive in PostgreSQL)
+docker compose exec -T postgres pg_dump -U postgres -d nest -t '"Loan"' --data-only > backups/loan_backup_$(date +%Y%m%d_%H%M%S).sql 2>&1
+BACKUP_EXIT_CODE=$?
+set -e
+
+if [ $BACKUP_EXIT_CODE -eq 0 ]; then
+  echo "✅ Backup created successfully"
+else
+  echo "⚠️  Backup skipped (table may not exist or will be truncated manually)"
+  echo "   Continuing with deployment..."
+fi
 
 # Step 3: Build image
 echo "🔨 Building Docker image..."
