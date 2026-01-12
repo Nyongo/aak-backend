@@ -26,8 +26,9 @@ else
   echo "   Continuing with deployment..."
 fi
 
-# Step 3: Build image
+# Step 3: Build image (this regenerates Prisma client)
 echo "🔨 Building Docker image..."
+echo "   This will regenerate Prisma client with latest schema..."
 docker compose build nestjs_app
 
 # Step 4: Restart container

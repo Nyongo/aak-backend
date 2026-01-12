@@ -12,13 +12,74 @@ export class LoansService {
 
   async create(createLoanDto: CreateLoanDto) {
     try {
+      // Clean the data to ensure types match Prisma schema
+      const data: any = { ...createLoanDto };
+      
+      // Ensure numeric fields are numbers or null (not strings or undefined)
+      if (data.principalAmount !== undefined && data.principalAmount !== null) {
+        data.principalAmount = typeof data.principalAmount === 'string' 
+          ? parseFloat(data.principalAmount) || null 
+          : data.principalAmount;
+      } else {
+        data.principalAmount = null;
+      }
+      
+      if (data.outstandingPrincipalBalance !== undefined && data.outstandingPrincipalBalance !== null) {
+        data.outstandingPrincipalBalance = typeof data.outstandingPrincipalBalance === 'string'
+          ? parseFloat(data.outstandingPrincipalBalance) || null
+          : data.outstandingPrincipalBalance;
+      } else {
+        data.outstandingPrincipalBalance = null;
+      }
+      
+      if (data.outstandingInterestBalance !== undefined && data.outstandingInterestBalance !== null) {
+        data.outstandingInterestBalance = typeof data.outstandingInterestBalance === 'string'
+          ? parseFloat(data.outstandingInterestBalance) || null
+          : data.outstandingInterestBalance;
+      } else {
+        data.outstandingInterestBalance = null;
+      }
+      
+      // Ensure integer fields are integers or null
+      if (data.numberOfMonths !== undefined && data.numberOfMonths !== null) {
+        data.numberOfMonths = typeof data.numberOfMonths === 'string'
+          ? parseInt(data.numberOfMonths, 10) || null
+          : data.numberOfMonths;
+      } else {
+        data.numberOfMonths = null;
+      }
+      
+      if (data.daysLate !== undefined && data.daysLate !== null) {
+        data.daysLate = typeof data.daysLate === 'string'
+          ? parseInt(data.daysLate, 10) || null
+          : data.daysLate;
+      } else {
+        data.daysLate = null;
+      }
+      
+      if (data.hasFemaleDirector !== undefined && data.hasFemaleDirector !== null) {
+        data.hasFemaleDirector = typeof data.hasFemaleDirector === 'string'
+          ? parseInt(data.hasFemaleDirector, 10) || null
+          : data.hasFemaleDirector;
+      } else {
+        data.hasFemaleDirector = null;
+      }
+      
+      // Remove undefined values (Prisma doesn't like undefined)
+      Object.keys(data).forEach(key => {
+        if (data[key] === undefined) {
+          delete data[key];
+        }
+      });
+
       const result = await this.prisma.loan.create({
-        data: createLoanDto,
+        data,
       });
       this.logger.log(`Created loan with ID: ${result.id}`);
       return result;
     } catch (error) {
       this.logger.error(`Error creating loan:`, error);
+      this.logger.error(`Loan data that failed:`, JSON.stringify(createLoanDto, null, 2));
       throw error;
     }
   }
@@ -154,9 +215,57 @@ export class LoansService {
 
   async update(id: number, updateLoanDto: UpdateLoanDto) {
     try {
+      // Clean the data to ensure types match Prisma schema
+      const data: any = { ...updateLoanDto };
+      
+      // Convert numeric fields if they exist in the update
+      if (data.principalAmount !== undefined && data.principalAmount !== null) {
+        data.principalAmount = typeof data.principalAmount === 'string' 
+          ? parseFloat(data.principalAmount) || null 
+          : data.principalAmount;
+      }
+      
+      if (data.outstandingPrincipalBalance !== undefined && data.outstandingPrincipalBalance !== null) {
+        data.outstandingPrincipalBalance = typeof data.outstandingPrincipalBalance === 'string'
+          ? parseFloat(data.outstandingPrincipalBalance) || null
+          : data.outstandingPrincipalBalance;
+      }
+      
+      if (data.outstandingInterestBalance !== undefined && data.outstandingInterestBalance !== null) {
+        data.outstandingInterestBalance = typeof data.outstandingInterestBalance === 'string'
+          ? parseFloat(data.outstandingInterestBalance) || null
+          : data.outstandingInterestBalance;
+      }
+      
+      // Convert integer fields if they exist in the update
+      if (data.numberOfMonths !== undefined && data.numberOfMonths !== null) {
+        data.numberOfMonths = typeof data.numberOfMonths === 'string'
+          ? parseInt(data.numberOfMonths, 10) || null
+          : data.numberOfMonths;
+      }
+      
+      if (data.daysLate !== undefined && data.daysLate !== null) {
+        data.daysLate = typeof data.daysLate === 'string'
+          ? parseInt(data.daysLate, 10) || null
+          : data.daysLate;
+      }
+      
+      if (data.hasFemaleDirector !== undefined && data.hasFemaleDirector !== null) {
+        data.hasFemaleDirector = typeof data.hasFemaleDirector === 'string'
+          ? parseInt(data.hasFemaleDirector, 10) || null
+          : data.hasFemaleDirector;
+      }
+      
+      // Remove undefined values
+      Object.keys(data).forEach(key => {
+        if (data[key] === undefined) {
+          delete data[key];
+        }
+      });
+
       const result = await this.prisma.loan.update({
         where: { id },
-        data: updateLoanDto,
+        data,
       });
       this.logger.log(`Updated loan with ID: ${id}`);
       return result;
