@@ -13,64 +13,53 @@ export class LoansService {
   async create(createLoanDto: CreateLoanDto) {
     try {
       // Clean the data to ensure types match Prisma schema
-      const data: any = { ...createLoanDto };
+      const data: any = {};
       
-      // Ensure numeric fields are numbers or null (not strings or undefined)
-      if (data.principalAmount !== undefined && data.principalAmount !== null) {
-        data.principalAmount = typeof data.principalAmount === 'string' 
-          ? parseFloat(data.principalAmount) || null 
-          : data.principalAmount;
-      } else {
-        data.principalAmount = null;
-      }
-      
-      if (data.outstandingPrincipalBalance !== undefined && data.outstandingPrincipalBalance !== null) {
-        data.outstandingPrincipalBalance = typeof data.outstandingPrincipalBalance === 'string'
-          ? parseFloat(data.outstandingPrincipalBalance) || null
-          : data.outstandingPrincipalBalance;
-      } else {
-        data.outstandingPrincipalBalance = null;
-      }
-      
-      if (data.outstandingInterestBalance !== undefined && data.outstandingInterestBalance !== null) {
-        data.outstandingInterestBalance = typeof data.outstandingInterestBalance === 'string'
-          ? parseFloat(data.outstandingInterestBalance) || null
-          : data.outstandingInterestBalance;
-      } else {
-        data.outstandingInterestBalance = null;
-      }
-      
-      // Ensure integer fields are integers or null
-      if (data.numberOfMonths !== undefined && data.numberOfMonths !== null) {
-        data.numberOfMonths = typeof data.numberOfMonths === 'string'
-          ? parseInt(data.numberOfMonths, 10) || null
-          : data.numberOfMonths;
-      } else {
-        data.numberOfMonths = null;
-      }
-      
-      if (data.daysLate !== undefined && data.daysLate !== null) {
-        data.daysLate = typeof data.daysLate === 'string'
-          ? parseInt(data.daysLate, 10) || null
-          : data.daysLate;
-      } else {
-        data.daysLate = null;
-      }
-      
-      if (data.hasFemaleDirector !== undefined && data.hasFemaleDirector !== null) {
-        data.hasFemaleDirector = typeof data.hasFemaleDirector === 'string'
-          ? parseInt(data.hasFemaleDirector, 10) || null
-          : data.hasFemaleDirector;
-      } else {
-        data.hasFemaleDirector = null;
-      }
-      
-      // Remove undefined values (Prisma doesn't like undefined)
-      Object.keys(data).forEach(key => {
-        if (data[key] === undefined) {
-          delete data[key];
+      // Copy all fields and convert types as needed
+      for (const [key, value] of Object.entries(createLoanDto)) {
+        if (value === undefined) {
+          // Skip undefined values
+          continue;
         }
-      });
+        
+        // Handle numeric fields (Float)
+        if (['principalAmount', 'outstandingPrincipalBalance', 'outstandingInterestBalance'].includes(key)) {
+          if (value === null || value === '') {
+            data[key] = null;
+          } else if (typeof value === 'string') {
+            const parsed = parseFloat(value);
+            data[key] = isNaN(parsed) ? null : parsed;
+          } else if (typeof value === 'number') {
+            data[key] = value;
+          } else {
+            data[key] = null;
+          }
+        }
+        // Handle integer fields (Int)
+        else if (['numberOfMonths', 'daysLate', 'hasFemaleDirector'].includes(key)) {
+          if (value === null || value === '') {
+            data[key] = null;
+          } else if (typeof value === 'string') {
+            const parsed = parseInt(value, 10);
+            data[key] = isNaN(parsed) ? null : parsed;
+          } else if (typeof value === 'number') {
+            data[key] = Math.floor(value);
+          } else {
+            data[key] = null;
+          }
+        }
+        // Handle all other fields (strings, etc.)
+        else {
+          data[key] = value === null || value === '' ? null : value;
+        }
+      }
+
+      // Log the cleaned data for debugging (first few fields only)
+      const sampleData = Object.keys(data).slice(0, 10).reduce((obj, key) => {
+        obj[key] = data[key];
+        return obj;
+      }, {} as any);
+      this.logger.debug(`Creating loan with cleaned data (sample):`, sampleData);
 
       const result = await this.prisma.loan.create({
         data,
@@ -79,7 +68,25 @@ export class LoansService {
       return result;
     } catch (error) {
       this.logger.error(`Error creating loan:`, error);
-      this.logger.error(`Loan data that failed:`, JSON.stringify(createLoanDto, null, 2));
+      this.logger.error(`Loan data that failed (first 20 fields):`, 
+        JSON.stringify(
+          Object.keys(createLoanDto).slice(0, 20).reduce((obj, key) => {
+            obj[key] = createLoanDto[key];
+            return obj;
+          }, {} as any),
+          null,
+          2
+        )
+      );
+      
+      // Log field types to help identify the issue
+      const fieldTypes = Object.entries(createLoanDto).slice(0, 20).map(([key, value]) => ({
+        field: key,
+        type: typeof value,
+        value: value === null ? 'null' : String(value).substring(0, 50)
+      }));
+      this.logger.error(`Field types (first 20):`, JSON.stringify(fieldTypes, null, 2));
+      
       throw error;
     }
   }
