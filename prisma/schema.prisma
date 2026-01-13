@@ -1205,3 +1205,25 @@ model ImpactSurvey {
   
   @@map("impact_survey")
 }
+
+model WriteOff {
+  id                                      Int       @id @default(autoincrement())
+  sheetId                                 String?   @unique
+  date                                    String?
+  loanId                                  String?
+  paymentScheduleId                       String?
+  principalAmountWrittenOff                Float?
+  interestAmountWrittenOff                 Float?
+  vehicleInsuranceAmountWrittenOff         Float?
+  totalAmount                              Float?
+  createdAtSheet                          String?
+  createdBy                                String?
+  region                                   String?
+  sslId                                    String?
+  loanOrPaymentLevel                       String?
+  penaltyAmountWrittenOff                  Float?
+  synced                                   Boolean   @default(false)
+  createdAt                                DateTime? @default(now())
+  
+  @@map("write_offs")
+}

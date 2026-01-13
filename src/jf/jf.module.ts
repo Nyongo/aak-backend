@@ -127,6 +127,8 @@ import { ImpactSurveyDbService } from './services/impact-survey-db.service';
 import { ImpactSurveySyncService } from './services/impact-survey-sync.service';
 import { LoansService } from './services/loans.service';
 import { LoansMigrationController } from './controllers/loans-migration.controller';
+import { WriteOffsDbService } from './services/write-offs-db.service';
+import { WriteOffsMigrationController } from './controllers/write-offs-migration.controller';
 
 import { DirectorsControllerSheets } from './controllers/directors.controller.sheets';
 import { CommonModule } from '../common/common.module';
@@ -209,6 +211,7 @@ import { CbsService } from './services/cbs.service';
     ImpactSurveyDbService,
     ImpactSurveySyncService,
     LoansService,
+    WriteOffsDbService,
     FinancialSurveysDbService,
     FinancialSurveysSyncService,
     MlDataService,
@@ -283,6 +286,7 @@ import { CbsService } from './services/cbs.service';
     DirectLendingProcessingMigrationController,
     ImpactSurveyMigrationController,
     LoansMigrationController,
+    WriteOffsMigrationController,
     JFNetworkContactPageController,
     LeadsController,
   ],

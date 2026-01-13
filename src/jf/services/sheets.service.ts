@@ -4025,6 +4025,49 @@ export class SheetsService {
     }
   }
 
+  async getWriteOffs(): Promise<any[]> {
+    try {
+      this.logger.debug('Fetching write offs from sheets');
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.BORROWERS_SHEET_ID,
+        range: 'Write Offs!A:ZZ',
+      });
+      const rows = response.data.values;
+      if (!rows || rows.length === 0) {
+        return [];
+      }
+      const headers = rows[0];
+
+      // Log the actual headers from Google Sheets for debugging
+      this.logger.log('Write Offs sheet headers:', headers);
+
+      const records = rows.slice(1).map((row) => {
+        const record = {};
+        headers.forEach((header, index) => {
+          record[header] = row[index] || '';
+        });
+        return record;
+      });
+      this.logger.log(
+        `Found ${records.length} write off records in Google Sheets`,
+      );
+      return records;
+    } catch (error) {
+      this.logger.error('Error fetching write offs:', error);
+      throw error;
+    }
+  }
+
+  async getWriteOffsCount(): Promise<number> {
+    try {
+      const writeOffs = await this.getWriteOffs();
+      return writeOffs.length;
+    } catch (error) {
+      this.logger.error('Error counting write offs:', error);
+      throw error;
+    }
+  }
+
   async getLoans(): Promise<any[]> {
     try {
       this.logger.log('Fetching loans from sheets');
