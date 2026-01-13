@@ -11,10 +11,10 @@ set -e
 # ==========================================
 # CONFIGURATION - UPDATE THESE VALUES
 # ==========================================
-SERVER_IP="your-server-ip-here"
+SERVER_IP="161.35.105.65"
 SERVER_USER="root"
-APP_DIR="/var/www/jf-backend"
-CONTAINER_NAME="jf-backend"  # or use docker-compose service name
+APP_DIR="/applications/aak-backend"
+CONTAINER_NAME="nestjs_app"  # or use docker compose service name
 
 # ==========================================
 # SCRIPT START
@@ -52,18 +52,18 @@ echo ""
 
 # Step 3: Stop containers
 echo -e "${BLUE}[3/7]${NC} Stopping containers..."
-run_remote "cd $APP_DIR && docker-compose down" || echo "Container already stopped"
+run_remote "cd $APP_DIR && docker compose down" || echo "Container already stopped"
 echo -e "${GREEN}✓ Containers stopped${NC}\n"
 
 # Step 4: Build (with no cache to ensure fresh compile)
 echo -e "${BLUE}[4/7]${NC} Building Docker image (this may take 2-5 minutes)..."
 echo -e "${YELLOW}⚠️  Using --no-cache to ensure TypeScript is recompiled${NC}"
-run_remote "cd $APP_DIR && docker-compose build --no-cache"
+run_remote "cd $APP_DIR && docker compose build --no-cache"
 echo -e "${GREEN}✓ Build complete${NC}\n"
 
 # Step 5: Start containers
 echo -e "${BLUE}[5/7]${NC} Starting containers..."
-run_remote "cd $APP_DIR && docker-compose up -d"
+run_remote "cd $APP_DIR && docker compose up -d"
 echo -e "${GREEN}✓ Containers started${NC}\n"
 
 # Step 6: Wait for startup
@@ -75,7 +75,7 @@ echo -e "${GREEN}✓ Initialization complete${NC}\n"
 echo -e "${BLUE}[7/7]${NC} Verifying fix is deployed..."
 
 # Get container ID
-CONTAINER_ID=$(run_remote "cd $APP_DIR && docker-compose ps -q api" || run_remote "cd $APP_DIR && docker-compose ps -q app" || run_remote "cd $APP_DIR && docker-compose ps -q | head -n1")
+CONTAINER_ID=$(run_remote "cd $APP_DIR && docker compose ps -q api" || run_remote "cd $APP_DIR && docker compose ps -q app" || run_remote "cd $APP_DIR && docker compose ps -q | head -n1")
 
 if [ -z "$CONTAINER_ID" ]; then
     echo -e "${RED}✗ Could not find running container${NC}"
@@ -97,7 +97,7 @@ fi
 # Check logs for any immediate errors
 echo ""
 echo -e "${BLUE}Recent logs (last 20 lines):${NC}"
-run_remote "cd $APP_DIR && docker-compose logs --tail 20"
+run_remote "cd $APP_DIR && docker compose logs --tail 20"
 
 echo ""
 echo "=========================================="
@@ -113,10 +113,10 @@ echo "2. Test import (this should now work!):"
 echo "   curl -X POST https://your-api.com/jf/loans-migration/import-from-sheets"
 echo ""
 echo "3. Monitor logs:"
-echo "   ssh $SERVER_USER@$SERVER_IP 'cd $APP_DIR && docker-compose logs -f'"
+echo "   ssh $SERVER_USER@$SERVER_IP 'cd $APP_DIR && docker compose logs -f'"
 echo ""
 echo "4. Check for errors:"
-echo "   ssh $SERVER_USER@$SERVER_IP 'cd $APP_DIR && docker-compose logs | grep -i error | tail -n 20'"
+echo "   ssh $SERVER_USER@$SERVER_IP 'cd $APP_DIR && docker compose logs | grep -i error | tail -n 20'"
 echo ""
 echo -e "${YELLOW}Expected Result:${NC}"
 echo '  {

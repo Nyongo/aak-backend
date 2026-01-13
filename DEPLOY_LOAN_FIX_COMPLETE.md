@@ -1,9 +1,11 @@
-# Complete Deployment Guide: Loan firstDisbursement Fix
+x# Complete Deployment Guide: Loan firstDisbursement Fix
 
 ## Overview
+
 This guide covers the complete deployment process for fixing the `firstDisbursement` field in the Loan model, including Docker image build and migration application.
 
 ## Migration Details
+
 - **Migration**: `20260112203401_convert_first_disbursement_to_string`
 - **Purpose**: Converts `firstDisbursement` from TIMESTAMP to TEXT (DD/MM/YYYY format)
 - **Table**: `Loan`
@@ -107,14 +109,15 @@ docker compose exec postgres pg_dump -U postgres -d nest > backups/full_backup_$
 ```bash
 # Check current column type
 docker compose exec postgres psql -U postgres -d nest -c "
-SELECT column_name, data_type 
-FROM information_schema.columns 
-WHERE table_name = 'Loan' 
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'Loan'
 AND column_name = 'firstDisbursement';
 "
 ```
 
 **Expected Output:**
+
 - If `data_type = 'timestamp without time zone'` → Migration needed
 - If `data_type = 'text'` → Already converted, migration will skip
 
@@ -123,9 +126,9 @@ AND column_name = 'firstDisbursement';
 ```bash
 # Check current data format
 docker compose exec postgres psql -U postgres -d nest -c "
-SELECT \"sheetId\", \"firstDisbursement\" 
-FROM \"Loan\" 
-WHERE \"firstDisbursement\" IS NOT NULL 
+SELECT \"sheetId\", \"firstDisbursement\"
+FROM \"Loan\"
+WHERE \"firstDisbursement\" IS NOT NULL
 LIMIT 5;
 "
 ```
@@ -158,6 +161,7 @@ docker compose build nestjs_app
 ```
 
 **Expected Output:**
+
 ```
 [+] Building X.Xs (XX/XX) FINISHED
 ...
@@ -213,6 +217,7 @@ docker compose exec nestjs_app npx prisma migrate deploy
 ```
 
 **Expected Output:**
+
 ```
 Environment variables loaded from .env
 Prisma schema loaded from prisma/schema.prisma
@@ -239,16 +244,17 @@ docker compose exec nestjs_app npx prisma migrate status
 ```bash
 # Verify column is now TEXT
 docker compose exec postgres psql -U postgres -d nest -c "
-SELECT column_name, data_type 
-FROM information_schema.columns 
-WHERE table_name = 'Loan' 
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'Loan'
 AND column_name = 'firstDisbursement';
 "
 ```
 
 **Expected Output:**
+
 ```
- column_name          | data_type 
+ column_name          | data_type
 ----------------------+-----------
  firstDisbursement    | text
 ```
@@ -258,16 +264,17 @@ AND column_name = 'firstDisbursement';
 ```bash
 # Verify data is in DD/MM/YYYY format
 docker compose exec postgres psql -U postgres -d nest -c "
-SELECT \"sheetId\", \"firstDisbursement\" 
-FROM \"Loan\" 
-WHERE \"firstDisbursement\" IS NOT NULL 
+SELECT \"sheetId\", \"firstDisbursement\"
+FROM \"Loan\"
+WHERE \"firstDisbursement\" IS NOT NULL
 LIMIT 5;
 "
 ```
 
 **Expected Output:**
+
 ```
- sheetId  | firstDisbursement 
+ sheetId  | firstDisbursement
 ----------+-------------------
  d8d66a87 | 13/05/2022
  93346221 | 05/05/2022
@@ -337,6 +344,7 @@ docker rmi <old-image-id>
 **Error**: `migrate found failed migrations`
 
 **Solution**:
+
 ```bash
 # Check failed migrations
 docker compose exec nestjs_app npx prisma migrate status
@@ -351,11 +359,13 @@ docker compose exec nestjs_app npx prisma migrate deploy
 ### Issue: Container Won't Start
 
 **Check logs**:
+
 ```bash
 docker compose logs nestjs_app
 ```
 
 **Common fixes**:
+
 - Check database connection
 - Verify environment variables
 - Check if port 3000 is available
@@ -363,12 +373,13 @@ docker compose logs nestjs_app
 ### Issue: Column Type Not Changed
 
 **Manual fix**:
+
 ```bash
 docker compose exec postgres psql -U postgres -d nest << 'EOF'
 ALTER TABLE "Loan" ADD COLUMN "firstDisbursement_temp" TEXT;
 
-UPDATE "Loan" 
-SET "firstDisbursement_temp" = CASE 
+UPDATE "Loan"
+SET "firstDisbursement_temp" = CASE
   WHEN "firstDisbursement" IS NULL THEN NULL
   ELSE TO_CHAR("firstDisbursement"::timestamp, 'DD/MM/YYYY')
 END;
@@ -384,6 +395,7 @@ docker compose exec nestjs_app npx prisma migrate resolve --applied 202601122034
 ### Issue: Rollback Needed
 
 **Restore from backup**:
+
 ```bash
 # Find your backup file
 ls -lh backups/loan_backup_*.sql
@@ -435,9 +447,9 @@ docker compose exec nestjs_app npx prisma migrate deploy
 # Step 7: Verify
 echo "✅ Verifying fix..."
 docker compose exec postgres psql -U postgres -d nest -c "
-SELECT column_name, data_type 
-FROM information_schema.columns 
-WHERE table_name = 'Loan' 
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'Loan'
 AND column_name = 'firstDisbursement';
 "
 
@@ -445,6 +457,7 @@ echo "🎉 Deployment complete!"
 ```
 
 Make it executable and run:
+
 ```bash
 chmod +x deploy-loan-fix.sh
 ./deploy-loan-fix.sh
@@ -480,6 +493,7 @@ After Loan is successfully fixed:
 ## Support
 
 If you encounter issues:
+
 1. Check container logs: `docker compose logs nestjs_app`
 2. Check migration status: `docker compose exec nestjs_app npx prisma migrate status`
 3. Check database directly: `docker compose exec postgres psql -U postgres -d nest`

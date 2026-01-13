@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { CacheModule } from '@nestjs/cache-manager';
 import { ScheduleModule } from '@nestjs/schedule';
+import { HttpModule } from '@nestjs/axios';
 import * as cacheStore from 'cache-manager-memory-store';
 import { GoogleAuthService } from './services/google-auth.service';
 import { GoogleDriveService } from './services/google-drive.service';
@@ -139,6 +140,8 @@ import { JFNetworkContactPageController } from './controllers/jf-network-contact
 import { LeadsController } from './controllers/leads.controller';
 import { ZohoCrmService } from './services/zoho-crm.service';
 import { CbsService } from './services/cbs.service';
+import { MigrationSchedulerService } from './services/migration-scheduler.service';
+import { MigrationSchedulerController } from './controllers/migration-scheduler.controller';
 
 @Module({
   imports: [
@@ -149,6 +152,7 @@ import { CbsService } from './services/cbs.service';
       // max: 100, // Optional: Max number of items in cache
     }),
     ScheduleModule.forRoot(),
+    HttpModule,
     CommonModule,
   ],
   providers: [
@@ -220,6 +224,7 @@ import { CbsService } from './services/cbs.service';
     JFNetworkContactPageService,
     ZohoCrmService,
     CbsService,
+    MigrationSchedulerService,
   ],
   controllers: [
     SpreadsheetController,
@@ -287,6 +292,7 @@ import { CbsService } from './services/cbs.service';
     ImpactSurveyMigrationController,
     LoansMigrationController,
     WriteOffsMigrationController,
+    MigrationSchedulerController,
     JFNetworkContactPageController,
     LeadsController,
   ],

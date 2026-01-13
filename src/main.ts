@@ -96,6 +96,6 @@ async function bootstrap() {
   );
 
   await app.listen(port, host);
-  console.log(`🚀 Server is running on http://${host}:${port}`);
+  console.log(`🚀 Server is running on https://${host}:${port}`);
 }
 bootstrap();

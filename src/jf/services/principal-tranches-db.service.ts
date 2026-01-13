@@ -10,16 +10,68 @@ export class PrincipalTranchesDbService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createPrincipalTrancheDto: CreatePrincipalTrancheDto) {
+    // Clean the data to ensure types match Prisma schema
+    let data: any = {};
+    
     try {
-      // Convert string dates to Date objects for Prisma
-      const data = {
-        ...createPrincipalTrancheDto,
-        initialDisbursementDateInContract: createPrincipalTrancheDto.initialDisbursementDateInContract
-          ? typeof createPrincipalTrancheDto.initialDisbursementDateInContract === 'string'
-            ? new Date(createPrincipalTrancheDto.initialDisbursementDateInContract)
-            : createPrincipalTrancheDto.initialDisbursementDateInContract
-          : undefined,
-      };
+      // Initialize data object
+      data = {};
+      
+      // Define boolean field lists for type checking
+      const booleanFields = ['synced'];
+      
+      // Copy all fields and convert types as needed
+      for (const [key, value] of Object.entries(createPrincipalTrancheDto)) {
+        if (value === undefined) {
+          // Skip undefined values - Prisma doesn't like undefined
+          continue;
+        }
+        
+        // Handle boolean fields (Boolean)
+        if (booleanFields.includes(key)) {
+          if (value === null || value === undefined) {
+            data[key] = null;
+          } else if (typeof value === 'boolean') {
+            data[key] = value;
+          } else if (typeof value === 'string') {
+            const lowerValue = value.toLowerCase().trim();
+            if (lowerValue === 'true' || lowerValue === '1') {
+              data[key] = true;
+            } else if (lowerValue === 'false' || lowerValue === '0') {
+              data[key] = false;
+            } else {
+              data[key] = null;
+            }
+          } else if (typeof value === 'number') {
+            data[key] = value !== 0;
+          } else {
+            data[key] = null;
+          }
+        }
+        // Handle date fields (DateTime)
+        else if (key === 'initialDisbursementDateInContract') {
+          if (value === null || value === '') {
+            data[key] = null;
+          } else if (typeof value === 'string') {
+            data[key] = new Date(value);
+          } else if (value instanceof Date) {
+            data[key] = value;
+          } else {
+            data[key] = null;
+          }
+        }
+        // Handle all other fields (strings, numbers, etc.)
+        else {
+          data[key] = value === null || value === '' ? null : value;
+        }
+      }
+      
+      // Remove any undefined values one more time (safety check)
+      Object.keys(data).forEach(key => {
+        if (data[key] === undefined) {
+          delete data[key];
+        }
+      });
 
       const result = await this.prisma.principalTranche.create({
         data,
@@ -28,6 +80,21 @@ export class PrincipalTranchesDbService {
       return result;
     } catch (error) {
       this.logger.error('Error creating principal tranche:', error);
+      if (data && Object.keys(data).length > 0) {
+        this.logger.error(`Data sent to Prisma (first 30 fields):`, 
+          JSON.stringify(
+            Object.keys(data).slice(0, 30).reduce((obj, key) => {
+              obj[key] = {
+                value: data[key],
+                type: typeof data[key],
+              };
+              return obj;
+            }, {} as any),
+            null,
+            2
+          )
+        );
+      }
       throw error;
     }
   }
