@@ -80,6 +80,7 @@ export class BorrowersMigrationController {
       }
 
       let imported = 0;
+      let updated = 0;
       let skipped = 0;
       let errors = 0;
       const errorDetails = [];
@@ -116,37 +117,35 @@ export class BorrowersMigrationController {
             continue;
           }
 
+          // Convert sheet data to database format
+          const dbBorrower = this.convertSheetToDbFormat(sheetBorrower);
+
           // Check if borrower already exists in database
           const existingBorrower = await this.borrowersDbService.findBySheetId(
             sheetBorrower.ID,
           );
 
           if (existingBorrower) {
-            this.logger.debug(
-              `Skipping existing borrower: ${sheetBorrower.Name} (ID: ${sheetBorrower.ID})`,
-            );
-            skipped++;
-            skippedDetails.push({
-              borrower: sheetBorrower.Name || 'Unknown',
-              sheetId: sheetBorrower.ID,
-              reason: 'Already exists in database',
+            // Update existing record
+            await this.borrowersDbService.update(String(existingBorrower.id), {
+              ...dbBorrower,
+              synced: true, // Mark as synced since it came from sheets
             });
-            continue;
+            updated++;
+            this.logger.debug(
+              `Updated existing borrower: ${sheetBorrower.Name} (ID: ${sheetBorrower.ID})`,
+            );
+          } else {
+            // Create new record
+            await this.borrowersDbService.create({
+              ...dbBorrower,
+              synced: true, // Mark as already synced since it came from sheets
+            });
+            imported++;
+            this.logger.debug(
+              `Created new borrower: ${sheetBorrower.Name} (ID: ${sheetBorrower.ID})`,
+            );
           }
-
-          // Convert sheet data to database format
-          const dbBorrower = this.convertSheetToDbFormat(sheetBorrower);
-
-          // Import to database with synced = true
-          await this.borrowersDbService.create({
-            ...dbBorrower,
-            synced: true, // Mark as already synced since it came from sheets
-          });
-
-          this.logger.debug(
-            `Imported borrower: ${sheetBorrower.Name} (ID: ${sheetBorrower.ID})`,
-          );
-          imported++;
         } catch (error) {
           errors++;
           const errorMessage =
@@ -166,6 +165,7 @@ export class BorrowersMigrationController {
         success: true,
         message: 'Import completed',
         imported,
+        updated,
         skipped,
         errors,
         errorDetails: errorDetails.length > 0 ? errorDetails : undefined,

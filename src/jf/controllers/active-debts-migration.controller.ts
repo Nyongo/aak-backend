@@ -83,6 +83,7 @@ export class ActiveDebtsMigrationController {
         : sheetsData;
 
       let imported = 0;
+      let updated = 0;
       let skipped = 0;
       let errors = 0;
       const errorDetails = [];
@@ -115,28 +116,29 @@ export class ActiveDebtsMigrationController {
             continue;
           }
 
+          // Convert sheet data to database format
+          const dbActiveDebt = this.convertSheetToDbFormat(sheetActiveDebt);
+
           // Check if record already exists in database
           const existingRecord = await this.activeDebtsDbService.findBySheetId(
             sheetActiveDebt.ID,
           );
 
           if (existingRecord) {
-            skipped++;
-            skippedDetails.push({
-              reason: 'Already exists in database',
-              sheetId: sheetActiveDebt.ID,
-              creditApplicationId: sheetActiveDebt['Credit Application ID'],
-              debtStatus: sheetActiveDebt['Debt Status'],
-            });
-            continue;
+            // Update existing record
+            await this.activeDebtsDbService.update(sheetActiveDebt.ID, dbActiveDebt);
+            updated++;
+            this.logger.debug(
+              `Updated Active Debt: ${sheetActiveDebt['Credit Application ID']} - ${sheetActiveDebt['Debt Status']}`,
+            );
+          } else {
+            // Create new record
+            await this.activeDebtsDbService.create(dbActiveDebt);
+            imported++;
+            this.logger.debug(
+              `Created Active Debt: ${sheetActiveDebt['Credit Application ID']} - ${sheetActiveDebt['Debt Status']}`,
+            );
           }
-
-          // Convert sheet data to database format
-          const dbActiveDebt = this.convertSheetToDbFormat(sheetActiveDebt);
-
-          // Create record in database
-          await this.activeDebtsDbService.create(dbActiveDebt);
-          imported++;
 
           this.logger.debug(
             `Imported Active Debt: ${sheetActiveDebt['Credit Application ID']} - ${sheetActiveDebt['Debt Status']}`,
@@ -158,13 +160,14 @@ export class ActiveDebtsMigrationController {
       }
 
       this.logger.log(
-        `Import completed: ${imported} imported, ${skipped} skipped, ${errors} errors`,
+        `Import completed: ${imported} imported, ${updated} updated, ${skipped} skipped, ${errors} errors`,
       );
 
       return {
         success: true,
-        message: `Import completed: ${imported} imported, ${skipped} skipped, ${errors} errors`,
+        message: `Import completed: ${imported} imported, ${updated} updated, ${skipped} skipped, ${errors} errors`,
         imported,
+        updated,
         skipped,
         errors,
         errorDetails,

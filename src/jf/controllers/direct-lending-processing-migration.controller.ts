@@ -67,12 +67,14 @@ export class DirectLendingProcessingMigrationController {
           success: true,
           message: 'No data found in Google Sheets',
           imported: 0,
+          updated: 0,
           skipped: 0,
           errors: 0,
         };
       }
 
       let imported = 0;
+      let updated = 0;
       let skipped = 0;
       let errors = 0;
       const errorDetails = [];
@@ -113,31 +115,31 @@ export class DirectLendingProcessingMigrationController {
             continue;
           }
 
+          // Convert sheet data to database format
+          const dbRecord =
+            this.directLendingProcessingDbService.convertSheetToDb(sheetRecord);
+
           // Check if record already exists in database
           const existingRecord =
             await this.directLendingProcessingDbService.findBySheetId(idValue);
 
           if (existingRecord) {
-            skipped++;
-            skippedDetails.push({
-              record: idValue,
-              sheetId: idValue,
-              reason: 'Already exists in database',
+            // Update existing record
+            await this.directLendingProcessingDbService.update(existingRecord.id, {
+              ...dbRecord,
+              synced: true, // Mark as synced since it came from sheets
             });
-            continue;
+            updated++;
+            this.logger.debug(`Updated existing direct lending processing: ${idValue}`);
+          } else {
+            // Create new record
+            await this.directLendingProcessingDbService.create({
+              ...dbRecord,
+              synced: true, // Mark as already synced since it came from sheets
+            });
+            imported++;
+            this.logger.debug(`Created new direct lending processing: ${idValue}`);
           }
-
-          // Convert sheet data to database format
-          const dbRecord =
-            this.directLendingProcessingDbService.convertSheetToDb(sheetRecord);
-
-          // Import to database with synced = true
-          await this.directLendingProcessingDbService.create({
-            ...dbRecord,
-            synced: true, // Mark as already synced since it came from sheets
-          });
-
-          imported++;
         } catch (error) {
           errors++;
           const errorMessage =
@@ -157,6 +159,7 @@ export class DirectLendingProcessingMigrationController {
         success: true,
         message: 'Import completed',
         imported,
+        updated,
         skipped,
         errors,
         errorDetails: errorDetails.length > 0 ? errorDetails : undefined,

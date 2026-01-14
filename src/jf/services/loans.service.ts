@@ -19,10 +19,11 @@ export class LoansService {
       // Initialize data object
       data = {};
       
-      // Define numeric, integer, and boolean field lists for type checking
+      // Define numeric, integer, boolean, and date field lists for type checking
       const floatFields = ['principalAmount', 'outstandingPrincipalBalance', 'outstandingInterestBalance'];
       const intFields = ['numberOfMonths', 'daysLate', 'hasFemaleDirector'];
       const booleanFields = ['synced'];
+      const dateFields = ['firstDisbursement'];
       
       // Copy all fields and convert types as needed
       for (const [key, value] of Object.entries(createLoanDto)) {
@@ -92,6 +93,19 @@ export class LoansService {
             }
           } else if (typeof value === 'number') {
             data[key] = value !== 0;
+          } else {
+            data[key] = null;
+          }
+        }
+        // Handle date fields (DateTime)
+        else if (dateFields.includes(key)) {
+          if (value === null || value === '' || value === '(empty)') {
+            data[key] = null;
+          } else if (value instanceof Date) {
+            data[key] = value;
+          } else if (typeof value === 'string') {
+            const parsedDate = this.parseDate(value);
+            data[key] = parsedDate;
           } else {
             data[key] = null;
           }
@@ -695,5 +709,32 @@ export class LoansService {
       this.logger.error(`Error finding loan by sheet ID ${sheetId}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Parse date value from various string formats into a Date object
+   * Handles DD/MM/YYYY (from sheets and previous migrations),
+   * ISO formats, and common human-readable formats.
+   */
+  private parseDate(value: string): Date | null {
+    if (!value) {
+      return null;
+    }
+
+    const trimmed = value.trim();
+
+    // Handle DD/MM/YYYY explicitly
+    const ddmmyyyyMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (ddmmyyyyMatch) {
+      const day = parseInt(ddmmyyyyMatch[1], 10);
+      const month = parseInt(ddmmyyyyMatch[2], 10);
+      const year = parseInt(ddmmyyyyMatch[3], 10);
+      const date = new Date(year, month - 1, day);
+      return isNaN(date.getTime()) ? null : date;
+    }
+
+    // Fallback: let JS try to parse (handles ISO, "May 13, 2022", etc.)
+    const fallback = new Date(trimmed);
+    return isNaN(fallback.getTime()) ? null : fallback;
   }
 }

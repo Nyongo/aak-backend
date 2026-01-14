@@ -76,6 +76,7 @@ export class DirectorsMigrationController {
       }
 
       let imported = 0;
+      let updated = 0;
       let skipped = 0;
       let errors = 0;
       const errorDetails = [];
@@ -112,37 +113,35 @@ export class DirectorsMigrationController {
             continue;
           }
 
+          // Convert sheet data to database format
+          const dbDirector = this.convertSheetToDbFormat(sheetDirector);
+
           // Check if director already exists in database
           const existingDirector = await this.directorsDbService.findBySheetId(
             sheetDirector.ID,
           );
 
           if (existingDirector) {
-            this.logger.debug(
-              `Skipping existing director: ${sheetDirector.Name} (ID: ${sheetDirector.ID})`,
-            );
-            skipped++;
-            skippedDetails.push({
-              director: sheetDirector.Name || 'Unknown',
-              sheetId: sheetDirector.ID,
-              reason: 'Already exists in database',
+            // Update existing record
+            await this.directorsDbService.update(String(existingDirector.id), {
+              ...dbDirector,
+              synced: true, // Mark as synced since it came from sheets
             });
-            continue;
+            updated++;
+            this.logger.debug(
+              `Updated existing director: ${sheetDirector.Name} (ID: ${sheetDirector.ID})`,
+            );
+          } else {
+            // Create new record
+            await this.directorsDbService.create({
+              ...dbDirector,
+              synced: true, // Mark as already synced since it came from sheets
+            });
+            imported++;
+            this.logger.debug(
+              `Created new director: ${sheetDirector.Name} (ID: ${sheetDirector.ID})`,
+            );
           }
-
-          // Convert sheet data to database format
-          const dbDirector = this.convertSheetToDbFormat(sheetDirector);
-
-          // Import to database with synced = true
-          await this.directorsDbService.create({
-            ...dbDirector,
-            synced: true, // Mark as already synced since it came from sheets
-          });
-
-          this.logger.debug(
-            `Imported director: ${sheetDirector.Name} (ID: ${sheetDirector.ID})`,
-          );
-          imported++;
         } catch (error) {
           errors++;
           const errorMessage =
@@ -162,6 +161,7 @@ export class DirectorsMigrationController {
         success: true,
         message: 'Import completed',
         imported,
+        updated,
         skipped,
         errors,
         errorDetails: errorDetails.length > 0 ? errorDetails : undefined,

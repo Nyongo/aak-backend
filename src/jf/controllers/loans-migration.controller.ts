@@ -53,12 +53,14 @@ export class LoansMigrationController {
           success: true,
           message: 'No data found in Google Sheets',
           imported: 0,
+          updated: 0,
           skipped: 0,
           errors: 0,
         };
       }
 
       let imported = 0;
+      let updated = 0;
       let skipped = 0;
       let errors = 0;
       const errorDetails = [];
@@ -93,29 +95,29 @@ export class LoansMigrationController {
             continue;
           }
 
+          // Convert sheet data to database format
+          const dbLoan = this.convertSheetToDb(sheetLoan);
+
           // Check if loan already exists in database
           const existingLoan = await this.loansService.findBySheetId(idValue);
 
           if (existingLoan) {
-            skipped++;
-            skippedDetails.push({
-              loan: sheetLoan['Loan Type'] || 'Unknown',
-              sheetId: idValue,
-              reason: 'Already exists in database',
+            // Update existing record
+            await this.loansService.update(existingLoan.id, {
+              ...dbLoan,
+              synced: true, // Mark as synced since it came from sheets
             });
-            continue;
+            updated++;
+            this.logger.debug(`Updated existing loan: ${idValue}`);
+          } else {
+            // Create new record
+            await this.loansService.create({
+              ...dbLoan,
+              synced: true, // Mark as already synced since it came from sheets
+            });
+            imported++;
+            this.logger.debug(`Created new loan: ${idValue}`);
           }
-
-          // Convert sheet data to database format
-          const dbLoan = this.convertSheetToDb(sheetLoan);
-
-          // Import to database with synced = true
-          await this.loansService.create({
-            ...dbLoan,
-            synced: true, // Mark as already synced since it came from sheets
-          });
-
-          imported++;
         } catch (error) {
           errors++;
           const errorMessage =
@@ -135,6 +137,7 @@ export class LoansMigrationController {
         success: true,
         message: 'Import completed',
         imported,
+        updated,
         skipped,
         errors,
         errorDetails: errors > 0 ? errorDetails : undefined,
@@ -188,6 +191,7 @@ export class LoansMigrationController {
           success: true,
           message: 'Already fully synced',
           imported: 0,
+          updated: 0,
           skipped: 0,
           errors: 0,
         };
@@ -441,7 +445,7 @@ export class LoansMigrationController {
       loanHasGonePAR30: sheetRecord['Loan has Gone PAR30'] || null,
       hasMaleDirector: sheetRecord['Has Male Director?'] || null,
       schoolArea: sheetRecord['School Area'] || null,
-      firstDisbursement: this.formatDateToDDMMYYYY(
+      firstDisbursement: this.parseDate(
         sheetRecord['First Disbursement'] || null,
       ),
       totalAdditionalFeesNotWithheldFromDisbursement:
@@ -495,17 +499,21 @@ export class LoansMigrationController {
     if (typeof value === 'number') return value;
     if (typeof value === 'string') {
       // Handle "#VALUE!" and other Excel errors
-      if (value.includes('#') || value.includes('VALUE') || value.includes('ERROR')) {
+      if (
+        value.includes('#') ||
+        value.includes('VALUE') ||
+        value.includes('ERROR')
+      ) {
         return null;
       }
       // Remove currency symbols, spaces, and common prefixes
       let cleaned = value
         .replace(/[KSh$€£¥,\s]/g, '') // Remove currency symbols and commas
         .trim();
-      
+
       // Handle empty strings after cleaning
       if (cleaned === '' || cleaned === '(empty)') return null;
-      
+
       // Parse to float
       const parsed = parseFloat(cleaned);
       return isNaN(parsed) ? null : parsed;
@@ -521,15 +529,19 @@ export class LoansMigrationController {
     if (typeof value === 'number') return Math.floor(value);
     if (typeof value === 'string') {
       // Handle "#VALUE!" and other Excel errors
-      if (value.includes('#') || value.includes('VALUE') || value.includes('ERROR')) {
+      if (
+        value.includes('#') ||
+        value.includes('VALUE') ||
+        value.includes('ERROR')
+      ) {
         return null;
       }
       // Remove commas and spaces
       let cleaned = value.replace(/[,\s]/g, '').trim();
-      
+
       // Handle empty strings after cleaning
       if (cleaned === '' || cleaned === '(empty)') return null;
-      
+
       // Parse to integer
       const parsed = parseInt(cleaned, 10);
       return isNaN(parsed) ? null : parsed;
@@ -550,7 +562,12 @@ export class LoansMigrationController {
       if (lowerValue === 'true' || lowerValue === 'yes' || lowerValue === '1') {
         return 1;
       }
-      if (lowerValue === 'false' || lowerValue === 'no' || lowerValue === '0' || lowerValue === '(empty)') {
+      if (
+        lowerValue === 'false' ||
+        lowerValue === 'no' ||
+        lowerValue === '0' ||
+        lowerValue === '(empty)'
+      ) {
         return 0;
       }
       // Try to parse as number
@@ -561,44 +578,51 @@ export class LoansMigrationController {
   }
 
   /**
-   * Format date to DD/MM/YYYY format
-   * Handles various input formats and converts to DD/MM/YYYY
+   * Parse date value from Google Sheets format to Date object
+   * Handles various date formats including DD/MM/YYYY (from Loans sheet)
+   * Returns Date object for Prisma DateTime field
    */
-  private formatDateToDDMMYYYY(value: any): string | null {
-    if (value === null || value === undefined || value === '' || value === '(empty)') {
+  private parseDate(value: any): Date | null {
+    if (
+      value === null ||
+      value === undefined ||
+      value === '' ||
+      value === '(empty)'
+    ) {
       return null;
     }
-    
+
+    if (value instanceof Date) {
+      return isNaN(value.getTime()) ? null : value;
+    }
+
     if (typeof value === 'string') {
-      // If already in DD/MM/YYYY format, return as is
-      if (/^\d{2}\/\d{2}\/\d{4}$/.test(value.trim())) {
-        return value.trim();
-      }
-      
-      // Try to parse various date formats
       try {
-        // Handle formats like "May 5, 2022", "2022-05-05", "05/05/2022", etc.
+        // Handle DD/MM/YYYY format (common in Loans sheet, e.g., "13/05/2022")
+        const ddmmyyyyMatch = value
+          .trim()
+          .match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (ddmmyyyyMatch) {
+          const day = parseInt(ddmmyyyyMatch[1], 10);
+          const month = parseInt(ddmmyyyyMatch[2], 10) - 1; // Month is 0-indexed
+          const year = parseInt(ddmmyyyyMatch[3], 10);
+          const date = new Date(year, month, day);
+          if (!isNaN(date.getTime())) {
+            return date;
+          }
+        }
+
+        // Try to parse other formats (ISO, "May 13, 2022", etc.)
         const date = new Date(value);
         if (!isNaN(date.getTime())) {
-          const day = String(date.getDate()).padStart(2, '0');
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          const year = date.getFullYear();
-          return `${day}/${month}/${year}`;
+          return date;
         }
       } catch (e) {
-        // If parsing fails, return the original value
-        return value;
+        // If parsing fails, return null
+        return null;
       }
     }
-    
-    // If it's already a Date object
-    if (value instanceof Date) {
-      const day = String(value.getDate()).padStart(2, '0');
-      const month = String(value.getMonth() + 1).padStart(2, '0');
-      const year = value.getFullYear();
-      return `${day}/${month}/${year}`;
-    }
-    
-    return value;
+
+    return null;
   }
 }

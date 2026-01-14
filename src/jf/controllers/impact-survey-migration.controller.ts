@@ -69,12 +69,14 @@ export class ImpactSurveyMigrationController {
           success: true,
           message: 'No data found in Google Sheets',
           imported: 0,
+          updated: 0,
           skipped: 0,
           errors: 0,
         };
       }
 
       let imported = 0;
+      let updated = 0;
       let skipped = 0;
       let errors = 0;
       const errorDetails = [];
@@ -126,31 +128,31 @@ export class ImpactSurveyMigrationController {
             }
           }
 
+          // Convert sheet data to database format
+          const dbRecord =
+            this.impactSurveyDbService.convertSheetToDb(sheetRecord);
+
           // Check if record already exists in database
           const existingRecord =
             await this.impactSurveyDbService.findBySheetId(idValue);
 
           if (existingRecord) {
-            skipped++;
-            skippedDetails.push({
-              record: idValue,
-              sheetId: idValue,
-              reason: 'Already exists in database',
+            // Update existing record
+            await this.impactSurveyDbService.update(existingRecord.id, {
+              ...dbRecord,
+              synced: true, // Mark as synced since it came from sheets
             });
-            continue;
+            updated++;
+            this.logger.debug(`Updated existing impact survey: ${idValue}`);
+          } else {
+            // Create new record
+            await this.impactSurveyDbService.create({
+              ...dbRecord,
+              synced: true, // Mark as already synced since it came from sheets
+            });
+            imported++;
+            this.logger.debug(`Created new impact survey: ${idValue}`);
           }
-
-          // Convert sheet data to database format
-          const dbRecord =
-            this.impactSurveyDbService.convertSheetToDb(sheetRecord);
-
-          // Import to database with synced = true
-          await this.impactSurveyDbService.create({
-            ...dbRecord,
-            synced: true, // Mark as already synced since it came from sheets
-          });
-
-          imported++;
         } catch (error) {
           errors++;
           const errorMessage =
@@ -170,6 +172,7 @@ export class ImpactSurveyMigrationController {
         success: true,
         message: 'Import completed',
         imported,
+        updated,
         skipped,
         errors,
         errorDetails: errorDetails.length > 0 ? errorDetails : undefined,

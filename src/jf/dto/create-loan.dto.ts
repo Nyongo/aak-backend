@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumber, IsInt } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsInt, IsDateString } from 'class-validator';
 
 export class CreateLoanDto {
   @IsOptional()
@@ -391,8 +391,7 @@ export class CreateLoanDto {
   schoolArea?: string;
 
   @IsOptional()
-  @IsString()
-  firstDisbursement?: string;
+  firstDisbursement?: Date | string;
 
   @IsOptional()
   @IsString()

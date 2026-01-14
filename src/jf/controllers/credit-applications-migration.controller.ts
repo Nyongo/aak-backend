@@ -78,6 +78,7 @@ export class CreditApplicationsMigrationController {
       }
 
       let imported = 0;
+      let updated = 0;
       let skipped = 0;
       let errors = 0;
       const errorDetails = [];
@@ -110,6 +111,9 @@ export class CreditApplicationsMigrationController {
             continue;
           }
 
+          // Convert sheet data to database format
+          const dbCreditApp = this.convertSheetToDbFormat(sheetCreditApp);
+
           // Check if record already exists in database
           const existingRecord =
             await this.creditApplicationsDbService.findBySheetId(
@@ -117,22 +121,20 @@ export class CreditApplicationsMigrationController {
             );
 
           if (existingRecord) {
-            skipped++;
-            skippedDetails.push({
-              reason: 'Already exists in database',
-              sheetId: sheetCreditApp.ID,
-              borrowerId: sheetCreditApp['Borrower ID'],
-              creditType: sheetCreditApp['Credit Type'],
-            });
-            continue;
+            // Update existing record
+            await this.creditApplicationsDbService.update(sheetCreditApp.ID, dbCreditApp);
+            updated++;
+            this.logger.debug(
+              `Updated Credit Application: ${sheetCreditApp['Borrower ID']} - ${sheetCreditApp['Credit Type']}`,
+            );
+          } else {
+            // Create new record
+            await this.creditApplicationsDbService.create(dbCreditApp);
+            imported++;
+            this.logger.debug(
+              `Created Credit Application: ${sheetCreditApp['Borrower ID']} - ${sheetCreditApp['Credit Type']}`,
+            );
           }
-
-          // Convert sheet data to database format
-          const dbCreditApp = this.convertSheetToDbFormat(sheetCreditApp);
-
-          // Create record in database
-          await this.creditApplicationsDbService.create(dbCreditApp);
-          imported++;
 
           this.logger.debug(
             `Imported Credit Application: ${sheetCreditApp['Borrower ID']} - ${sheetCreditApp['Credit Type']}`,
@@ -154,13 +156,14 @@ export class CreditApplicationsMigrationController {
       }
 
       this.logger.log(
-        `Import completed: ${imported} imported, ${skipped} skipped, ${errors} errors`,
+        `Import completed: ${imported} imported, ${updated} updated, ${skipped} skipped, ${errors} errors`,
       );
 
       return {
         success: true,
-        message: `Import completed: ${imported} imported, ${skipped} skipped, ${errors} errors`,
+        message: `Import completed: ${imported} imported, ${updated} updated, ${skipped} skipped, ${errors} errors`,
         imported,
+        updated,
         skipped,
         errors,
         errorDetails,

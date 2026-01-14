@@ -4068,6 +4068,49 @@ export class SheetsService {
     }
   }
 
+  async getRestructurings(): Promise<any[]> {
+    try {
+      this.logger.debug('Fetching restructurings from sheets');
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.BORROWERS_SHEET_ID,
+        range: 'Restructurings!A:ZZ',
+      });
+      const rows = response.data.values;
+      if (!rows || rows.length === 0) {
+        return [];
+      }
+      const headers = rows[0];
+
+      // Log the actual headers from Google Sheets for debugging
+      this.logger.log('Restructurings sheet headers:', headers);
+
+      const records = rows.slice(1).map((row) => {
+        const record = {};
+        headers.forEach((header, index) => {
+          record[header] = row[index] || '';
+        });
+        return record;
+      });
+      this.logger.log(
+        `Found ${records.length} restructuring records in Google Sheets`,
+      );
+      return records;
+    } catch (error) {
+      this.logger.error('Error fetching restructurings:', error);
+      throw error;
+    }
+  }
+
+  async getRestructuringsCount(): Promise<number> {
+    try {
+      const restructurings = await this.getRestructurings();
+      return restructurings.length;
+    } catch (error) {
+      this.logger.error('Error counting restructurings:', error);
+      throw error;
+    }
+  }
+
   async getLoans(): Promise<any[]> {
     try {
       this.logger.log('Fetching loans from sheets');

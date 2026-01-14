@@ -106,6 +106,10 @@ export class MigrationSchedulerService {
     },
     { name: 'Loans', endpoint: '/jf/loans-migration/full-migration' },
     { name: 'Write Offs', endpoint: '/jf/write-offs-migration/full-migration' },
+    {
+      name: 'Restructurings',
+      endpoint: '/jf/restructurings-migration/full-migration',
+    },
   ];
 
   constructor(private readonly httpService: HttpService) {

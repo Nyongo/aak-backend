@@ -1,13 +1,13 @@
 import { Controller, Get, Post, Query, Logger } from '@nestjs/common';
-import { WriteOffsDbService } from '../services/write-offs-db.service';
+import { RestructuringsDbService } from '../services/restructurings-db.service';
 import { SheetsService } from '../services/sheets.service';
 
-@Controller('jf/write-offs-migration')
-export class WriteOffsMigrationController {
-  private readonly logger = new Logger(WriteOffsMigrationController.name);
+@Controller('jf/restructurings-migration')
+export class RestructuringsMigrationController {
+  private readonly logger = new Logger(RestructuringsMigrationController.name);
 
   constructor(
-    private readonly writeOffsDbService: WriteOffsDbService,
+    private readonly restructuringsDbService: RestructuringsDbService,
     private readonly sheetsService: SheetsService,
   ) {}
 
@@ -15,8 +15,8 @@ export class WriteOffsMigrationController {
   async getMigrationStatus() {
     try {
       const [dbCount, sheetsCount] = await Promise.all([
-        this.writeOffsDbService.getWriteOffsCount(),
-        this.sheetsService.getWriteOffsCount(),
+        this.restructuringsDbService.getRestructuringsCount(),
+        this.sheetsService.getRestructuringsCount(),
       ]);
 
       return {
@@ -46,13 +46,14 @@ export class WriteOffsMigrationController {
 
     try {
       // Get data from Google Sheets
-      const sheetsData = await this.sheetsService.getWriteOffs();
+      const sheetsData = await this.sheetsService.getRestructurings();
 
       if (!sheetsData || sheetsData.length === 0) {
         return {
           success: true,
           message: 'No data found in Google Sheets',
           imported: 0,
+          updated: 0,
           skipped: 0,
           errors: 0,
         };
@@ -65,41 +66,41 @@ export class WriteOffsMigrationController {
       const errorDetails = [];
       const skippedDetails = [];
 
-      // Process each write off from sheets
-      for (const sheetWriteOff of sheetsData) {
+      // Process each restructuring from sheets
+      for (const sheetRestructuring of sheetsData) {
         try {
           // Skip completely empty records
-          if (Object.keys(sheetWriteOff).length === 0) {
+          if (Object.keys(sheetRestructuring).length === 0) {
             skipped++;
             skippedDetails.push({
-              writeOff: 'Empty Record',
-              sheetId: sheetWriteOff['ID'] || 'No ID',
+              restructuring: 'Empty Record',
+              sheetId: sheetRestructuring['ID'] || 'No ID',
               reason: 'Completely empty record in Google Sheets',
             });
             continue;
           }
 
           // Find the ID field
-          const idValue = this.findIdField(sheetWriteOff);
+          const idValue = this.findIdField(sheetRestructuring);
           
           // Skip records with empty ID
           if (!idValue) {
             skipped++;
             skippedDetails.push({
-              writeOff: 'Unknown',
+              restructuring: 'Unknown',
               sheetId: 'Empty ID',
-              reason: 'Empty ID in Google Sheets - tried fields: ID',
+              reason: 'Empty ID in Google Sheets - tried fields: ID, Sheet ID',
             });
             continue;
           }
 
           // Filter by loanId if provided
           if (loanId) {
-            const recordLoanId = sheetWriteOff['Loan ID'] || sheetWriteOff['loanId'];
+            const recordLoanId = sheetRestructuring['Loan ID'] || sheetRestructuring['loanId'];
             if (recordLoanId !== loanId) {
               skipped++;
               skippedDetails.push({
-                writeOff: 'Filtered',
+                restructuring: 'Filtered',
                 sheetId: idValue,
                 reason: `Loan ID mismatch: expected ${loanId}, got ${recordLoanId}`,
               });
@@ -108,33 +109,33 @@ export class WriteOffsMigrationController {
           }
 
           // Convert sheet data to database format
-          const dbWriteOff = this.writeOffsDbService.convertSheetToDb(sheetWriteOff);
+          const dbRestructuring = this.restructuringsDbService.convertSheetToDb(sheetRestructuring);
 
-          // Check if write off already exists in database
-          const existingWriteOff = await this.writeOffsDbService.findBySheetId(idValue);
+          // Check if restructuring already exists in database
+          const existingRestructuring = await this.restructuringsDbService.findBySheetId(idValue);
 
-          if (existingWriteOff) {
+          if (existingRestructuring) {
             // Update existing record
-            await this.writeOffsDbService.update(existingWriteOff.id, dbWriteOff);
+            await this.restructuringsDbService.update(existingRestructuring.id, dbRestructuring);
             updated++;
-            this.logger.debug(`Updated existing write off: ${idValue}`);
+            this.logger.debug(`Updated existing restructuring: ${idValue}`);
           } else {
             // Create new record
-            await this.writeOffsDbService.create(dbWriteOff);
+            await this.restructuringsDbService.create(dbRestructuring);
             imported++;
-            this.logger.debug(`Created new write off: ${idValue}`);
+            this.logger.debug(`Created new restructuring: ${idValue}`);
           }
         } catch (error) {
           errors++;
           const errorMessage =
             error instanceof Error ? error.message : String(error);
           errorDetails.push({
-            writeOff: sheetWriteOff['Loan ID'] || 'Unknown',
-            sheetId: sheetWriteOff['ID'] || 'No ID',
+            restructuring: sheetRestructuring['Loan ID'] || 'Unknown',
+            sheetId: sheetRestructuring['ID'] || 'No ID',
             error: errorMessage,
           });
           this.logger.error(
-            `Error importing write off with ID ${sheetWriteOff['ID']}:`,
+            `Error importing restructuring with ID ${sheetRestructuring['ID']}:`,
             error,
           );
         }
@@ -188,14 +189,14 @@ export class WriteOffsMigrationController {
   @Get('columns')
   async getSheetColumns() {
     try {
-      const sheetsData = await this.sheetsService.getWriteOffs();
+      const sheetsData = await this.sheetsService.getRestructurings();
 
       if (sheetsData && sheetsData.length > 0) {
         const columns = Object.keys(sheetsData[0]);
 
         // Log all column names to help with debugging
         this.logger.log(
-          `Found ${columns.length} columns in Write Offs sheet:`,
+          `Found ${columns.length} columns in Restructurings sheet:`,
         );
         columns.forEach((col, index) => {
           this.logger.log(`${index + 1}. "${col}"`);

@@ -72,12 +72,14 @@ export class DirectPaymentSchedulesMigrationController {
           success: true,
           message: 'No data found in Google Sheets',
           imported: 0,
+          updated: 0,
           skipped: 0,
           errors: 0,
         };
       }
 
       let imported = 0;
+      let updated = 0;
       let skipped = 0;
       let errors = 0;
       const errorDetails = [];
@@ -120,20 +122,6 @@ export class DirectPaymentSchedulesMigrationController {
             continue;
           }
 
-          // Check if schedule already exists in database
-          const existingSchedule =
-            await this.directPaymentSchedulesDbService.findBySheetId(idValue);
-
-          if (existingSchedule) {
-            skipped++;
-            skippedDetails.push({
-              schedule: sheetSchedule['Direct Loan ID'] || 'Unknown',
-              sheetId: idValue,
-              reason: 'Already exists in database',
-            });
-            continue;
-          }
-
           // Convert sheet data to database format
           const dbSchedule =
             this.directPaymentSchedulesDbService.convertSheetToDb(
@@ -145,13 +133,30 @@ export class DirectPaymentSchedulesMigrationController {
             dbSchedule.sheetId = idValue;
           }
 
-          // Import to database with synced = true
-          await this.directPaymentSchedulesDbService.create({
-            ...dbSchedule,
-            synced: true, // Mark as already synced since it came from sheets
-          });
+          // Check if schedule already exists in database
+          const existingSchedule =
+            await this.directPaymentSchedulesDbService.findBySheetId(idValue);
 
-          imported++;
+          if (existingSchedule) {
+            // Update existing record
+            await this.directPaymentSchedulesDbService.update(
+              existingSchedule.id,
+              {
+                ...dbSchedule,
+                synced: true, // Mark as synced since it came from sheets
+              },
+            );
+            updated++;
+            this.logger.debug(`Updated existing payment schedule: ${idValue}`);
+          } else {
+            // Create new record
+            await this.directPaymentSchedulesDbService.create({
+              ...dbSchedule,
+              synced: true, // Mark as already synced since it came from sheets
+            });
+            imported++;
+            this.logger.debug(`Created new payment schedule: ${idValue}`);
+          }
         } catch (error) {
           errors++;
           const errorMessage =
@@ -171,6 +176,7 @@ export class DirectPaymentSchedulesMigrationController {
         success: true,
         message: 'Import completed',
         imported,
+        updated,
         skipped,
         errors,
         errorDetails: errorDetails.length > 0 ? errorDetails : undefined,

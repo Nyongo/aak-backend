@@ -806,7 +806,7 @@ model Loan {
   loanHasGonePAR30                                                String?
   hasMaleDirector                                                 String?
   schoolArea                                                      String?
-  firstDisbursement                                               String?
+  firstDisbursement                                               DateTime?
   totalAdditionalFeesNotWithheldFromDisbursement                  String?
   additionalFeesNotWithheldFromDisbursementPaid                   String?
   additionalFeesNotWithheldFromDisbursementStillDue               String?
@@ -1226,4 +1226,34 @@ model WriteOff {
   createdAt                                DateTime? @default(now())
   
   @@map("write_offs")
+}
+
+model Restructuring {
+  id                                      Int       @id @default(autoincrement())
+  sheetId                                 String?   @unique
+  loanId                                  String?
+  date                                    DateTime?
+  restructuringDate                       String?
+  reason                                  String?
+  previousLoanTerms                        String?
+  newLoanTerms                            String?
+  previousPrincipalAmount                  Float?
+  newPrincipalAmount                       Float?
+  previousInterestRate                    String?
+  newInterestRate                         String?
+  previousNumberOfMonths                  Int?
+  newNumberOfMonths                       Int?
+  previousMonthlyPayment                  Float?
+  newMonthlyPayment                       Float?
+  approvedBy                              String?
+  approvalDate                            String?
+  createdAtSheet                          String?
+  createdBy                               String?
+  region                                  String?
+  sslId                                   String?
+  notes                                   String?
+  synced                                  Boolean   @default(false)
+  createdAt                               DateTime? @default(now())
+  
+  @@map("restructurings")
 }
