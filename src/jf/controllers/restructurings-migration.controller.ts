@@ -82,7 +82,7 @@ export class RestructuringsMigrationController {
 
           // Find the ID field
           const idValue = this.findIdField(sheetRestructuring);
-          
+
           // Skip records with empty ID
           if (!idValue) {
             skipped++;
@@ -96,7 +96,8 @@ export class RestructuringsMigrationController {
 
           // Filter by loanId if provided
           if (loanId) {
-            const recordLoanId = sheetRestructuring['Loan ID'] || sheetRestructuring['loanId'];
+            const recordLoanId =
+              sheetRestructuring['Loan ID'] || sheetRestructuring['loanId'];
             if (recordLoanId !== loanId) {
               skipped++;
               skippedDetails.push({
@@ -109,14 +110,19 @@ export class RestructuringsMigrationController {
           }
 
           // Convert sheet data to database format
-          const dbRestructuring = this.restructuringsDbService.convertSheetToDb(sheetRestructuring);
+          const dbRestructuring =
+            this.restructuringsDbService.convertSheetToDb(sheetRestructuring);
 
           // Check if restructuring already exists in database
-          const existingRestructuring = await this.restructuringsDbService.findBySheetId(idValue);
+          const existingRestructuring =
+            await this.restructuringsDbService.findBySheetId(idValue);
 
           if (existingRestructuring) {
             // Update existing record
-            await this.restructuringsDbService.update(existingRestructuring.id, dbRestructuring);
+            await this.restructuringsDbService.update(
+              existingRestructuring.id,
+              dbRestructuring,
+            );
             updated++;
             this.logger.debug(`Updated existing restructuring: ${idValue}`);
           } else {
@@ -149,8 +155,7 @@ export class RestructuringsMigrationController {
         skipped,
         errors,
         errorDetails: errorDetails.length > 0 ? errorDetails : undefined,
-        skippedDetails:
-          skippedDetails.length > 0 ? skippedDetails : undefined,
+        skippedDetails: skippedDetails.length > 0 ? skippedDetails : undefined,
       };
     } catch (error) {
       const errorMessage =

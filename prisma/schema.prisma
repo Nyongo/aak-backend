@@ -1257,3 +1257,17 @@ model Restructuring {
   
   @@map("restructurings")
 }
+
+model WhatsAppConversation {
+  id                    String   @id @default(uuid())
+  phoneNumber           String   @unique
+  state                 String   @default("initial")
+  data                  Json     @default("{}")
+  leadId                String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("whatsapp_conversations")
+  @@index([phoneNumber])
+  @@index([state])
+}

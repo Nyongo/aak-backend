@@ -59,14 +59,15 @@ export class UserMigrationService {
           // Map sheet data to database fields
           const mappedStaff = this.mapSheetDataToSslStaff(userData);
 
-          if (!mappedStaff.id) {
+          if (!mappedStaff.id || mappedStaff.id.trim() === '') {
             results.skipped++;
             results.details.push({
               row: rowNumber,
               email: mappedStaff.email || 'N/A',
               status: 'skipped',
-              reason: 'No ID provided',
+              reason: 'No ID provided in sheet',
             });
+            this.logger.warn(`Row ${rowNumber} skipped: No ID found. Sheet data: ${JSON.stringify(sheetData['ID'] || sheetData['id'])}`);
             continue;
           }
 
@@ -140,8 +141,15 @@ export class UserMigrationService {
 
   private mapSheetDataToSslStaff(sheetData: any) {
     // Map Google Sheet columns to SslStaff database fields
+    // Extract ID from sheet - ensure it's a string and not empty
+    const sheetId = sheetData['ID'] || sheetData['id'] || null;
+    const id = sheetId ? String(sheetId).trim() : null;
+    
+    // If ID is empty after trimming, set to null (will be caught by validation)
+    const finalId = (id && id !== '') ? id : null;
+    
     const mappedStaff = {
-      id: sheetData['ID'] || sheetData['id'] || this.generateId(), // Use ID from sheet as primary key
+      id: finalId, // Use ID from sheet as primary key - don't generate if missing
       name: sheetData['Name'] || sheetData['name'] || 'Unknown',
       type: sheetData['Type'] || sheetData['User Type'] || 'Staff',
       borrowerId:
@@ -262,8 +270,16 @@ export class UserMigrationService {
   }
 
   private async createSslStaff(staffData: any) {
+    // Ensure ID is explicitly set from sheet data (don't let Prisma generate it)
+    if (!staffData.id || staffData.id.trim() === '') {
+      throw new Error(`Cannot create SSL Staff without an ID from the sheet. Email: ${staffData.email || 'N/A'}`);
+    }
+
     const newStaff = await this.prisma.sslStaff.create({
-      data: staffData,
+      data: {
+        ...staffData,
+        id: staffData.id, // Explicitly set the ID from sheet
+      },
       select: {
         id: true,
         email: true,
@@ -274,7 +290,7 @@ export class UserMigrationService {
     });
 
     this.logger.log(
-      `Created SSL Staff: ${newStaff.email} (ID: ${newStaff.id})`,
+      `Created SSL Staff: ${newStaff.email} (ID from sheet: ${newStaff.id})`,
     );
     return newStaff;
   }

@@ -144,6 +144,7 @@ import { ZohoCrmService } from './services/zoho-crm.service';
 import { CbsService } from './services/cbs.service';
 import { MigrationSchedulerService } from './services/migration-scheduler.service';
 import { MigrationSchedulerController } from './controllers/migration-scheduler.controller';
+import { WhatsAppModule } from './whatsapp/whatsapp.module';
 
 @Module({
   imports: [
@@ -156,6 +157,7 @@ import { MigrationSchedulerController } from './controllers/migration-scheduler.
     ScheduleModule.forRoot(),
     HttpModule,
     CommonModule,
+    WhatsAppModule,
   ],
   providers: [
     GoogleAuthService,
