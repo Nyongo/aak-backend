@@ -7,6 +7,7 @@ import { PrismaService } from './prisma/prisma.service';
 import { ConfigModule } from '@nestjs/config';
 import { JfModule } from './jf/jf.module';
 import { SslTrackerModule } from './ssl-tracker/ssl-tracker.module';
+import { PipelineManagementModule } from './pipeline-management/pipeline-management.module';
 import { GoogleDriveModule } from 'nestjs-google-drive';
 import { EcommerceModule } from './ecommerce/ecommerce.module';
 @Module({
@@ -19,6 +20,7 @@ import { EcommerceModule } from './ecommerce/ecommerce.module';
     AuthModule,
     JfModule,
     SslTrackerModule,
+    PipelineManagementModule,
     EcommerceModule,
     GoogleDriveModule.register({
       clientId: 'your_google_client_id',

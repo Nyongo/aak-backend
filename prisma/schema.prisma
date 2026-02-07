@@ -166,6 +166,7 @@ model SslStaff {
   createdById          Int?
   lastUpdatedById      Int?
   dailyWorkPlans       DailyWorkPlan[]
+  pipelineEntries      PipelineEntry[]
 
   @@map("ssl_staff")
 }
@@ -1270,4 +1271,60 @@ model WhatsAppConversation {
   @@map("whatsapp_conversations")
   @@index([phoneNumber])
   @@index([state])
+}
+
+model PipelineEntry {
+  id                      Int       @id @default(autoincrement())
+  clientType              String    // New | Existing
+  entityName              String    // Borrowing entity name (required)
+  clientTel               String?
+  sector                  String?
+  product                 String
+  amount                  Decimal   @default(0) @db.Decimal(18, 2)
+  topUpAmount             Decimal   @default(0) @map("top_up_amount") @db.Decimal(18, 2)
+  isTopUp                 Boolean   @default(false)
+  crossSellOpportunities   String?   @map("cross_sell_opportunities")
+  sslStaffId              String?   @map("ssl_staff_id")
+  region                  String?
+  loanStage               String?   @map("loan_stage")
+  loanStageEnteredAt      DateTime? @map("loan_stage_entered_at")
+  estimatedClosing        DateTime? @map("estimated_closing")
+  probabilityOfClosing    Int?      @map("probability_of_closing") // 0-100
+  expectedDisbursement    Decimal   @default(0) @map("expected_disbursement") @db.Decimal(18, 2) // (stage % / 100) * (amount + topUpAmount)
+  status                  String    @default("Active")
+  comments                String?
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+  createdById             Int?      @map("created_by_id")
+  updatedById             Int?      @map("updated_by_id")
+
+  sslStaff                SslStaff? @relation(fields: [sslStaffId], references: [id], onDelete: SetNull)
+  stageHistory            PipelineStageHistory[]
+
+  @@index([entityName])
+  @@index([clientTel])
+  @@index([status])
+  @@index([createdAt])
+  @@index([estimatedClosing])
+  @@index([sslStaffId])
+  @@map("pipeline_entries")
+}
+
+/// One row per stage: open (exitedAt null) = current stage, updated by cron for delay; closed = past stage.
+model PipelineStageHistory {
+  id              Int          @id @default(autoincrement())
+  pipelineEntryId Int          @map("pipeline_entry_id")
+  stageName       String       @map("stage_name")
+  enteredAt       DateTime     @map("entered_at")
+  exitedAt        DateTime?    @map("exited_at") // null = current stage (cron updates wasDelayed/delayFlag)
+  wasDelayed      Boolean      @map("was_delayed")
+  delayFlag       String?      @map("delay_flag")
+
+  pipelineEntry   PipelineEntry @relation(fields: [pipelineEntryId], references: [id], onDelete: Cascade)
+
+  @@index([pipelineEntryId])
+  @@index([pipelineEntryId, exitedAt])
+  @@index([stageName])
+  @@index([wasDelayed])
+  @@map("pipeline_stage_history")
 }

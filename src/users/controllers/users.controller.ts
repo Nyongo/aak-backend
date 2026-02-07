@@ -45,6 +45,7 @@ export class UsersController {
   @Get('by-email/:email')
   // @Permissions('can_view_users')
   async findUserByEmail(@Param('email') email: string) {
+    console.log('email', email);
     return this.usersService.findOneByEmail(email);
   }
 

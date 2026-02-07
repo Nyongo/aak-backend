@@ -1,0 +1,85 @@
+<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+  <!-- External Services -->
+  <rect x="50" y="20" width="700" height="100" fill="#e3f2fd" stroke="#1976d2" stroke-width="2" rx="5"/>
+  <text x="400" y="45" text-anchor="middle" font-size="16" font-weight="bold">External Services</text>
+  
+  <rect x="80" y="60" width="100" height="40" fill="#fff" stroke="#1976d2" rx="3"/>
+  <text x="130" y="82" text-anchor="middle" font-size="11">WhatsApp</text>
+  
+  <rect x="200" y="60" width="100" height="40" fill="#fff" stroke="#1976d2" rx="3"/>
+  <text x="250" y="82" text-anchor="middle" font-size="11">Zoho CRM</text>
+  
+  <rect x="320" y="60" width="100" height="40" fill="#fff" stroke="#1976d2" rx="3"/>
+  <text x="370" y="82" text-anchor="middle" font-size="11">Google</text>
+  <text x="370" y="95" text-anchor="middle" font-size="11">Sheets</text>
+  
+  <rect x="440" y="60" width="100" height="40" fill="#fff" stroke="#1976d2" rx="3"/>
+  <text x="490" y="82" text-anchor="middle" font-size="11">CBS</text>
+  
+  <rect x="560" y="60" width="100" height="40" fill="#fff" stroke="#1976d2" rx="3"/>
+  <text x="610" y="82" text-anchor="middle" font-size="11">Frontend</text>
+
+  <!-- Backend Application -->
+  <rect x="50" y="150" width="700" height="280" fill="#f3e5f5" stroke="#7b1fa2" stroke-width="2" rx="5"/>
+  <text x="400" y="175" text-anchor="middle" font-size="16" font-weight="bold">NestJS Backend (Docker :3000)</text>
+  
+  <rect x="80" y="190" width="140" height="50" fill="#fff" stroke="#7b1fa2" rx="3"/>
+  <text x="150" y="210" text-anchor="middle" font-size="11" font-weight="bold">Authentication</text>
+  <text x="150" y="225" text-anchor="middle" font-size="10">JWT + RBAC</text>
+  
+  <rect x="240" y="190" width="140" height="50" fill="#fff" stroke="#7b1fa2" rx="3"/>
+  <text x="310" y="210" text-anchor="middle" font-size="11" font-weight="bold">JF Module</text>
+  <text x="310" y="225" text-anchor="middle" font-size="10">Loans, Schools</text>
+  
+  <rect x="400" y="190" width="140" height="50" fill="#fff" stroke="#7b1fa2" rx="3"/>
+  <text x="470" y="210" text-anchor="middle" font-size="11" font-weight="bold">SSL Tracker</text>
+  <text x="470" y="225" text-anchor="middle" font-size="10">Staff, Work Plans</text>
+  
+  <rect x="560" y="190" width="140" height="50" fill="#fff" stroke="#7b1fa2" rx="3"/>
+  <text x="630" y="210" text-anchor="middle" font-size="11" font-weight="bold">Ecommerce</text>
+  <text x="630" y="225" text-anchor="middle" font-size="10">Products, Orders</text>
+  
+  <rect x="80" y="260" width="200" height="50" fill="#fff" stroke="#7b1fa2" rx="3"/>
+  <text x="180" y="280" text-anchor="middle" font-size="11" font-weight="bold">WhatsApp Bot</text>
+  <text x="180" y="295" text-anchor="middle" font-size="10">Conversation Service</text>
+  
+  <rect x="300" y="260" width="200" height="50" fill="#fff" stroke="#7b1fa2" rx="3"/>
+  <text x="400" y="280" text-anchor="middle" font-size="11" font-weight="bold">Migration Scheduler</text>
+  <text x="400" y="295" text-anchor="middle" font-size="10">Hourly Cron Jobs</text>
+  
+  <rect x="520" y="260" width="180" height="50" fill="#fff" stroke="#7b1fa2" rx="3"/>
+  <text x="610" y="280" text-anchor="middle" font-size="11" font-weight="bold">Integration Services</text>
+  <text x="610" y="295" text-anchor="middle" font-size="10">Zoho, CBS, Drive</text>
+
+  <!-- Database -->
+  <rect x="50" y="460" width="700" height="80" fill="#e8f5e9" stroke="#388e3c" stroke-width="2" rx="5"/>
+  <text x="400" y="485" text-anchor="middle" font-size="16" font-weight="bold">PostgreSQL Database (Docker :5432)</text>
+  
+  <ellipse cx="400" cy="520" rx="200" ry="30" fill="#fff" stroke="#388e3c" stroke-width="2"/>
+  <text x="400" y="525" text-anchor="middle" font-size="12">Users, Loans, Schools, Files</text>
+
+  <!-- Arrows -->
+  <line x1="130" y1="100" x2="180" y2="260" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <line x1="250" y1="100" x2="610" y2="260" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <line x1="370" y1="100" x2="400" y2="260" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <line x1="490" y1="100" x2="610" y2="260" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <line x1="610" y1="100" x2="150" y2="190" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <line x1="150" y1="240" x2="310" y2="190" stroke="#666" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  <line x1="150" y1="240" x2="470" y2="190" stroke="#666" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  <line x1="150" y1="240" x2="630" y2="190" stroke="#666" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  
+  <line x1="310" y1="240" x2="400" y2="480" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <line x1="470" y1="240" x2="400" y2="480" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <line x1="630" y1="240" x2="400" y2="480" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <line x1="180" y1="310" x2="400" y2="480" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <line x1="400" y1="310" x2="400" y2="480" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <line x1="610" y1="310" x2="400" y2="480" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+  <!-- Arrow marker definition -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#666"/>
+    </marker>
+  </defs>
+</svg>

@@ -34,7 +34,9 @@ services:
     volumes:
       - ./keys/service-account.json:/app/keys/service-account.json  # Mount the JSON key file
       - ./ssl:/app/ssl  # ✅ Mount SSL certs inside the container
+      - upload_data:/app/uploads  # Persist user uploads across container rebuilds/redeploys
 
 # Define the named volume to persist data
 volumes:
   postgres_data:
+  upload_data:
