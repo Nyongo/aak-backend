@@ -42,6 +42,19 @@ export const PRODUCT_OPTIONS = [
   'SME',
 ] as const;
 
+/** Source of client options – order matches client dropdown */
+export const SOURCE_OF_CLIENT_OPTIONS = [
+  'Lead from Marketing',
+  'Activation Lead',
+  'Top Up Listing',
+  'Staff Referral',
+  'Client Referral',
+  'Walk in Client',
+  'Direct Sales',
+  'Data Mining',
+] as const;
+
 export type LoanStage = (typeof LOAN_STAGE_OPTIONS)[number];
 export type Region = (typeof REGION_OPTIONS)[number];
 export type Product = (typeof PRODUCT_OPTIONS)[number];
+export type SourceOfClient = (typeof SOURCE_OF_CLIENT_OPTIONS)[number];

@@ -31,7 +31,7 @@ async function bootstrap() {
     };
     console.log('🔒 Using HTTPS with SSL certificates');
     app = await NestFactory.create<NestExpressApplication>(AppModule, {
-      httpsOptions,
+      //  httpsOptions,
     });
   } catch (error) {
     console.log('⚠️  SSL certificates not found or invalid, using HTTP');

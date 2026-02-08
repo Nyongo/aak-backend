@@ -53,6 +53,10 @@ export class CreatePipelineEntryDto {
 
   @IsString()
   @IsOptional()
+  sourceOfClient?: string;
+
+  @IsString()
+  @IsOptional()
   sslStaffId?: string;
 
   @IsString()

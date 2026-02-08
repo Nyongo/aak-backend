@@ -2,7 +2,7 @@ import {
   Controller,
   Get,
   Post,
-  Put,
+  Patch,
   Delete,
   Body,
   Param,
@@ -19,6 +19,7 @@ import {
   LOAN_STAGE_OPTIONS,
   REGION_OPTIONS,
   PRODUCT_OPTIONS,
+  SOURCE_OF_CLIENT_OPTIONS,
 } from '../constants/pipeline-options';
 
 @Controller('pipeline')
@@ -69,6 +70,7 @@ export class PipelineController {
         loanStages: [...LOAN_STAGE_OPTIONS],
         regions: [...REGION_OPTIONS],
         products: [...PRODUCT_OPTIONS],
+        sourceOfClientOptions: [...SOURCE_OF_CLIENT_OPTIONS],
       },
     };
   }
@@ -110,7 +112,7 @@ export class PipelineController {
     return this.pipelineService.findOne(id);
   }
 
-  @Put(':id')
+  @Patch(':id')
   @HttpCode(200)
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
   async update(

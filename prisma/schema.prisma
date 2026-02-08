@@ -1284,6 +1284,7 @@ model PipelineEntry {
   topUpAmount             Decimal   @default(0) @map("top_up_amount") @db.Decimal(18, 2)
   isTopUp                 Boolean   @default(false)
   crossSellOpportunities   String?   @map("cross_sell_opportunities")
+  sourceOfClient          String?   @map("source_of_client")
   sslStaffId              String?   @map("ssl_staff_id")
   region                  String?
   loanStage               String?   @map("loan_stage")

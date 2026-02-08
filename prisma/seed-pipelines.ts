@@ -3,6 +3,7 @@ import {
   LOAN_STAGE_OPTIONS,
   REGION_OPTIONS,
   PRODUCT_OPTIONS,
+  SOURCE_OF_CLIENT_OPTIONS,
 } from '../src/pipeline-management/constants/pipeline-options';
 import { computeExpectedDisbursement } from '../src/pipeline-management/constants/pipeline-stage-config';
 
@@ -127,6 +128,7 @@ async function main() {
       isTopUp: Math.random() > 0.85,
       crossSellOpportunities:
         Math.random() > 0.9 ? 'Insurance, asset finance' : undefined,
+      sourceOfClient: Math.random() > 0.3 ? pick([...SOURCE_OF_CLIENT_OPTIONS]) : undefined,
       sslStaffId: useSsl && Math.random() > 0.15 ? pick(sslStaffIds) : undefined,
       region: overrides.region ?? pick(REGIONS),
       loanStage,

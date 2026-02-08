@@ -58,6 +58,7 @@ export class PipelineService {
       topUpAmount,
       isTopUp: dto.isTopUp ?? false,
       crossSellOpportunities: dto.crossSellOpportunities ?? undefined,
+      sourceOfClient: dto.sourceOfClient ?? undefined,
       sslStaffId: dto.sslStaffId ?? undefined,
       region: dto.region ?? undefined,
       loanStage,
@@ -72,6 +73,15 @@ export class PipelineService {
     };
   }
 
+  private withPipelineAmount<T extends { amount?: unknown; topUpAmount?: unknown }>(
+    entry: T,
+  ): T & { pipelineAmount: number } {
+    return {
+      ...entry,
+      pipelineAmount: toNumber(entry.amount) + toNumber(entry.topUpAmount),
+    };
+  }
+
   private withStageProgress<T extends { loanStage: string | null; loanStageEnteredAt: Date | null }>(
     entry: T,
   ): T & { stageProgress: ReturnType<typeof getStageProgress> } {
@@ -82,6 +92,12 @@ export class PipelineService {
         entry.loanStageEnteredAt,
       ),
     };
+  }
+
+  private enrichEntry<T extends { loanStage: string | null; loanStageEnteredAt: Date | null; amount?: unknown; topUpAmount?: unknown }>(
+    entry: T,
+  ): T & { pipelineAmount: number; stageProgress: ReturnType<typeof getStageProgress> } {
+    return this.withStageProgress(this.withPipelineAmount(entry));
   }
 
   async create(dto: CreatePipelineEntryDto, createdById?: number) {
@@ -119,7 +135,7 @@ export class PipelineService {
       return this.commonFunctions.returnFormattedResponse(
         HttpStatus.CREATED,
         'Pipeline entry created successfully.',
-        this.withStageProgress(withHistory!),
+        this.enrichEntry(withHistory!),
       );
     } catch (error) {
       if (error instanceof PrismaClientKnownRequestError) {
@@ -186,7 +202,7 @@ export class PipelineService {
         this.prisma.pipelineEntry.count({ where }),
       ]);
 
-      const data = rows.map((row) => this.withStageProgress(row));
+      const data = rows.map((row) => this.enrichEntry(row));
 
       return this.commonFunctions.returnFormattedResponse(
         HttpStatus.OK,
@@ -224,7 +240,7 @@ export class PipelineService {
       return this.commonFunctions.returnFormattedResponse(
         HttpStatus.OK,
         'Pipeline entry retrieved successfully.',
-        this.withStageProgress(record),
+        this.enrichEntry(record),
       );
     } catch (error) {
       if (error instanceof PrismaClientKnownRequestError) {
@@ -259,6 +275,7 @@ export class PipelineService {
       if (dto.isTopUp !== undefined) updateData.isTopUp = dto.isTopUp;
       if (dto.crossSellOpportunities !== undefined)
         updateData.crossSellOpportunities = dto.crossSellOpportunities;
+      if (dto.sourceOfClient !== undefined) updateData.sourceOfClient = dto.sourceOfClient;
       if (dto.sslStaffId !== undefined) {
         updateData.sslStaff = dto.sslStaffId
           ? { connect: { id: dto.sslStaffId } }
@@ -337,7 +354,7 @@ export class PipelineService {
       return this.commonFunctions.returnFormattedResponse(
         HttpStatus.OK,
         'Pipeline entry updated successfully.',
-        this.withStageProgress(updated),
+        this.enrichEntry(updated),
       );
     } catch (error) {
       if (error instanceof PrismaClientKnownRequestError) {
@@ -439,30 +456,30 @@ export class PipelineService {
       this.prisma.pipelineEntry.groupBy({
         by: ['loanStage'],
         where,
-        _sum: { expectedDisbursement: true },
+        _sum: { expectedDisbursement: true, amount: true, topUpAmount: true },
         _count: { id: true },
       }),
       this.prisma.pipelineEntry.groupBy({
         by: ['region'],
         where,
-        _sum: { expectedDisbursement: true },
+        _sum: { expectedDisbursement: true, amount: true, topUpAmount: true },
         _count: { id: true },
       }),
       this.prisma.pipelineEntry.groupBy({
         by: ['region', 'loanStage'],
         where,
-        _sum: { expectedDisbursement: true },
+        _sum: { expectedDisbursement: true, amount: true, topUpAmount: true },
         _count: { id: true },
       }),
       this.prisma.pipelineEntry.groupBy({
         by: ['product'],
         where,
-        _sum: { expectedDisbursement: true },
+        _sum: { expectedDisbursement: true, amount: true, topUpAmount: true },
         _count: { id: true },
       }),
       this.prisma.pipelineEntry.aggregate({
         where,
-        _sum: { expectedDisbursement: true },
+        _sum: { expectedDisbursement: true, amount: true, topUpAmount: true },
         _count: { id: true },
       }),
       this.prisma.pipelineStageHistory.findMany({
@@ -474,31 +491,55 @@ export class PipelineService {
         select: {
           stageName: true,
           enteredAt: true,
-          pipelineEntry: { select: { expectedDisbursement: true } },
+          pipelineEntry: {
+            select: { expectedDisbursement: true, amount: true, topUpAmount: true },
+          },
         },
       }),
     ]);
 
     const grandTotalPipeline = toNumber(totalAgg._sum?.expectedDisbursement);
+    const grandTotalPipelineAmount =
+      toNumber(totalAgg._sum?.amount) + toNumber(totalAgg._sum?.topUpAmount);
     const grandTotalCount = totalAgg._count?.id ?? 0;
+    const averageExpectedDisbursement =
+      grandTotalCount > 0 ? Math.round((grandTotalPipeline / grandTotalCount) * 100) / 100 : 0;
+    const averagePipelineAmount =
+      grandTotalCount > 0 ? Math.round((grandTotalPipelineAmount / grandTotalCount) * 100) / 100 : 0;
 
-    const pipelineStageMetrics: PipelineStageMetric[] = byStage.map((row) => ({
-      pipelineStage: row.loanStage ?? 'Unassigned',
-      totalPipeline: toNumber(row._sum?.expectedDisbursement),
-      entryCount: row._count?.id ?? 0,
-    })).sort((a, b) => b.totalPipeline - a.totalPipeline);
+    const pipelineStageMetrics: PipelineStageMetric[] = byStage.map((row) => {
+      const total = toNumber(row._sum?.expectedDisbursement);
+      const pipelineAmt = toNumber(row._sum?.amount) + toNumber(row._sum?.topUpAmount);
+      const count = row._count?.id ?? 0;
+      return {
+        pipelineStage: row.loanStage ?? 'Unassigned',
+        totalPipeline: total,
+        totalPipelineAmount: pipelineAmt,
+        averagePipelineAmount: count > 0 ? Math.round((pipelineAmt / count) * 100) / 100 : 0,
+        totalExpectedDisbursement: total,
+        averageExpectedDisbursement: count > 0 ? Math.round((total / count) * 100) / 100 : 0,
+        entryCount: count,
+      };
+    }).sort((a, b) => b.totalPipeline - a.totalPipeline);
 
-    const regionalSummaries: RegionalSummaryItem[] = byRegion.map((row) => ({
-      region: row.region ?? 'Unassigned',
-      totalPipeline: toNumber(row._sum?.expectedDisbursement),
-      entryCount: row._count?.id ?? 0,
-      percentOfTotal:
-        grandTotalPipeline > 0
-          ? Math.round(
-              (toNumber(row._sum?.expectedDisbursement) / grandTotalPipeline) * 100,
-            )
-          : 0,
-    })).sort((a, b) => b.totalPipeline - a.totalPipeline);
+    const regionalSummaries: RegionalSummaryItem[] = byRegion.map((row) => {
+      const total = toNumber(row._sum?.expectedDisbursement);
+      const pipelineAmt = toNumber(row._sum?.amount) + toNumber(row._sum?.topUpAmount);
+      const count = row._count?.id ?? 0;
+      return {
+        region: row.region ?? 'Unassigned',
+        totalPipeline: total,
+        totalPipelineAmount: pipelineAmt,
+        averagePipelineAmount: count > 0 ? Math.round((pipelineAmt / count) * 100) / 100 : 0,
+        totalExpectedDisbursement: total,
+        averageExpectedDisbursement: count > 0 ? Math.round((total / count) * 100) / 100 : 0,
+        entryCount: count,
+        percentOfTotal:
+          grandTotalPipeline > 0
+            ? Math.round((total / grandTotalPipeline) * 100)
+            : 0,
+      };
+    }).sort((a, b) => b.totalPipeline - a.totalPipeline);
 
     const stagesMap = new Map<string, number>();
     byRegionStage.forEach((row) => {
@@ -523,41 +564,63 @@ export class PipelineService {
       return { region, stages, total, entryCount };
     });
 
-    const loanProductMetrics: LoanProductMetric[] = byProduct.map((row) => ({
-      product: row.product,
-      totalLoanAmount: toNumber(row._sum?.expectedDisbursement),
-      entryCount: row._count?.id ?? 0,
-      percentOfTotal:
-        grandTotalPipeline > 0
-          ? Math.round(
-              (toNumber(row._sum?.expectedDisbursement) / grandTotalPipeline) * 100,
-            )
-          : 0,
-    })).sort((a, b) => b.totalLoanAmount - a.totalLoanAmount);
+    const loanProductMetrics: LoanProductMetric[] = byProduct.map((row) => {
+      const total = toNumber(row._sum?.expectedDisbursement);
+      const pipelineAmt = toNumber(row._sum?.amount) + toNumber(row._sum?.topUpAmount);
+      const count = row._count?.id ?? 0;
+      return {
+        product: row.product,
+        totalLoanAmount: total,
+        totalPipelineAmount: pipelineAmt,
+        averagePipelineAmount: count > 0 ? Math.round((pipelineAmt / count) * 100) / 100 : 0,
+        totalExpectedDisbursement: total,
+        averageExpectedDisbursement: count > 0 ? Math.round((total / count) * 100) / 100 : 0,
+        entryCount: count,
+        percentOfTotal:
+          grandTotalPipeline > 0 ? Math.round((total / grandTotalPipeline) * 100) : 0,
+      };
+    }).sort((a, b) => b.totalLoanAmount - a.totalLoanAmount);
 
     const now = new Date();
-    const delayedByStageMap = new Map<string, { count: number; total: number; delayDays: number }>();
+    const delayedByStageMap = new Map<
+      string,
+      { count: number; total: number; pipelineAmt: number; delayDays: number }
+    >();
     let totalDelayedPipeline = 0;
+    let totalDelayedPipelineAmount = 0;
     let totalDelayDays = 0;
     for (const row of delayedRows) {
       const amt = toNumber(row.pipelineEntry?.expectedDisbursement);
+      const pipelineAmt =
+        toNumber(row.pipelineEntry?.amount) + toNumber(row.pipelineEntry?.topUpAmount);
       totalDelayedPipeline += amt;
+      totalDelayedPipelineAmount += pipelineAmt;
       const stage = row.stageName;
       const progress = getStageProgress(stage, row.enteredAt, now);
       const delayDays = Math.max(0, progress.daysInCurrentStage - progress.maxDaysInStage);
       totalDelayDays += delayDays;
-      const existing = delayedByStageMap.get(stage) ?? { count: 0, total: 0, delayDays: 0 };
+      const existing = delayedByStageMap.get(stage) ?? {
+        count: 0,
+        total: 0,
+        pipelineAmt: 0,
+        delayDays: 0,
+      };
       delayedByStageMap.set(stage, {
         count: existing.count + 1,
         total: existing.total + amt,
+        pipelineAmt: existing.pipelineAmt + pipelineAmt,
         delayDays: existing.delayDays + delayDays,
       });
     }
     const delayedByStage: DelayedStageMetric[] = [...delayedByStageMap.entries()]
-      .map(([stageName, { count, total, delayDays }]) => ({
+      .map(([stageName, { count, total, pipelineAmt, delayDays }]) => ({
         stageName,
         entryCount: count,
         totalPipeline: total,
+        totalPipelineAmount: pipelineAmt,
+        averagePipelineAmount: count > 0 ? Math.round((pipelineAmt / count) * 100) / 100 : 0,
+        totalExpectedDisbursement: total,
+        averageExpectedDisbursement: count > 0 ? Math.round((total / count) * 100) / 100 : 0,
         totalDelayDays: Math.round(delayDays * 1e6) / 1e6,
       }))
       .sort((a, b) => b.entryCount - a.entryCount);
@@ -565,13 +628,30 @@ export class PipelineService {
     const delayStats: DelayStats = {
       delayedEntryCount: delayedRows.length,
       totalDelayedPipeline,
+      totalPipelineAmount: totalDelayedPipelineAmount,
+      averagePipelineAmount:
+        delayedRows.length > 0
+          ? Math.round((totalDelayedPipelineAmount / delayedRows.length) * 100) / 100
+          : 0,
+      totalExpectedDisbursement: totalDelayedPipeline,
+      averageExpectedDisbursement:
+        delayedRows.length > 0
+          ? Math.round((totalDelayedPipeline / delayedRows.length) * 100) / 100
+          : 0,
       totalDelayDays: Math.round(totalDelayDays * 1e6) / 1e6,
       delayedByStage,
     };
 
     return {
       summary: {
-        grandTotal: { totalPipeline: grandTotalPipeline, entryCount: grandTotalCount },
+        grandTotal: {
+          totalPipeline: grandTotalPipeline,
+          totalPipelineAmount: grandTotalPipelineAmount,
+          averagePipelineAmount,
+          totalExpectedDisbursement: grandTotalPipeline,
+          averageExpectedDisbursement,
+          entryCount: grandTotalCount,
+        },
         regionalSummaries,
       },
       pipelineStageMetrics,
