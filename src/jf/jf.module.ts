@@ -132,7 +132,6 @@ import { WriteOffsDbService } from './services/write-offs-db.service';
 import { WriteOffsMigrationController } from './controllers/write-offs-migration.controller';
 import { RestructuringsDbService } from './services/restructurings-db.service';
 import { RestructuringsMigrationController } from './controllers/restructurings-migration.controller';
-
 import { DirectorsControllerSheets } from './controllers/directors.controller.sheets';
 import { CommonModule } from '../common/common.module';
 import { FileUploadService } from './services/file-upload.service';
@@ -145,14 +144,23 @@ import { CbsService } from './services/cbs.service';
 import { MigrationSchedulerService } from './services/migration-scheduler.service';
 import { MigrationSchedulerController } from './controllers/migration-scheduler.controller';
 import { WhatsAppModule } from './whatsapp/whatsapp.module';
+import { BlogCategoriesController } from './controllers/blog-categories.controller';
+import { BlogCategoriesService } from './services/blog-categories.service';
+import { BlogCloudinaryService } from './services/blog-cloudinary.service';
+import { BlogsHeroService } from './services/blogs-hero.service';
+import { BlogsHeroController } from './controllers/blogs-hero.controller';
+import { BlogSlugService } from './services/blog-slug.service';
+import { BlogsMediaService } from './services/blogs-media.service';
+import { BlogsMediaController } from './controllers/blogs-media.controller';
+import { BlogsService } from './services/blogs.service';           
+import { BlogsController } from './controllers/blogs.controller'; 
 
 @Module({
   imports: [
     CacheModule.register({
-      isGlobal: true, // Make cache accessible globally
+      isGlobal: true,
       store: cacheStore.memoryStore,
-      ttl: 600, // Cache TTL in seconds (e.g., 600 = 10 minutes)
-      // max: 100, // Optional: Max number of items in cache
+      ttl: 600,
     }),
     ScheduleModule.forRoot(),
     HttpModule,
@@ -230,6 +238,12 @@ import { WhatsAppModule } from './whatsapp/whatsapp.module';
     ZohoCrmService,
     CbsService,
     MigrationSchedulerService,
+    BlogCategoriesService,
+    BlogCloudinaryService,
+    BlogsHeroService,
+    BlogSlugService,
+    BlogsMediaService,
+    BlogsService,           
   ],
   controllers: [
     SpreadsheetController,
@@ -301,6 +315,10 @@ import { WhatsAppModule } from './whatsapp/whatsapp.module';
     MigrationSchedulerController,
     JFNetworkContactPageController,
     LeadsController,
+    BlogCategoriesController,
+    BlogsHeroController,
+    BlogsMediaController,
+    BlogsController,       
   ],
   exports: [GoogleDriveService, SheetsService],
 })

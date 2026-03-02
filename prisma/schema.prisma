@@ -1329,3 +1329,150 @@ model PipelineStageHistory {
   @@index([wasDelayed])
   @@map("pipeline_stage_history")
 }
+
+// ─────────────────────────────────────────────────────────────
+// BLOG FEATURE — add these models to your existing schema.prisma
+// ─────────────────────────────────────────────────────────────
+
+enum BlogLanguage {
+  EN
+  KIS
+}
+
+enum BlogPostStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum BlogSectionType {
+  TEXT
+  AD
+  INTERNAL_AD
+}
+
+// ── Blog Category ─────────────────────────────────────────────
+model BlogCategory {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  posts     BlogPost[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@map("blog_categories")
+}
+
+// ── Blog Post ─────────────────────────────────────────────────
+model BlogPost {
+  id                 String               @id @default(cuid())
+  slug               String               @unique
+  status             BlogPostStatus       @default(DRAFT)
+
+  // Hero image stored on Cloudinary
+  // heroImagePublicId is the Cloudinary public_id needed for deletion
+  heroImage          String?
+  heroImagePublicId  String?
+
+  // Author info (simple embedded strings, no separate table needed yet)
+  authorName         String
+  authorRole         String?
+
+  publishedAt        DateTime?
+
+  category           BlogCategory?        @relation(fields: [categoryId], references: [id])
+  categoryId         String?
+
+  translations       BlogPostTranslation[]
+
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  @@map("blog_posts")
+}
+
+// ── Blog Post Translation ─────────────────────────────────────
+// One record per language per post.
+// `sections` is a JSON array of ordered section objects.
+//
+// Section object shape (TEXT):
+// {
+//   "id": "cuid",
+//   "type": "TEXT",
+//   "order": 0,
+//   "content": { /* Tiptap JSON doc */ }
+// }
+//
+// Section object shape (AD):
+// {
+//   "id": "cuid",
+//   "type": "AD",
+//   "order": 1,
+//   "adSlotId": "placeholder-1"
+// }
+//
+// Inline images inside Tiptap JSON content store their
+// Cloudinary public_id in a custom attribute so we can
+// clean them up when the post is deleted:
+// { "type": "image", "attrs": { "src": "https://...", "cloudinaryPublicId": "blog/abc123" } }
+model BlogPostTranslation {
+  id       String       @id @default(cuid())
+  language BlogLanguage
+
+  title    String
+  excerpt  String       // short description shown on the listing card
+
+  // Ordered array of section objects (see shape above)
+  sections Json         @default("[]")
+
+  post     BlogPost     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId   String
+
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  // One translation record per language per post
+  @@unique([postId, language])
+  @@map("blog_post_translations")
+}
+
+// ── Blog Hero Section (singleton) ─────────────────────────────
+// Only one row will ever exist in this table.
+// The CRM upserts this record (create if none, update if one exists).
+//
+// Rendering rules on the client:
+//   - heroImage present  → use as CSS background-image
+//   - heroImage absent   → grey background (#6B7280)
+//   - Always apply       → black overlay at 50% opacity
+//   - heading/subheading → show if present, hide if null
+model BlogHeroSection {
+  id                 String                       @id @default(cuid())
+
+  heroImage          String?
+  heroImagePublicId  String?
+
+  translations       BlogHeroSectionTranslation[]
+
+  createdAt          DateTime                     @default(now())
+  updatedAt          DateTime                     @updatedAt
+
+  @@map("blog_hero_sections")
+}
+
+// ── Blog Hero Section Translation ────────────────────────────
+model BlogHeroSectionTranslation {
+  id            String           @id @default(cuid())
+  language      BlogLanguage
+
+  heading       String?
+  subheading    String?
+
+  heroSection   BlogHeroSection  @relation(fields: [heroSectionId], references: [id], onDelete: Cascade)
+  heroSectionId String
+
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@unique([heroSectionId, language])
+  @@map("blog_hero_section_translations")
+}
+

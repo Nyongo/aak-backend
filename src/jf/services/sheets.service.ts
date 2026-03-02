@@ -35,11 +35,11 @@ export class SheetsService {
     this.BORROWERS_SHEET_ID_2 = this.configService.get(
       'GOOGLE_SHEETS_BORROWERS_ID_2',
     );
-    if (!this.BORROWERS_SHEET_ID || !this.BORROWERS_SHEET_ID_2) {
-      throw new Error(
-        'GOOGLE_SHEETS_BORROWERS_ID environment variable is not set',
-      );
-    }
+    // if (!this.BORROWERS_SHEET_ID || !this.BORROWERS_SHEET_ID_2) {
+    //   throw new Error(
+    //     'GOOGLE_SHEETS_BORROWERS_ID environment variable is not set',
+    //   );
+    // }
     this.logger.log(`Using spreadsheet ID: ${this.BORROWERS_SHEET_ID}`);
 
     this.auth = this.googleAuthService.getAuth();
