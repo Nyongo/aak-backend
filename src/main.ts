@@ -60,6 +60,8 @@ async function bootstrap() {
       'https://finance.jackfruitnetwork.com',
       'https://www.hub.jackfruitnetwork.com',
       'https://hub.jackfruitnetwork.com',
+      'https://www.jackfruitfinance.com/',
+      'https://www.jackfruitfinance.com',
       'http://localhost:8080',
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
