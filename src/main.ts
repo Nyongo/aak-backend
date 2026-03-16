@@ -25,14 +25,26 @@ async function bootstrap() {
   // SSL configuration - only use if certificates exist
   let app: NestExpressApplication;
   try {
-    const httpsOptions = {
-      key: fs.readFileSync('ssl/server.key'),
-      cert: fs.readFileSync('ssl/server.cert'),
-    };
-    console.log('🔒 Using HTTPS with SSL certificates');
-    app = await NestFactory.create<NestExpressApplication>(AppModule, {
-      // httpsOptions,
-    });
+    const sslKeyPath = process.env.SSL_KEY_PATH || 'ssl/server.key';
+    const sslCertPath = process.env.SSL_CERT_PATH || 'ssl/server.cert';
+
+    if (fs.existsSync(sslKeyPath) && fs.existsSync(sslCertPath)) {
+      const httpsOptions = {
+        key: fs.readFileSync(sslKeyPath),
+        cert: fs.readFileSync(sslCertPath),
+      };
+      console.log('🔒 Using HTTPS with SSL certificates', {
+        keyPath: sslKeyPath,
+        certPath: sslCertPath,
+      });
+      app = await NestFactory.create<NestExpressApplication>(AppModule, {
+        httpsOptions,
+      });
+    } else {
+      throw new Error(
+        `SSL files not found at configured paths: key=${sslKeyPath}, cert=${sslCertPath}`,
+      );
+    }
   } catch (error) {
     console.log('⚠️  SSL certificates not found or invalid, using HTTP');
     if (error instanceof Error) {
@@ -60,8 +72,6 @@ async function bootstrap() {
       'https://finance.jackfruitnetwork.com',
       'https://www.hub.jackfruitnetwork.com',
       'https://hub.jackfruitnetwork.com',
-      'https://www.jackfruitfinance.com/',
-      'https://www.jackfruitfinance.com',
       'http://localhost:8080',
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
@@ -98,6 +108,6 @@ async function bootstrap() {
   );
 
   await app.listen(port, host);
-  console.log(`🚀 Server is running on https://${host}:${port}`);
+  console.log(`🚀 Server is running on ${host}:${port}`);
 }
 bootstrap();
