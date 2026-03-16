@@ -1331,6 +1331,52 @@ model PipelineStageHistory {
 }
 
 // ─────────────────────────────────────────────────────────────
+// SME Calculator Results
+// Stores SME affordability calculator inputs and computed results
+// ─────────────────────────────────────────────────────────────
+
+model SmeCalculatorResult {
+  id                  Int       @id @default(autoincrement())
+  clientName          String
+
+  // Input fields from the calculator
+  sales               Float
+  verifiedSales       Float
+  costOfSales         Float
+  rent                Float
+  utilities           Float
+  labour              Float
+  transport           Float
+  tradingLicense      Float
+  otherExpenses       Float
+  otherIncome         Float
+  householdExpenses   Float
+  otherDebtPayments   Float
+  selectedProduct     String
+  proposedLoan        Float
+  tenor               Int
+  applyStress         Boolean
+
+  // Computed results (denormalised for easy querying)
+  effectiveRevenues   Float
+  grossProfit         Float
+  operatingExpenses   Float
+  netBusinessIncome   Float
+  householdDeduction  Float
+  netDisposableIncome Float
+  monthlyInstallment  Float
+  debtServiceRatio    Float
+  maxMonthlyPayment   Float
+  maxLoanAffordability Float
+
+  rawResults          Json      // full `results` object from frontend
+
+  createdAt           DateTime  @default(now())
+
+  @@map("sme_calculator_results")
+}
+
+// ─────────────────────────────────────────────────────────────
 // BLOG FEATURE — add these models to your existing schema.prisma
 // ─────────────────────────────────────────────────────────────
 

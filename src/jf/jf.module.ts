@@ -154,6 +154,8 @@ import { BlogsMediaService } from './services/blogs-media.service';
 import { BlogsMediaController } from './controllers/blogs-media.controller';
 import { BlogsService } from './services/blogs.service';           
 import { BlogsController } from './controllers/blogs.controller'; 
+import { SmeCalculatorResultsService } from './services/sme-calculator-results.service';
+import { SmeCalculatorResultsController } from './controllers/sme-calculator-results.controller';
 
 @Module({
   imports: [
@@ -244,6 +246,7 @@ import { BlogsController } from './controllers/blogs.controller';
     BlogSlugService,
     BlogsMediaService,
     BlogsService,           
+    SmeCalculatorResultsService,
   ],
   controllers: [
     SpreadsheetController,
@@ -318,7 +321,8 @@ import { BlogsController } from './controllers/blogs.controller';
     BlogCategoriesController,
     BlogsHeroController,
     BlogsMediaController,
-    BlogsController,       
+    BlogsController, 
+    SmeCalculatorResultsController,
   ],
   exports: [GoogleDriveService, SheetsService],
 })
