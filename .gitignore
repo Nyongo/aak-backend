@@ -70,3 +70,6 @@ uploads/
 /ssl
 ssl/
 **/ssl/
+/ssl
+ssl/server.cert
+ssl/server.key
