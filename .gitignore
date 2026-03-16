@@ -65,6 +65,11 @@ keys/
 /uploads
 uploads/
 **/uploads/
+
+# SSL certificates and related files
+/ssl
+ssl/
+**/ssl/
 /ssl
 ssl/server.cert
 ssl/server.key
