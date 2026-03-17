@@ -132,6 +132,8 @@ import { WriteOffsDbService } from './services/write-offs-db.service';
 import { WriteOffsMigrationController } from './controllers/write-offs-migration.controller';
 import { CollateralsDbService } from './services/collaterals-db.service';
 import { CollateralsMigrationController } from './controllers/collaterals-migration.controller';
+import { CollateralLoansDbService } from './services/collateral-loans-db.service';
+import { CollateralLoansMigrationController } from './controllers/collateral-loans-migration.controller';
 import { RestructuringsDbService } from './services/restructurings-db.service';
 import { RestructuringsMigrationController } from './controllers/restructurings-migration.controller';
 import { DirectorsControllerSheets } from './controllers/directors.controller.sheets';
@@ -233,6 +235,7 @@ import { SmeCalculatorResultsController } from './controllers/sme-calculator-res
     LoansService,
     WriteOffsDbService,
     CollateralsDbService,
+    CollateralLoansDbService,
     RestructuringsDbService,
     FinancialSurveysDbService,
     FinancialSurveysSyncService,
@@ -318,6 +321,7 @@ import { SmeCalculatorResultsController } from './controllers/sme-calculator-res
     LoansMigrationController,
     WriteOffsMigrationController,
     CollateralsMigrationController,
+    CollateralLoansMigrationController,
     RestructuringsMigrationController,
     MigrationSchedulerController,
     JFNetworkContactPageController,

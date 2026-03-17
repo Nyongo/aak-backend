@@ -4112,6 +4112,49 @@ export class SheetsService {
     }
   }
 
+  async getCollateralLoans(): Promise<any[]> {
+    try {
+      this.logger.debug('Fetching collateral loans from sheets');
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.BORROWERS_SHEET_ID,
+        range: 'Collateral Loan!A:ZZ',
+      });
+      const rows = response.data.values;
+      if (!rows || rows.length === 0) {
+        return [];
+      }
+      const headers = rows[0];
+
+      this.logger.log('Collateral Loan sheet headers:', headers);
+
+      const records = rows.slice(1).map((row) => {
+        const record: any = {};
+        headers.forEach((header, index) => {
+          record[header] = row[index] || '';
+        });
+        return record;
+      });
+
+      this.logger.log(
+        `Found ${records.length} collateral loan records in Google Sheets`,
+      );
+      return records;
+    } catch (error) {
+      this.logger.error('Error fetching collateral loans:', error);
+      throw error;
+    }
+  }
+
+  async getCollateralLoansCount(): Promise<number> {
+    try {
+      const records = await this.getCollateralLoans();
+      return records.length;
+    } catch (error) {
+      this.logger.error('Error counting collateral loans:', error);
+      throw error;
+    }
+  }
+
   async getRestructurings(): Promise<any[]> {
     try {
       this.logger.debug('Fetching restructurings from sheets');

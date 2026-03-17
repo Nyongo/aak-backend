@@ -1230,15 +1230,70 @@ model WriteOff {
 }
 
 model Collateral {
-  id         Int      @id @default(autoincrement())
-  sheetId    String?  @unique
-  loanId     String?
-  borrowerId String?
-  rawData    Json     // full collateral row from Google Sheets
-  createdAt  DateTime @default(now())
-  synced     Boolean  @default(false)
+  id                                         Int      @id @default(autoincrement())
+  sheetId                                    String?  @unique            // "ID"
+  directLoanId                               String?                     // "Direct Loan ID"
+  schoolId                                   String?                     // "School ID"
+  type                                       String?                     // "Type"
+  description                                String?                     // "Description"
+  originalTitleDeedCollected                 String?                     // "Original Title Deed Collected?"
+  originalTitleDeedPhoto                     String?                     // "Original Title Deed Photo"
+  titleNumber                                String?                     // "Title Number"
+  landSecuritizationComplete                 String?                     // "Land securitization complete?"
+  vehicleLicensePlateDetails                 String?                     // "Vehicle License Plate Details"
+  comprehensiveInsuranceRegistered           String?                     // "Comprehensive Insurance Registered?"
+  comprehensiveInsuranceThrough              String?                     // "Comprehensive Insurance Through Jackfruit or through School"
+  comprehensiveInsuranceCoverageImage        String?                     // "Comprehensive Insurance Coverage Image"
+  financiersInterestedRegistered             String?                     // "Financier's Interested Registered?"
+  confirmationOfFinanciersInterest           String?                     // "Confirmation of Financier's Interest"
+  originalLogbookCollected                   String?                     // "Original Logbook Collected?"
+  ownershipAcceptedOnNtsaPortal              String?                     // "Ownership Accepted on NTSA Portal?"
+  newLogbookCollected                        String?                     // "New Logbook Collected?"
+  uploadOfLogbookIssuedAfterJointTransfer    String?                     // "Upload of Logbook Issued After Joint Transfer"
+  photoOfLogbookIssuedAfterJointTransfer     String?                     // "Photo of Logbook Issued After Joint Transfer"
+  trackerInstalled                           String?                     // "Tracker Installed?"
+  cc                                         String?                     // "CC"
+  yearOfManufacture                          String?                     // "Year of Manufacture"
+  comprehensiveInsuranceExpirationDate       String?                     // "Comprehensive Insurance Expiration Date"
+  evaluatorsReport                           String?                     // "Evaluators Report"
+  evaluatorsAssessedMarketValueKes           String?                     // "Evaluators Assessed Market Value (KES)"
+  evaluatorsAssessedForcedValueKes           String?                     // "Evaluators Assessed Forced Value (KES)"
+  legalOwnerOfCollateral                     String?                     // "Legal Owner of Collateral"
+  userId                                     String?                     // "User ID"
+  fullOwnerDetails                           String?                     // "Full Owner Details"
+  percentComplete                            String?                     // "% Complete"
+  originalOrNewTitlesHeld                    String?                     // "Original or New Titles Held  "
+  createdAtSheet                             String?                     // "Created At"
+  createdBy                                  String?                     // "Created By"
+  reasonDeedNotHeldIfMissing                 String?                     // "Reason Deed not Held, if Missing"
+  landChargesHeld                            String?                     // "Land Charges Held"
+  chargeStatusId                             String?                     // "Charge Status ID"
+  instructions                               String?                     // "Instructions"
+  clerkAssigned                              String?                     // "Clerk Assigned"
+  dateCollateralSecured                      String?                     // "Date Collateral Secured"
+  schoolSitsOnLand                           String?                     // "School sits on land?"
+  collateralOwnedByDirectorOfSchool          String?                     // "Collateral owned by director of school?"
+  status                                     String?                     // "Status"
+  sslId                                      String?                     // "SSL ID"
+
+  rawData                                    Json?                       // full original row
+  createdAt                                  DateTime @default(now())
+  synced                                     Boolean  @default(false)
 
   @@map("collateral")
+}
+
+model CollateralLoan {
+  id           Int      @id @default(autoincrement())
+  sheetId      String?  @unique // "ID"
+  collateralId String?        // "Collateral ID"
+  loanId       String?        // "Loan ID"
+  school       String?        // "School"
+  rawData      Json?          // full original row from Collateral Loan sheet
+  createdAt    DateTime @default(now())
+  synced       Boolean  @default(false)
+
+  @@map("collateral_loan")
 }
 
 model Restructuring {

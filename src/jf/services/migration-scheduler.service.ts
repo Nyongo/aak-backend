@@ -111,6 +111,10 @@ export class MigrationSchedulerService {
       endpoint: '/jf/collaterals-migration/full-migration',
     },
     {
+      name: 'Collateral Loan',
+      endpoint: '/jf/collateral-loans-migration/full-migration',
+    },
+    {
       name: 'Restructurings',
       endpoint: '/jf/restructurings-migration/full-migration',
     },
