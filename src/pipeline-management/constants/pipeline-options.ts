@@ -24,13 +24,16 @@ export const LOAN_STAGE_OPTIONS = [
 export const REGION_OPTIONS = [
   'Nairobi East',
   'Nairobi West',
-  'Mt. Kenya East',
-  'Mt. Kenya West',
-  'North Rift',
-  'South Rift',
-  'Northeastern',
+  'Mt. Kenya',
+  // 'Mt. Kenya East',
+  // 'Mt. Kenya West',
+  'Rift Valley',
+  // 'North Rift',
+  // 'South Rift',
+  // 'Northeastern',
   'Western',
   'Uganda',
+  'Tanzania',
 ] as const;
 
 /** Loan product options – order matches client dropdown */
