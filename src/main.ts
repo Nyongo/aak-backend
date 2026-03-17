@@ -38,7 +38,7 @@ async function bootstrap() {
         certPath: sslCertPath,
       });
       app = await NestFactory.create<NestExpressApplication>(AppModule, {
-        //   httpsOptions,
+        httpsOptions,
       });
     } else {
       throw new Error(
