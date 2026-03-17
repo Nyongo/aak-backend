@@ -1229,6 +1229,18 @@ model WriteOff {
   @@map("write_offs")
 }
 
+model Collateral {
+  id         Int      @id @default(autoincrement())
+  sheetId    String?  @unique
+  loanId     String?
+  borrowerId String?
+  rawData    Json     // full collateral row from Google Sheets
+  createdAt  DateTime @default(now())
+  synced     Boolean  @default(false)
+
+  @@map("collateral")
+}
+
 model Restructuring {
   id                                      Int       @id @default(autoincrement())
   sheetId                                 String?   @unique
