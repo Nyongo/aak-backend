@@ -17,10 +17,15 @@ export class PipelineStageDelayCronService {
   async updateOpenStageDelays() {
     const now = new Date();
     const openRows = await this.prisma.pipelineStageHistory.findMany({
-      where: { exitedAt: null },
+      where: {
+        exitedAt: null,
+        pipelineEntry: {
+          status: 'Active',
+        },
+      },
       include: {
         pipelineEntry: {
-          select: { loanStage: true, loanStageEnteredAt: true },
+          select: { loanStage: true, loanStageEnteredAt: true, status: true },
         },
       },
     });
@@ -28,6 +33,7 @@ export class PipelineStageDelayCronService {
     let updated = 0;
     for (const row of openRows) {
       const entry = row.pipelineEntry;
+      if (entry.status !== 'Active') continue;
       const progress = getStageProgress(
         entry.loanStage ?? row.stageName,
         entry.loanStageEnteredAt ?? row.enteredAt,
