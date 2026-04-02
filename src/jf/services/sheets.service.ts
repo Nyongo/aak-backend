@@ -148,7 +148,8 @@ export class SheetsService {
 
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.BORROWERS_SHEET_ID,
-        range: 'Borrowers!A:AG',
+        // Use wide range to ensure later columns (e.g. County) are included
+        range: 'Borrowers!A:ZZ',
       });
 
       this.logger.debug('Google Sheets response:', {

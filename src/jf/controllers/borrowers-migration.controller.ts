@@ -398,7 +398,12 @@ export class BorrowersMigrationController {
       monthYearCreated: sheetBorrower['Month And Year Created'],
       moeCertified: sheetBorrower['Certified by the MOE?'],
       moeCertificate: sheetBorrower['MOE Certificate'],
-      county: sheetBorrower.County,
+      county:
+        sheetBorrower['County'] ??
+        sheetBorrower.County ??
+        sheetBorrower['county'] ??
+        sheetBorrower['County '] ??
+        null,
       cr12: sheetBorrower.CR12,
       nationalIdNumber: sheetBorrower['National ID Number'],
       nationalIdFront: sheetBorrower['National ID Front'],
