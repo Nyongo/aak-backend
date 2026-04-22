@@ -160,6 +160,7 @@ import { BlogsService } from './services/blogs.service';
 import { BlogsController } from './controllers/blogs.controller'; 
 import { SmeCalculatorResultsService } from './services/sme-calculator-results.service';
 import { SmeCalculatorResultsController } from './controllers/sme-calculator-results.controller';
+import { LoanLeadsController } from './controllers/loan-leads.controller';
 
 @Module({
   imports: [
@@ -331,6 +332,7 @@ import { SmeCalculatorResultsController } from './controllers/sme-calculator-res
     BlogsMediaController,
     BlogsController, 
     SmeCalculatorResultsController,
+    LoanLeadsController
   ],
   exports: [GoogleDriveService, SheetsService],
 })
