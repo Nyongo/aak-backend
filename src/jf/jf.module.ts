@@ -161,6 +161,16 @@ import { BlogsController } from './controllers/blogs.controller';
 import { SmeCalculatorResultsService } from './services/sme-calculator-results.service';
 import { SmeCalculatorResultsController } from './controllers/sme-calculator-results.controller';
 import { LoanLeadsController } from './controllers/loan-leads.controller';
+import { AcademyCategoriesService } from './services/academy-categories.service';
+import { AcademyTagsService } from './services/academy-tags.service';
+import { AcademyHeroService } from './services/academy-hero.service';
+import { AcademyGuidesService } from './services/academy-guides.service';
+import { AcademyNotificationSchedulerService } from './services/academy-notification-scheduler.service';
+import { AcademyCategoriesController } from './controllers/academy-categories.controller';
+import { AcademyTagsController } from './controllers/academy-tags.controller';
+import { AcademyHeroController } from './controllers/academy-hero.controller';
+import { AcademyGuidesController } from './controllers/academy-guides.controller';
+import { PartnerApplicationEnquiryController } from './controllers/partner-application-enquiry.controller';
 
 @Module({
   imports: [
@@ -254,6 +264,11 @@ import { LoanLeadsController } from './controllers/loan-leads.controller';
     BlogsMediaService,
     BlogsService,           
     SmeCalculatorResultsService,
+    AcademyCategoriesService,
+    AcademyTagsService,
+    AcademyHeroService,
+    AcademyGuidesService,
+    AcademyNotificationSchedulerService,
   ],
   controllers: [
     SpreadsheetController,
@@ -332,7 +347,12 @@ import { LoanLeadsController } from './controllers/loan-leads.controller';
     BlogsMediaController,
     BlogsController, 
     SmeCalculatorResultsController,
-    LoanLeadsController
+    LoanLeadsController,
+    AcademyCategoriesController,
+    AcademyTagsController,
+    AcademyHeroController,
+    AcademyGuidesController,
+    PartnerApplicationEnquiryController
   ],
   exports: [GoogleDriveService, SheetsService],
 })

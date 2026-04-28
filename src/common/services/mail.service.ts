@@ -275,4 +275,26 @@ export class MailService {
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
   }
+
+  async sendPartnerApplicationEmail(data: any) {
+    const recipient =
+      process.env.PARTNER_ENQUIRY_EMAIL_TO || 'info@jackfruit-foundation.org';
+
+    const rows: [string, any][] = [
+      ['Full Name',         data.fullName],
+      ['Email',             data.email],
+      ['Organisation Name', data.organisationName],
+      ['Partnership Type',  data.partnershipType],
+      ['Message',           data.message],
+    ];
+
+    const { html, text } = this.buildLeadEmail('Partnership Enquiry', rows);
+
+    return this.sendEmail({
+      to: recipient,
+      subject: `New Partnership Enquiry — ${data.organisationName ?? 'Unknown Organisation'}`,
+      html,
+      text,
+    });
+  }
 }
