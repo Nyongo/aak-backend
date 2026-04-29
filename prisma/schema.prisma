@@ -1589,3 +1589,124 @@ model BlogHeroSectionTranslation {
   @@map("blog_hero_section_translations")
 }
 
+// ─────────────────────────────────────────────────────────────
+// JACKFRUIT ACADEMY schema
+// ─────────────────────────────────────────────────────────────
+
+enum AcademyGuideStatus {
+  DRAFT
+  COMING_SOON
+  PUBLISHED
+}
+
+enum AcademyLanguage {
+  EN
+  KIS
+}
+
+model AcademyCategory {
+  id        String          @id @default(cuid())
+  name      String
+  slug      String          @unique
+  color     String?         // hex e.g. "#F5AB29" used for badge background
+  guides    AcademyGuide[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@map("academy_categories")
+}
+
+model AcademyTag {
+  id        String            @id @default(cuid())
+  name      String
+  slug      String            @unique
+  guides    AcademyGuideTag[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@map("academy_tags")
+}
+
+model AcademyGuide {
+  id                  String                    @id @default(cuid())
+  youtubeUrl          String
+  youtubeThumbnail    String?                   // auto-filled from oEmbed on create
+  duration            String?                   // e.g. "30 SEC", "1:30" — filled by CRM admin
+  status              AcademyGuideStatus        @default(DRAFT)
+  isFeatured          Boolean                   @default(false)
+  scheduledPublishAt  DateTime?                 // if set, cron auto-publishes at this time
+  notificationSent24h Boolean                   @default(false)
+  notificationSent1h  Boolean                   @default(false)
+  publishedAt         DateTime?
+  categoryId          String?
+  category            AcademyCategory?          @relation(fields: [categoryId], references: [id])
+  tags                AcademyGuideTag[]
+  translations        AcademyGuideTranslation[]
+  subscribers         AcademyGuideSubscriber[]
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+
+  @@map("academy_guides")
+}
+
+model AcademyGuideTag {
+  guide   AcademyGuide @relation(fields: [guideId], references: [id], onDelete: Cascade)
+  guideId String
+  tag     AcademyTag   @relation(fields: [tagId], references: [id])
+  tagId   String
+
+  @@id([guideId, tagId])
+  @@map("academy_guide_tags")
+}
+
+model AcademyGuideTranslation {
+  id          String          @id @default(cuid())
+  language    AcademyLanguage
+  title       String
+  description String
+  // Ordered array of body blocks shown in featured / expanded view.
+  // Shape: { type: "paragraph", text: string }
+  //       | { type: "list",      items: string[] }
+  bodyContent Json            @default("[]")
+  guide       AcademyGuide    @relation(fields: [guideId], references: [id], onDelete: Cascade)
+  guideId     String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([guideId, language])
+  @@map("academy_guide_translations")
+}
+
+
+model AcademyGuideSubscriber {
+  id        String       @id @default(cuid())
+  email     String
+  guide     AcademyGuide @relation(fields: [guideId], references: [id], onDelete: Cascade)
+  guideId   String
+  createdAt DateTime     @default(now())
+
+  @@unique([guideId, email])
+  @@map("academy_guide_subscribers")
+}
+
+model AcademyHeroSection {
+  id           String                   @id @default(cuid())
+  translations AcademyHeroTranslation[]
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+
+  @@map("academy_hero_sections")
+}
+
+model AcademyHeroTranslation {
+  id            String             @id @default(cuid())
+  language      AcademyLanguage
+  subheading    String?            // heading is hardcoded in translation JSON
+  heroSection   AcademyHeroSection @relation(fields: [heroSectionId], references: [id], onDelete: Cascade)
+  heroSectionId String
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@unique([heroSectionId, language])
+  @@map("academy_hero_translations")
+}
