@@ -16,6 +16,25 @@ const DEFAULT_LANG = BlogLanguage.EN;
 const DEFAULT_LIMIT = 9;
 const MAX_LIMIT = 50;
 
+const AUTHOR_SELECT = {
+  id: true,
+  slug: true,
+  name: true,
+  image: true,
+  translations: {
+    where: { language: DEFAULT_LANG },
+    select: { role: true },
+  },
+} as const;
+
+type AuthorWithTranslationRole = {
+  id: string;
+  slug: string;
+  name: string;
+  image: string | null;
+  translations: Array<{ role: string | null }>;
+};
+
 @Injectable()
 export class BlogsService {
   constructor(
@@ -24,12 +43,46 @@ export class BlogsService {
     private readonly slugService: BlogSlugService,
   ) {}
 
+  private mapAuthor(author: AuthorWithTranslationRole | null | undefined) {
+    if (!author) return null;
+
+    return {
+      id: author.id,
+      slug: author.slug,
+      name: author.name,
+      image: author.image,
+      role: author.translations?.[0]?.role ?? null,
+    };
+  }
+
+  private async resolveAuthorRole(authorId: string): Promise<string | null> {
+    const author = await this.prisma.author.findUnique({
+      where: { id: authorId },
+      select: {
+        id: true,
+        translations: {
+          where: { language: DEFAULT_LANG },
+          select: { role: true },
+        },
+      },
+    });
+
+    if (!author) {
+      throw new BadRequestException(`Author "${authorId}" not found`);
+    }
+
+    return author.translations?.[0]?.role ?? null;
+  }
+
   // ── List ────────────────────────────────────────────────────
 
   async findAll(query: QueryBlogPostsDto) {
     const lang = (query.lang as BlogLanguage) ?? DEFAULT_LANG;
     const page = Math.max(1, parseInt(query.page ?? '1', 10));
-    const limit = Math.min(MAX_LIMIT, parseInt(query.limit ?? String(DEFAULT_LIMIT), 10));
+    const limit = Math.min(
+      MAX_LIMIT,
+      parseInt(query.limit ?? String(DEFAULT_LIMIT), 10),
+    );
     const skip = (page - 1) * limit;
 
     // Build category filter
@@ -37,7 +90,23 @@ export class BlogsService {
       ? { category: { slug: query.category } }
       : {};
 
-    // Build date range filter
+    let authorFilter: any = {};
+    if (query.authorSlug) {
+      const author = await this.prisma.author.findUnique({
+        where: { slug: query.authorSlug },
+        select: { id: true },
+      });
+
+      if (author) {
+        authorFilter = { authorId: author.id };
+      } else {
+        return {
+          data: [],
+          pagination: { page, limit, total: 0, totalPages: 0 },
+        };
+      }
+    }
+
     const dateFilter: any = {};
     if (query.from) dateFilter.gte = new Date(query.from);
     if (query.to) dateFilter.lte = new Date(query.to);
@@ -48,6 +117,7 @@ export class BlogsService {
     const where: any = {
       status: BlogPostStatus.PUBLISHED,
       ...categoryFilter,
+      ...authorFilter,
       ...publishedAtFilter,
     };
 
@@ -69,13 +139,12 @@ export class BlogsService {
         orderBy: { publishedAt: 'desc' },
         include: {
           category: true,
+          author: {
+            select: AUTHOR_SELECT,
+          },
           translations: {
             where: translationWhere,
-            select: {
-              language: true,
-              title: true,
-              excerpt: true,
-            },
+            select: { language: true, title: true, excerpt: true },
           },
         },
       }),
@@ -85,18 +154,18 @@ export class BlogsService {
     // Flatten: attach the single translation to each post object
     const items = posts.map((post) => {
       const translation = post.translations[0] ?? null;
-      const { translations, ...rest } = post;
-      return { ...rest, translation };
+      const { translations, author, ...rest } = post;
+
+      return {
+        ...rest,
+        author: this.mapAuthor(author as unknown as AuthorWithTranslationRole),
+        translation,
+      };
     });
 
     return {
       data: items,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   }
 
@@ -107,25 +176,56 @@ export class BlogsService {
       where: { slug },
       include: {
         category: true,
-        translations: {
-          where: { language: lang },
+        author: {
+          select: AUTHOR_SELECT,
         },
+        translations: { where: { language: lang } },
       },
     });
 
-    if (!post) {
-      throw new NotFoundException(`Blog post "${slug}" not found`);
-    }
+    if (!post) throw new NotFoundException(`Blog post "${slug}" not found`);
 
     const translation = post.translations[0] ?? null;
-    const { translations, ...rest } = post;
-    return { ...rest, translation };
+    const { translations, author, ...rest } = post;
+
+    return {
+      ...rest,
+      author: this.mapAuthor(author as unknown as AuthorWithTranslationRole),
+      translation,
+    };
   }
 
   // ── Create ──────────────────────────────────────────────────
 
   async create(dto: CreateBlogPostDto) {
-    // Derive slug from the EN title (fallback to first translation)
+    let authorName = dto.authorName;
+    let authorRole = dto.authorRole ?? null;
+
+    if (dto.authorId) {
+      const author = await this.prisma.author.findUnique({
+        where: { id: dto.authorId },
+        select: {
+          id: true,
+          name: true,
+          translations: {
+            where: { language: DEFAULT_LANG },
+            select: { role: true },
+          },
+        },
+      });
+
+      if (!author) {
+        throw new BadRequestException(`Author "${dto.authorId}" not found`);
+      }
+
+      authorName = author.name;
+      authorRole = author.translations?.[0]?.role ?? null;
+    }
+
+    if (!authorName) {
+      throw new BadRequestException('Either authorId or authorName must be provided');
+    }
+
     const enTranslation =
       dto.translations.find((t) => t.language === BlogLanguage.EN) ??
       dto.translations[0];
@@ -141,8 +241,9 @@ export class BlogsService {
         slug,
         heroImage: dto.heroImage ?? null,
         heroImagePublicId: dto.heroImagePublicId ?? null,
-        authorName: dto.authorName,
-        authorRole: dto.authorRole ?? null,
+        authorName,
+        authorRole,
+        authorId: dto.authorId ?? null,
         categoryId: dto.categoryId ?? null,
         translations: {
           create: dto.translations.map((t) => ({
@@ -155,6 +256,7 @@ export class BlogsService {
       },
       include: {
         category: true,
+        author: { select: AUTHOR_SELECT },
         translations: true,
       },
     });
@@ -166,31 +268,52 @@ export class BlogsService {
     const post = await this.prisma.blogPost.findUnique({ where: { slug } });
     if (!post) throw new NotFoundException(`Blog post "${slug}" not found`);
 
-    // If a new hero image is being set, delete the old one from Cloudinary
-    if (dto.heroImage !== undefined && dto.heroImagePublicId !== post.heroImagePublicId) {
+    if (
+      dto.heroImage !== undefined &&
+      dto.heroImagePublicId !== post.heroImagePublicId
+    ) {
       await this.cloudinary.deleteBlogImage(post.heroImagePublicId);
     }
 
-    // Update translations using upsert so we can send only the languages that changed
-    const translationUpserts = dto.translations?.map((t) => ({
-      where: {
-        postId_language: {
-          postId: post.id,
-          language: t.language,
+    let resolvedAuthorName = dto.authorName;
+    let resolvedAuthorRole = dto.authorRole;
+
+    if (dto.authorId) {
+      const author = await this.prisma.author.findUnique({
+        where: { id: dto.authorId },
+        select: {
+          id: true,
+          name: true,
+          translations: {
+            where: { language: DEFAULT_LANG },
+            select: { role: true },
+          },
         },
-      },
-      create: {
-        language: t.language,
-        title: t.title,
-        excerpt: t.excerpt,
-        sections: t.sections as any,
-      },
-      update: {
-        title: t.title,
-        excerpt: t.excerpt,
-        sections: t.sections as any,
-      },
-    })) ?? [];
+      });
+
+      if (!author) {
+        throw new BadRequestException(`Author "${dto.authorId}" not found`);
+      }
+
+      resolvedAuthorName = author.name;
+      resolvedAuthorRole = author.translations?.[0]?.role ?? null;
+    }
+
+    const translationUpserts =
+      dto.translations?.map((t) => ({
+        where: { postId_language: { postId: post.id, language: t.language } },
+        create: {
+          language: t.language,
+          title: t.title,
+          excerpt: t.excerpt,
+          sections: t.sections as any,
+        },
+        update: {
+          title: t.title,
+          excerpt: t.excerpt,
+          sections: t.sections as any,
+        },
+      })) ?? [];
 
     return this.prisma.blogPost.update({
       where: { slug },
@@ -199,14 +322,19 @@ export class BlogsService {
         ...(dto.heroImagePublicId !== undefined && {
           heroImagePublicId: dto.heroImagePublicId,
         }),
-        ...(dto.authorName && { authorName: dto.authorName }),
-        ...(dto.authorRole !== undefined && { authorRole: dto.authorRole }),
+        ...(resolvedAuthorName && { authorName: resolvedAuthorName }),
+        ...(resolvedAuthorRole !== undefined && { authorRole: resolvedAuthorRole }),
+        ...(dto.authorId !== undefined && { authorId: dto.authorId }),
         ...(dto.categoryId !== undefined && { categoryId: dto.categoryId }),
         translations: translationUpserts.length
           ? { upsert: translationUpserts }
           : undefined,
       },
-      include: { category: true, translations: true },
+      include: {
+        category: true,
+        author: { select: AUTHOR_SELECT },
+        translations: true,
+      },
     });
   }
 
@@ -225,8 +353,7 @@ export class BlogsService {
       where: { slug },
       data: {
         status: newStatus,
-        publishedAt:
-          newStatus === BlogPostStatus.PUBLISHED ? new Date() : null,
+        publishedAt: newStatus === BlogPostStatus.PUBLISHED ? new Date() : null,
       },
     });
   }
@@ -243,7 +370,7 @@ export class BlogsService {
 
     // 1. Collect all Cloudinary public IDs to delete
     const publicIdsToDelete: (string | null | undefined)[] = [
-      post.heroImagePublicId, // hero image
+      post.heroImagePublicId,
     ];
 
     // 2. Extract inline image IDs from all translation sections
@@ -266,7 +393,10 @@ export class BlogsService {
   async findAllAdmin(query: QueryBlogPostsDto) {
     const lang = (query.lang as BlogLanguage) ?? DEFAULT_LANG;
     const page = Math.max(1, parseInt(query.page ?? '1', 10));
-    const limit = Math.min(MAX_LIMIT, parseInt(query.limit ?? String(DEFAULT_LIMIT), 10));
+    const limit = Math.min(
+      MAX_LIMIT,
+      parseInt(query.limit ?? String(DEFAULT_LIMIT), 10),
+    );
     const skip = (page - 1) * limit;
 
     const [posts, total] = await Promise.all([
@@ -276,6 +406,9 @@ export class BlogsService {
         orderBy: { createdAt: 'desc' },
         include: {
           category: true,
+          author: {
+            select: AUTHOR_SELECT,
+          },
           translations: {
             where: { language: lang },
             select: { language: true, title: true, excerpt: true },
@@ -287,8 +420,13 @@ export class BlogsService {
 
     const items = posts.map((post) => {
       const translation = post.translations[0] ?? null;
-      const { translations, ...rest } = post;
-      return { ...rest, translation };
+      const { translations, author, ...rest } = post;
+
+      return {
+        ...rest,
+        author: this.mapAuthor(author as unknown as AuthorWithTranslationRole),
+        translation,
+      };
     });
 
     return {

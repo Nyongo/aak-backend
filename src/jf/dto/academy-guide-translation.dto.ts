@@ -1,5 +1,4 @@
-import { IsIn, IsString, IsNotEmpty, IsOptional } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { IsIn, IsString, IsNotEmpty, IsOptional, IsArray } from 'class-validator';
 
 export class AcademyGuideTranslationDto {
   @IsIn(['EN', 'KIS'])
@@ -19,6 +18,6 @@ export class AcademyGuideTranslationDto {
    * by whitelist stripping of their nested properties.
    */
   @IsOptional()
-  @Transform(({ value }) => (Array.isArray(value) ? value : []))
+  @IsArray()
   bodyContent?: any[];
 }

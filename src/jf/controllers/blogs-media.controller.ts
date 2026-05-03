@@ -26,7 +26,12 @@ export class BlogsMediaController {
         if (allowed.includes(file.mimetype)) {
           cb(null, true);
         } else {
-          cb(new BadRequestException('Only image files are accepted (jpg, png, webp, gif, avif)'), false);
+          cb(
+            new BadRequestException(
+              'Only image files are accepted (jpg, png, webp, gif, avif)',
+            ),
+            false,
+          );
         }
       },
     }),
@@ -37,8 +42,15 @@ export class BlogsMediaController {
   ) {
     if (!file) throw new BadRequestException('No file provided');
 
-    const allowedFolders = ['blogs', 'blogs/hero', 'blogs/inline'];
-    const targetFolder = allowedFolders.includes(folder) ? folder : 'blogs';
+    const allowedFolders = [
+      'blogs',
+      'blogs/hero',
+      'blogs/inline',
+      'blogs/ads',
+      'authors',          // author profile photos
+      'blog-categories',  // category OG images
+    ];
+    const targetFolder = allowedFolders.includes(folder ?? '') ? folder! : 'blogs';
 
     return this.blogsMediaService.upload(file.buffer, targetFolder);
   }

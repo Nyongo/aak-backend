@@ -1,9 +1,8 @@
 import {
   IsString, IsNotEmpty, IsOptional, IsEnum,
-  IsBoolean, IsArray, IsDateString, ValidateNested,
+  IsBoolean, IsArray, IsDateString,
 } from 'class-validator';
-import { Type } from 'class-transformer';
-import { AcademyGuideTranslationDto } from './academy-guide-translation.dto';
+import { Transform } from 'class-transformer';
 
 export class CreateAcademyGuideDto {
   @IsString()
@@ -39,8 +38,26 @@ export class CreateAcademyGuideDto {
   @IsOptional()
   tagIds?: string[];
 
+  /**
+   * Using @Transform instead of @ValidateNested + @Type to prevent
+   * class-transformer's enableImplicitConversion from calling Array.from()
+   * on each bodyContent item (a plain object), which returns [] because
+   * plain objects have no length or Symbol.iterator.
+   */
   @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => AcademyGuideTranslationDto)
-  translations: AcademyGuideTranslationDto[];
+  @Transform(({ value }) => {
+    if (!Array.isArray(value)) return [];
+    return value.map((t: any) => ({
+      language:    typeof t?.language    === 'string' ? t.language    : '',
+      title:       typeof t?.title       === 'string' ? t.title       : '',
+      description: typeof t?.description === 'string' ? t.description : '',
+      bodyContent: Array.isArray(t?.bodyContent) ? t.bodyContent : [],
+    }));
+  })
+  translations: {
+    language:    string;
+    title:       string;
+    description: string;
+    bodyContent: any[];
+  }[];
 }

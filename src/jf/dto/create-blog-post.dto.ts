@@ -81,10 +81,21 @@ export class CreateBlogPostDto {
   @IsString()
   heroImagePublicId?: string;
 
+  /**
+   * Either authorId OR authorName must be provided.
+   * When authorId is set the service derives authorName/authorRole
+   * from the Author record — no need to send them separately.
+   * For backward-compat, clients that don't have authorId yet can
+   * still send authorName directly.
+   */
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
+  authorId?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(120)
-  authorName: string;
+  authorName?: string;
 
   @IsOptional()
   @IsString()

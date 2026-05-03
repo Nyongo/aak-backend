@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsUrl, MaxLength } from 'class-validator';
 
 export class CreateBlogCategoryDto {
   @IsString()
@@ -6,5 +6,27 @@ export class CreateBlogCategoryDto {
   @MaxLength(80)
   name: string;
 
-  // Slug is derived from name in the service — not required from the client
+  // ── SEO metadata ────────────────────────────────────────────
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  metaTitle?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(320)
+  metaDescription?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  metaKeywords?: string;
+
+  @IsOptional()
+  @IsUrl()
+  metaImage?: string;
+
+  @IsOptional()
+  @IsString()
+  metaImagePublicId?: string;
 }
