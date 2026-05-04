@@ -1463,11 +1463,69 @@ enum BlogSectionType {
   INTERNAL_AD
 }
 
+// ── Author ─────────────────────────────────────────────────────
+model Author {
+  id               String              @id @default(cuid())
+  slug             String              @unique
+  name             String
+
+  image            String?
+  imagePublicId    String?
+
+  // Extended profile — set by admin in CRM
+  yearsAtJF        Int?
+  email            String?
+  location         String?
+  education        String?
+  expertise        String?
+
+  // Translated role + bio (one row per language)
+  translations     AuthorTranslation[]
+
+  // SEO metadata for /blog/author/:slug
+  metaTitle        String?
+  metaDescription  String?
+  metaKeywords     String?
+
+  posts            BlogPost[]
+
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@map("authors")
+}
+
+// ── Author Translation ────────────────────────────────────────
+model AuthorTranslation {
+  id       String       @id @default(cuid())
+  language BlogLanguage
+
+  role     String?
+  bio      String?
+
+  author   Author       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId String
+
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@unique([authorId, language])
+  @@map("author_translations")
+}
+
 // ── Blog Category ─────────────────────────────────────────────
 model BlogCategory {
   id        String     @id @default(cuid())
   name      String
   slug      String     @unique
+
+  // SEO metadata for /blog/categories/:slug
+  metaTitle        String?
+  metaDescription  String?
+  metaKeywords     String?
+  metaImage        String?
+  metaImagePublicId String?
+
   posts     BlogPost[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
@@ -1486,13 +1544,19 @@ model BlogPost {
   heroImage          String?
   heroImagePublicId  String?
 
-  // Author info (simple embedded strings, no separate table needed yet)
+  // Embedded author strings kept for backward-compat.
+  // When authorId is set the service derives these from the Author record.
   authorName         String
   authorRole         String?
 
+  // Optional FK to Author — null for posts created before Authors existed
+  author             Author?              @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  authorId           String?
+
   publishedAt        DateTime?
 
-  category           BlogCategory?        @relation(fields: [categoryId], references: [id])
+  // SetNull so deleting a category doesn't block here
+  category           BlogCategory?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   categoryId         String?
 
   translations       BlogPostTranslation[]

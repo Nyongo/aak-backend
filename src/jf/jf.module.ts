@@ -171,6 +171,8 @@ import { AcademyTagsController } from './controllers/academy-tags.controller';
 import { AcademyHeroController } from './controllers/academy-hero.controller';
 import { AcademyGuidesController } from './controllers/academy-guides.controller';
 import { PartnerApplicationEnquiryController } from './controllers/partner-application-enquiry.controller';
+import { AuthorsService } from './services/authors.service';
+import { AuthorsController } from './controllers/authors.controller';
 
 @Module({
   imports: [
@@ -269,6 +271,7 @@ import { PartnerApplicationEnquiryController } from './controllers/partner-appli
     AcademyHeroService,
     AcademyGuidesService,
     AcademyNotificationSchedulerService,
+    AuthorsService,
   ],
   controllers: [
     SpreadsheetController,
@@ -352,7 +355,8 @@ import { PartnerApplicationEnquiryController } from './controllers/partner-appli
     AcademyTagsController,
     AcademyHeroController,
     AcademyGuidesController,
-    PartnerApplicationEnquiryController
+    PartnerApplicationEnquiryController,
+    AuthorsController,
   ],
   exports: [GoogleDriveService, SheetsService],
 })

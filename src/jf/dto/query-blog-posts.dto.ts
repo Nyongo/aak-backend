@@ -16,7 +16,11 @@ export class QueryBlogPostsDto {
   @IsString()
   search?: string;
 
-  // ISO date strings for date range filter
+  /** Filter by author slug — used by the public author page */
+  @IsOptional()
+  @IsString()
+  authorSlug?: string;
+
   @IsOptional()
   @IsString()
   from?: string;
