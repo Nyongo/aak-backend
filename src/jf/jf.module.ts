@@ -32,6 +32,8 @@ import { InvestmentCommitteeController } from './controllers/investment-committe
 import { CreditApplicationCommentsController } from './controllers/credit-application-comments.controller';
 import { VendorDisbursementDetailsController } from './controllers/vendor-disbursement-details.controller';
 import { ImpactSurveyController } from './controllers/impact-survey.controller';
+import { ImpactSurveySubmissionsController } from './controllers/impact-survey-submissions.controller';
+import { InterimCheckInController } from './controllers/interim-checkin.controller';
 import { FinancialSurveyController } from './controllers/financial-survey.controller';
 import { HomeVisitController } from './controllers/home-visit.controller';
 import { AssetTitlesController } from './controllers/asset-titles.controller';
@@ -126,6 +128,8 @@ import { DirectLendingProcessingDbService } from './services/direct-lending-proc
 import { DirectLendingProcessingSyncService } from './services/direct-lending-processing-sync.service';
 import { ImpactSurveyDbService } from './services/impact-survey-db.service';
 import { ImpactSurveySyncService } from './services/impact-survey-sync.service';
+import { ImpactSurveySubmissionsService } from './services/impact-survey-submissions.service';
+import { InterimCheckInService } from './services/interim-checkin.service';
 import { LoansService } from './services/loans.service';
 import { LoansMigrationController } from './controllers/loans-migration.controller';
 import { WriteOffsDbService } from './services/write-offs-db.service';
@@ -245,6 +249,8 @@ import { AuthorsController } from './controllers/authors.controller';
     DirectLendingProcessingSyncService,
     ImpactSurveyDbService,
     ImpactSurveySyncService,
+    ImpactSurveySubmissionsService,
+    InterimCheckInService,
     LoansService,
     WriteOffsDbService,
     CollateralsDbService,
@@ -298,6 +304,8 @@ import { AuthorsController } from './controllers/authors.controller';
     CreditApplicationCommentsController,
     VendorDisbursementDetailsController,
     ImpactSurveyController,
+    ImpactSurveySubmissionsController,
+    InterimCheckInController,
     FinancialSurveyController,
     HomeVisitController,
     AssetTitlesController,

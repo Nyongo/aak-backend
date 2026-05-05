@@ -3,10 +3,13 @@
 
   - You are about to drop the column `totalLiabilityAmountIncludingPenaltiesAndComprehensiveVehicleIn` on the `Loan` table. All the data in the column will be lost.
 
+  Idempotent: safe when INTERNAL_AD enum value already exists.
 */
--- AlterEnum
-ALTER TYPE "BlogSectionType" ADD VALUE 'INTERNAL_AD';
+DO $$ BEGIN
+  ALTER TYPE "BlogSectionType" ADD VALUE 'INTERNAL_AD';
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
--- AlterTable
-ALTER TABLE "Loan" DROP COLUMN "totalLiabilityAmountIncludingPenaltiesAndComprehensiveVehicleIn",
-ADD COLUMN     "totalLiabilityAmountIncludingPenaltiesAndComprehensiveVehicleInsurance" TEXT;
+ALTER TABLE "Loan" DROP COLUMN IF EXISTS "totalLiabilityAmountIncludingPenaltiesAndComprehensiveVehicleIn";
+ALTER TABLE "Loan" ADD COLUMN IF NOT EXISTS "totalLiabilityAmountIncludingPenaltiesAndComprehensiveVehicleInsurance" TEXT;
