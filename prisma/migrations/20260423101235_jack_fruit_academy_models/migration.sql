@@ -5,17 +5,26 @@
 
 */
 -- CreateEnum
-CREATE TYPE "AcademyGuideStatus" AS ENUM ('DRAFT', 'COMING_SOON', 'PUBLISHED');
+DO $$ BEGIN
+  CREATE TYPE "AcademyGuideStatus" AS ENUM ('DRAFT', 'COMING_SOON', 'PUBLISHED');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 -- CreateEnum
-CREATE TYPE "AcademyLanguage" AS ENUM ('EN', 'KIS');
+DO $$ BEGIN
+  CREATE TYPE "AcademyLanguage" AS ENUM ('EN', 'KIS');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AlterTable
-ALTER TABLE "Loan" DROP COLUMN "totalLiabilityAmountIncludingPenaltiesAndComprehensiveVehicleIn",
-ADD COLUMN     "totalLiabilityAmountIncludingPenaltiesAndComprehensiveVehicleInsurance" TEXT;
+ALTER TABLE "Loan"
+  ADD COLUMN IF NOT EXISTS "totalLiabilityAmountIncludingPenaltiesAndComprehensiveVehicleInsurance" TEXT;
+ALTER TABLE "Loan" DROP COLUMN IF EXISTS "totalLiabilityAmountIncludingPenaltiesAndComprehensiveVehicleIn";
 
 -- CreateTable
-CREATE TABLE "academy_categories" (
+CREATE TABLE IF NOT EXISTS "academy_categories" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
@@ -27,7 +36,7 @@ CREATE TABLE "academy_categories" (
 );
 
 -- CreateTable
-CREATE TABLE "academy_tags" (
+CREATE TABLE IF NOT EXISTS "academy_tags" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
@@ -38,7 +47,7 @@ CREATE TABLE "academy_tags" (
 );
 
 -- CreateTable
-CREATE TABLE "academy_guides" (
+CREATE TABLE IF NOT EXISTS "academy_guides" (
     "id" TEXT NOT NULL,
     "youtubeUrl" TEXT NOT NULL,
     "youtubeThumbnail" TEXT,
@@ -57,7 +66,7 @@ CREATE TABLE "academy_guides" (
 );
 
 -- CreateTable
-CREATE TABLE "academy_guide_tags" (
+CREATE TABLE IF NOT EXISTS "academy_guide_tags" (
     "guideId" TEXT NOT NULL,
     "tagId" TEXT NOT NULL,
 
@@ -65,7 +74,7 @@ CREATE TABLE "academy_guide_tags" (
 );
 
 -- CreateTable
-CREATE TABLE "academy_guide_translations" (
+CREATE TABLE IF NOT EXISTS "academy_guide_translations" (
     "id" TEXT NOT NULL,
     "language" "AcademyLanguage" NOT NULL,
     "title" TEXT NOT NULL,
@@ -78,7 +87,7 @@ CREATE TABLE "academy_guide_translations" (
 );
 
 -- CreateTable
-CREATE TABLE "academy_guide_subscribers" (
+CREATE TABLE IF NOT EXISTS "academy_guide_subscribers" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "guideId" TEXT NOT NULL,
@@ -88,7 +97,7 @@ CREATE TABLE "academy_guide_subscribers" (
 );
 
 -- CreateTable
-CREATE TABLE "academy_hero_sections" (
+CREATE TABLE IF NOT EXISTS "academy_hero_sections" (
     "id" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -97,7 +106,7 @@ CREATE TABLE "academy_hero_sections" (
 );
 
 -- CreateTable
-CREATE TABLE "academy_hero_translations" (
+CREATE TABLE IF NOT EXISTS "academy_hero_translations" (
     "id" TEXT NOT NULL,
     "language" "AcademyLanguage" NOT NULL,
     "subheading" TEXT,
@@ -109,34 +118,58 @@ CREATE TABLE "academy_hero_translations" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "academy_categories_slug_key" ON "academy_categories"("slug");
+CREATE UNIQUE INDEX IF NOT EXISTS "academy_categories_slug_key" ON "academy_categories"("slug");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "academy_tags_slug_key" ON "academy_tags"("slug");
+CREATE UNIQUE INDEX IF NOT EXISTS "academy_tags_slug_key" ON "academy_tags"("slug");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "academy_guide_translations_guideId_language_key" ON "academy_guide_translations"("guideId", "language");
+CREATE UNIQUE INDEX IF NOT EXISTS "academy_guide_translations_guideId_language_key" ON "academy_guide_translations"("guideId", "language");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "academy_guide_subscribers_guideId_email_key" ON "academy_guide_subscribers"("guideId", "email");
+CREATE UNIQUE INDEX IF NOT EXISTS "academy_guide_subscribers_guideId_email_key" ON "academy_guide_subscribers"("guideId", "email");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "academy_hero_translations_heroSectionId_language_key" ON "academy_hero_translations"("heroSectionId", "language");
+CREATE UNIQUE INDEX IF NOT EXISTS "academy_hero_translations_heroSectionId_language_key" ON "academy_hero_translations"("heroSectionId", "language");
 
 -- AddForeignKey
-ALTER TABLE "academy_guides" ADD CONSTRAINT "academy_guides_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "academy_categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "academy_guides" ADD CONSTRAINT "academy_guides_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "academy_categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "academy_guide_tags" ADD CONSTRAINT "academy_guide_tags_guideId_fkey" FOREIGN KEY ("guideId") REFERENCES "academy_guides"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "academy_guide_tags" ADD CONSTRAINT "academy_guide_tags_guideId_fkey" FOREIGN KEY ("guideId") REFERENCES "academy_guides"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "academy_guide_tags" ADD CONSTRAINT "academy_guide_tags_tagId_fkey" FOREIGN KEY ("tagId") REFERENCES "academy_tags"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "academy_guide_tags" ADD CONSTRAINT "academy_guide_tags_tagId_fkey" FOREIGN KEY ("tagId") REFERENCES "academy_tags"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "academy_guide_translations" ADD CONSTRAINT "academy_guide_translations_guideId_fkey" FOREIGN KEY ("guideId") REFERENCES "academy_guides"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "academy_guide_translations" ADD CONSTRAINT "academy_guide_translations_guideId_fkey" FOREIGN KEY ("guideId") REFERENCES "academy_guides"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "academy_guide_subscribers" ADD CONSTRAINT "academy_guide_subscribers_guideId_fkey" FOREIGN KEY ("guideId") REFERENCES "academy_guides"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "academy_guide_subscribers" ADD CONSTRAINT "academy_guide_subscribers_guideId_fkey" FOREIGN KEY ("guideId") REFERENCES "academy_guides"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "academy_hero_translations" ADD CONSTRAINT "academy_hero_translations_heroSectionId_fkey" FOREIGN KEY ("heroSectionId") REFERENCES "academy_hero_sections"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "academy_hero_translations" ADD CONSTRAINT "academy_hero_translations_heroSectionId_fkey" FOREIGN KEY ("heroSectionId") REFERENCES "academy_hero_sections"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;

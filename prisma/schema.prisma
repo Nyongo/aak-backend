@@ -1828,3 +1828,25 @@ model AcademyHeroTranslation {
   @@unique([heroSectionId, language])
   @@map("academy_hero_translations")
 }
+
+/// Tables owned by another app; kept in production DB.
+/// We map them here so Prisma drift checks don't propose dropping them,
+/// but we ignore them so Prisma won't manage their schema.
+model MlModel {
+  id            String   @db.Uuid
+  target_name   String
+  task_type     String
+  algorithm_name String
+  model_binary  Bytes
+  metrics       Json
+  is_production Boolean?
+  created_at    DateTime? @db.Timestamptz(6)
+
+  @@map("ml_models")
+  @@ignore
+}
+
+model MlFeatureStore {
+  @@map("ml_feature_store")
+  @@ignore
+}

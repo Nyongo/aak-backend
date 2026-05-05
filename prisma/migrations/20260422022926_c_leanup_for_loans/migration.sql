@@ -5,11 +5,30 @@
 
 */
 -- AlterTable
-ALTER TABLE "Loan" DROP COLUMN "totalLiabilityAmountIncludingPenaltiesAndComprehensiveVehicleIn",
-ADD COLUMN     "totalLiabilityAmountIncludingPenaltiesAndComprehensiveVehicleInsurance" TEXT;
+-- Make this migration idempotent + preserve data if the old column exists.
+ALTER TABLE "Loan"
+  ADD COLUMN IF NOT EXISTS "totalLiabilityAmountIncludingPenaltiesAndComprehensiveVehicleInsurance" TEXT;
+
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema='public'
+      AND table_name='Loan'
+      AND column_name='totalLiabilityAmountIncludingPenaltiesAndComprehensiveVehicleIn'
+  ) THEN
+    -- Copy values forward (only when target is still null)
+    EXECUTE 'UPDATE "Loan"
+             SET "totalLiabilityAmountIncludingPenaltiesAndComprehensiveVehicleInsurance" =
+                 COALESCE("totalLiabilityAmountIncludingPenaltiesAndComprehensiveVehicleInsurance",
+                          "totalLiabilityAmountIncludingPenaltiesAndComprehensiveVehicleIn")';
+    -- Drop old column afterwards
+    EXECUTE 'ALTER TABLE "Loan" DROP COLUMN "totalLiabilityAmountIncludingPenaltiesAndComprehensiveVehicleIn"';
+  END IF;
+END $$;
 
 -- CreateTable
-CREATE TABLE "collateral" (
+CREATE TABLE IF NOT EXISTS "collateral" (
     "id" SERIAL NOT NULL,
     "sheetId" TEXT,
     "directLoanId" TEXT,
@@ -63,7 +82,7 @@ CREATE TABLE "collateral" (
 );
 
 -- CreateTable
-CREATE TABLE "collateral_loan" (
+CREATE TABLE IF NOT EXISTS "collateral_loan" (
     "id" SERIAL NOT NULL,
     "sheetId" TEXT,
     "collateralId" TEXT,
@@ -77,7 +96,7 @@ CREATE TABLE "collateral_loan" (
 );
 
 -- CreateTable
-CREATE TABLE "sme_calculator_results" (
+CREATE TABLE IF NOT EXISTS "sme_calculator_results" (
     "id" SERIAL NOT NULL,
     "clientName" TEXT NOT NULL,
     "sales" DOUBLE PRECISION NOT NULL,
@@ -113,7 +132,7 @@ CREATE TABLE "sme_calculator_results" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "collateral_sheetId_key" ON "collateral"("sheetId");
+CREATE UNIQUE INDEX IF NOT EXISTS "collateral_sheetId_key" ON "collateral"("sheetId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "collateral_loan_sheetId_key" ON "collateral_loan"("sheetId");
+CREATE UNIQUE INDEX IF NOT EXISTS "collateral_loan_sheetId_key" ON "collateral_loan"("sheetId");
