@@ -1207,6 +1207,60 @@ model ImpactSurvey {
   @@map("impact_survey")
 }
 
+// Impact Survey (School) — new JSON-based submissions from the SSL app form.
+// Kept separate from the legacy `ImpactSurvey` (sheet-synced, column-per-question) model.
+model ImpactSurveySubmission {
+  id                   String   @id @default(uuid())
+  borrowerId            String   // Borrower/School identifier (usually Borrower.sheetId)
+  creditApplicationId   String   // Credit application identifier (usually CreditApplication.sheetId)
+  submittedBySslUserId  String
+  submittedAt           DateTime @default(now())
+  surveyVersion         String
+  responses             Json
+
+  // Derived / indexed fields (optional)
+  schoolType                    String?
+  areaType                      String?
+  isRepeatBorrower              Boolean?
+  totalStudentsMale             Int?
+  totalStudentsFemale           Int?
+  totalStudentsWithDisability   Int?
+  totalStudents                 Int?
+  totalStaffMale                Int?
+  totalStaffFemale              Int?
+  totalStaff                    Int?
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([borrowerId])
+  @@index([creditApplicationId])
+  @@index([submittedBySslUserId])
+  @@map("impact_survey_submissions")
+}
+
+// JFN interim school check-ins (annual / termly) — CRM JSON payloads; see interim-checkin-api-spec.md.
+model InterimCheckIn {
+  id                    String   @id @default(uuid())
+  borrowerId            String   @map("borrower_id")
+  creditApplicationId   String   @map("credit_application_id")
+  submittedBySslUserId  String   @map("submitted_by_ssl_user_id")
+  checkInKind           String   @map("check_in_kind") // annual | termly
+  termNumber            Int?     @map("term_number")
+  /// 0 = annual; 1–3 = termly. Used for @@unique with PostgreSQL (NULL termNumber breaks uniqueness).
+  termBucket            Int      @map("term_bucket")
+  surveyVersion         String   @map("survey_version")
+  responses             Json
+
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@unique([creditApplicationId, checkInKind, termBucket])
+  @@index([borrowerId])
+  @@index([creditApplicationId])
+  @@map("interim_check_ins")
+}
+
 model WriteOff {
   id                                      Int       @id @default(autoincrement())
   sheetId                                 String?   @unique

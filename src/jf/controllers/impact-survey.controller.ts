@@ -15,7 +15,10 @@ interface ApiError {
   status?: string;
 }
 
-@Controller('jf/impact-survey')
+// Legacy Sheets-backed endpoints for the old Impact Survey flow.
+// New JSON-based Impact Survey submissions live in `ImpactSurveySubmissionsController`
+// under the same base path (`/jf/impact-survey`).
+@Controller('jf/impact-survey-sheets')
 export class ImpactSurveyController {
   private readonly logger = new Logger(ImpactSurveyController.name);
   private readonly SHEET_NAME = 'Impact Survey';
