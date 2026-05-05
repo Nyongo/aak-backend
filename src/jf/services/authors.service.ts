@@ -6,7 +6,7 @@ import { CreateAuthorDto } from '../dto/create-author.dto';
 import { UpdateAuthorDto } from '../dto/update-author.dto';
 
 function toKebab(text: string): string {
-  return text
+  return text  
     .toLowerCase()
     .trim()
     .replace(/[^\w\s-]/g, '')
