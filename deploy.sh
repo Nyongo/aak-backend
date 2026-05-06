@@ -51,15 +51,7 @@ if [ -f "docker-compose.yml" ]; then
     
     echo "⏳ Waiting for services to start..."
     sleep 10
-    
-    echo "🔄 Running database migrations..."
-    # Wait a bit more for the app to be fully ready
-    sleep 5
-    docker compose exec nestjs_app npx prisma migrate deploy || {
-        echo "⚠️  Migration command failed. Trying alternative approach..."
-        docker compose exec nestjs_app sh -c "cd /app && npx prisma migrate deploy" || echo "⚠️  Migrations failed, but continuing..."
-    }
-    
+
     echo "🔍 Checking container status..."
     docker compose ps
 fi
