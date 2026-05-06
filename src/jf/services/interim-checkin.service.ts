@@ -201,6 +201,8 @@ export class InterimCheckInService {
       responses,
     );
 
+    const year = dto.year ?? new Date().getFullYear();
+
     const rec = await this.prisma.interimCheckIn.create({
       data: {
         borrowerId: link.borrowerSheetId,
@@ -208,6 +210,7 @@ export class InterimCheckInService {
         submittedBySslUserId: dto.submittedBySslUserId,
         checkInKind: dto.checkInKind,
         termNumber: dto.checkInKind === 'annual' ? null : dto.termNumber!,
+        year,
         surveyVersion: dto.surveyVersion,
         responses: responses as object,
       },

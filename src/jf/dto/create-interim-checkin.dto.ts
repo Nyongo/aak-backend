@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class CreateInterimCheckInDto {
   @IsString()
@@ -24,6 +24,13 @@ export class CreateInterimCheckInDto {
   @IsOptional()
   @Type(() => Number)
   termNumber?: number | null;
+
+  @IsOptional()
+  @IsInt()
+  @Min(2000)
+  @Max(2100)
+  @Type(() => Number)
+  year?: number;
 
   @IsObject()
   responses: Record<string, unknown>;

@@ -1247,6 +1247,7 @@ model InterimCheckIn {
   submittedBySslUserId  String   @map("submitted_by_ssl_user_id")
   checkInKind           String   @map("check_in_kind") // annual | termly
   termNumber            Int?     @map("term_number")
+  year                  Int      @map("year")
   surveyVersion         String   @map("survey_version")
   responses             Json
 
