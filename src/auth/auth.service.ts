@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
@@ -12,9 +12,18 @@ export class AuthService {
     private readonly configService: ConfigService,
   ) {}
 
+  private assertJackfruitDomain(email: string) {
+    if (!email.toLowerCase().endsWith('@jackfruitfinance.com')) {
+      throw new UnauthorizedException(
+        'Only @jackfruitfinance.com accounts are permitted',
+      );
+    }
+  }
+
   // ── Email + password login (Postman / mobile) ─────────────────
 
   async validateUser(email: string, password: string) {
+    this.assertJackfruitDomain(email);
     const user = await this.prisma.user.findUnique({
       where: { email },
       select: {
@@ -72,6 +81,7 @@ export class AuthService {
   // knows which table to validate against on each request.
 
   async loginByEmail(email: string): Promise<string | null> {
+    this.assertJackfruitDomain(email);
     // 1. Try the User table first (Int id, has roleId/role)
     const user = await this.prisma.user.findUnique({
       where: { email },

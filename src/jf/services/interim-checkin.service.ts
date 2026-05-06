@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -8,13 +7,6 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { InterimCheckIn } from '@prisma/client';
 import { CreateInterimCheckInDto } from '../dto/create-interim-checkin.dto';
 import { UpdateInterimCheckInDto } from '../dto/update-interim-checkin.dto';
-
-function termBucketFromKind(kind: string, termNumber: number | null | undefined): number {
-  if (kind === 'annual') return 0;
-  if (kind === 'termly' && termNumber != null && [1, 2, 3].includes(termNumber))
-    return termNumber;
-  return -1;
-}
 
 function toNum(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null;
@@ -26,9 +18,8 @@ function toNum(value: unknown): number | null {
 export class InterimCheckInService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private toPublicRow(rec: InterimCheckIn): Omit<InterimCheckIn, 'termBucket'> {
-    const { termBucket: _, ...rest } = rec;
-    return rest;
+  private toPublicRow(rec: InterimCheckIn): InterimCheckIn {
+    return rec;
   }
 
   private assertKindAndTerm(dto: {
@@ -197,10 +188,6 @@ export class InterimCheckInService {
 
   async create(dto: CreateInterimCheckInDto) {
     this.assertKindAndTerm(dto);
-    const tb = termBucketFromKind(dto.checkInKind, dto.termNumber);
-    if (tb < 0) {
-      throw new BadRequestException('Invalid term combination for check-in');
-    }
 
     const link = await this.assertBorrowerAndApplicationLinked(
       dto.borrowerId,
@@ -214,28 +201,18 @@ export class InterimCheckInService {
       responses,
     );
 
-    try {
-      const rec = await this.prisma.interimCheckIn.create({
-        data: {
-          borrowerId: link.borrowerSheetId,
-          creditApplicationId: link.appSheetId,
-          submittedBySslUserId: dto.submittedBySslUserId,
-          checkInKind: dto.checkInKind,
-          termNumber: dto.checkInKind === 'annual' ? null : dto.termNumber!,
-          termBucket: tb,
-          surveyVersion: dto.surveyVersion,
-          responses: responses as object,
-        },
-      });
-      return this.toPublicRow(rec);
-    } catch (e: any) {
-      if (e?.code === 'P2002') {
-        throw new ConflictException(
-          'A check-in already exists for this application, kind, and term',
-        );
-      }
-      throw e;
-    }
+    const rec = await this.prisma.interimCheckIn.create({
+      data: {
+        borrowerId: link.borrowerSheetId,
+        creditApplicationId: link.appSheetId,
+        submittedBySslUserId: dto.submittedBySslUserId,
+        checkInKind: dto.checkInKind,
+        termNumber: dto.checkInKind === 'annual' ? null : dto.termNumber!,
+        surveyVersion: dto.surveyVersion,
+        responses: responses as object,
+      },
+    });
+    return this.toPublicRow(rec);
   }
 
   async findByApplication(

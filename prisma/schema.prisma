@@ -1247,15 +1247,12 @@ model InterimCheckIn {
   submittedBySslUserId  String   @map("submitted_by_ssl_user_id")
   checkInKind           String   @map("check_in_kind") // annual | termly
   termNumber            Int?     @map("term_number")
-  /// 0 = annual; 1–3 = termly. Used for @@unique with PostgreSQL (NULL termNumber breaks uniqueness).
-  termBucket            Int      @map("term_bucket")
   surveyVersion         String   @map("survey_version")
   responses             Json
 
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
 
-  @@unique([creditApplicationId, checkInKind, termBucket])
   @@index([borrowerId])
   @@index([creditApplicationId])
   @@map("interim_check_ins")
