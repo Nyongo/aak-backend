@@ -834,7 +834,7 @@ model Loan {
   exciseDuty                                                      String?
   createdAt                                                       DateTime @default(now())
   synced                                                          Boolean  @default(false)
-  totalLiabilityAmountIncludingPenaltiesAndComprehensiveVehicleInsurance String?
+  totalLiabilityAmountIncludingPenaltiesAndComprehensiveVehicleInsurance String? @map("totalLiabilityAmountIncludingPenaltiesAndComprehensiveVehicleIn")
 }
 
 model FinancialSurvey {
